@@ -1,0 +1,37 @@
+machine pc
+#rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN
+#rom fe000 rom/GLABIOS_0.2.5_8T.ROM
+rom fe000 rom/GLABIOS_0.2.5_8P.ROM
+#rom fe000 rom/GLABIOS_0.2.5_8X.ROM
+
+#basic
+rom f6000 rom/basic/basicc1.0.f600.bin
+rom f8000 rom/basic/basicc1.0.f800.bin
+rom fa000 rom/basic/basicc1.0.fa00.bin
+rom fc000 rom/basic/basicc1.0.fc00.bin
+
+#machine xt
+#rom f0000 rom/xtbios/BIOS_5160_09MAY86_U19_62X0819_68X4370_27256_F000.BIN
+#rom f8000 rom/xtbios/BIOS_5160_09MAY86_U18_59X7268_62X0890_27256_F800.BIN
+#rom f0000 rom/xtbios/BIOS_5160_10JAN86_U19_62X0854_27256_F000.BIN
+#rom f8000 rom/xtbios/BIOS_5160_10JAN86_U18_62X0851_27256_F800.BIN
+
+#load a disk/pcdos5.02/DISK01.img
+#load a disk/pcdos3.3/Disk01.img
+#load a disk/msdos5.0/Disk01.img
+#load a disk/Dos6.22-5.25.img #doesnt work
+load a disk/msdos6.2/Disk1.img
+#load a disk/freedos/FD13-D1.IMG
+
+#load b disk/8088mph.360
+#load b disk/area5150.img
+#load b disk/games/stunts.img
+#load b disk/games/spurgux.img
+#load b disk/games/rackem.img
+#load b disk/games/keen4c.img
+#load b disk/tools.img
+#load b disk/mushroom.img
+#load b disk/qbasic.ima
+#load b disk/pianoman.ima
+#load b disk/panzer.img
+load b disk/sound4.img

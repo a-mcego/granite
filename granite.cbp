@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="granite" />
+		<Option pch_mode="2" />
+		<Option compiler="gnu_gcc_newest_compiler" />
+		<Build>
+			<Target title="Release">
+				<Option output="bin/granite" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/" />
+				<Option type="1" />
+				<Option compiler="gnu_gcc_newest_compiler" />
+				<Compiler>
+					<Add option="-O3 -std=c++23" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+					<Add library="glfw3" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+			<Add option="-fexceptions" />
+		</Compiler>
+		<Unit filename="src/KHR/khrplatform.h" />
+		<Unit filename="src/cgabios.h" />
+		<Unit filename="src/gl.cpp" />
+		<Unit filename="src/glad/gl.h" />
+		<Unit filename="src/main.cpp" />
+		<Unit filename="src/miniaudio.cpp" />
+		<Unit filename="src/miniaudio.h" />
+		<Unit filename="src/opl2.cpp" />
+		<Unit filename="src/opl2.h" />
+		<Unit filename="src/palette.h" />
+		<Unit filename="src/screen.h" />
+		<Unit filename="src/shader.h" />
+		<Extensions />
+	</Project>
+</CodeBlocks_project_file>

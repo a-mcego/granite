@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+/bin/documentation
+/bin/rom
+/bin/disk
+granite.depend
