@@ -60,8 +60,6 @@ struct GlobalSettings
     } machine=MACHINE_PC;
 } globalsettings{};
 
-//const u8* const CHOSEN_BIOS = bios_19821027;//bios, bios_19811019, bios_19821027, supersoft_pcxt, ruud_diagnostic
-//const u8* const CHOSEN_CASSETTE_BASIC = BASIC_C100; //BASIC_C100, BASIC_C110
 const u32 DEBUG_LEVEL = 0;
 
 
@@ -306,9 +304,7 @@ struct CGA
         {
             if (current_register < 0x10)
             {
-                //registers[(mode_id()<<4)+current_register] = data;
                 registers[current_register] = data;
-                //cout << "SETTING CGA " << u32(current_register) << " to " << u32(data) << endl;
             }
             else
             {
@@ -411,13 +407,11 @@ struct CGA
                         }
                     }
                 }
-                //for (int x=0; x<registers[H_DISPLAYED]*2; ++x) //x goes up to 80
             }
             else
             {
                 int x = columnbyte;
                 {
-                    //for (int x=0; x<registers[H_DISPLAYED]; ++x)
                     if (x < registers[H_DISPLAYED])
                     {
                         u32 screen_row = y/max_scanline;
@@ -449,8 +443,6 @@ struct CGA
             }
         }
 
-        //horizontal_retrace = (cycle_n%912 >= 840);
-        //vertical_retrace = (cycle_n >= 912*226);
         horizontal_retrace = (cycle_n%912 >= 640);
         vertical_retrace = (cycle_n >= 912*200);
     }
@@ -471,13 +463,13 @@ struct BEEPER
 
     void set_output_from_pit(bool value)
     {
-        if (globalsettings.sound_on)
+        /*if (globalsettings.sound_on)
         {
-            /*static FILE* filu = nullptr;
+            static FILE* filu = nullptr;
             if (filu == nullptr)
                 filu = fopen("d:\\out2.raw", "wb");
-            fwrite(&sampleA, 2, 1, filu);*/
-        }
+            fwrite(&sampleA, 2, 1, filu);
+        }*/
         sampleA = (value&pb1)?60*256:0;
         sampleB = ((sampleB<<5)-sampleB+sampleA)>>5; //crude lowpass
         sampleC = ((sampleC<<5)-sampleC+sampleB)>>5; //crude lowpass
@@ -2259,29 +2251,10 @@ struct CPU8088
         std::cout << " FL=" << std::setw(4) << std::setfill('0') << registers[FLAGS] << " IP=" << std::setw(4) << std::setfill('0') << registers[IP]-1 << endl;
     }
 
-    /*void print_standard_regs()
-    {
-        for(int i=0; i<4; ++i)
-            std::cout << " " << r16_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i];
-        std::cout << endl;
-        for(int i=4; i<8; ++i)
-            std::cout << " " << r16_names[i] << "=" << std::setw(4) << std::setfill('0') <<registers[i];
-        std::cout << endl;
-        for(int i=0; i<4; ++i)
-            std::cout << " " << seg_names[i] << "=" << std::setw(4) << std::setfill('0') <<registers[i+8];
-        std::cout << endl;
-        std::cout << "IP=" << std::setw(4) << std::setfill('0') <<registers[IP] << " ";
-        cout << std::setw(4) << std::setfill('0') <<FLAGS=" << registers[FLAGS] << endl;
-    }*/
-
     template<typename T>
     T run_arith(T p1, T p2, u8 instr_choice)
     {
         T out{};
-
-        //add or adc sbb and sub xor cmp
-        //if (instr_choice == 0x02 || instr_choice == 0x03) //ADC SBB
-            //p2 += flag(F_CARRY);
 
         switch(instr_choice)
         {
@@ -2368,26 +2341,6 @@ struct CPU8088
     {
         if (flag(F_INTERRUPT) || forced)
         {
-            if (startprinting)
-            if (n != 0x16 && n != 0x28 && n != 0x2A && n != 0x08 && n != 0x1A && n != 0x1C)
-            {
-                u32 callnum = (registers[AX]>>8);
-
-                std::cout << "INTERRUPT! " << u32(n) << " AH=" << (registers[AX]>>8) << " id ";
-                std::cout <<  registers[IP] << ":" << registers[CS] << "|" << registers[FLAGS];
-
-                if (n == 0x21 && callnum == 0x3D)
-                {
-                    u8* ptr = memory_bytes+registers[DS]*16+registers[DX];
-                    for(int i=0; i<10; ++i)
-                        cout << ptr[i];
-                }
-
-
-                cout << endl;
-            }
-
-
             halt = false;
 
             push(registers[FLAGS]);
@@ -2447,17 +2400,10 @@ struct CPU8088
         }
 
         u8 instruction = read_inst<u8>();
-        //if (cycles >= PRINT_START)
+        if (startprinting && registers[CS] != 0xF000)
         {
-            //sif constexpr (DEBUG_LEVEL > 0)
-            {
-                if (startprinting && registers[CS] != 0xF000)
-                {
-                    std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << registers[CS]*16+registers[IP]-1;
-                    print_regs();
-                    //print_standard_regs();
-                }
-            }
+            std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << registers[CS]*16+registers[IP]-1;
+            print_regs();
         }
 
         opcodes_used[instruction] = true;
@@ -2519,7 +2465,6 @@ struct CPU8088
         }
         else if (instruction == 0x27) // DAA
         {
-            //cout << "DAA" << endl; std::abort();
             u8 old_AL = registers[AX]&0xFF;
             bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
 
@@ -2542,7 +2487,6 @@ struct CPU8088
         }
         else if (instruction == 0x37) // AAA
         {
-            //cout << "AAA" << endl; std::abort();
             u16 old_AX = registers[AX];
             bool add_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
             if (add_ax)
@@ -2563,7 +2507,6 @@ struct CPU8088
         }
         else if (instruction == 0x2F) // DAS
         {
-            //cout << "DAS" << endl; std::abort();
             u8 old_AL = registers[AX] & 0xFF;
             bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
 
@@ -2622,10 +2565,9 @@ struct CPU8088
         {
             registers[instruction&0x07] = pop();
         }
-        else if ((instruction&0xF0) == 0x60)
+        else if ((instruction&0xF0) == 0x60) // on 8086 these are synonymous to 0x7*
         {
             cout << "*";
-            //std::abort();
         }
         else if ((instruction&0xE0) == 0x60) //various short jumps
         {
@@ -2789,37 +2731,6 @@ struct CPU8088
         {
             get_r8(4) = reg8()[FLAGS*2];
         }
-        /* //these have been incorporated to the next block
-        else if (instruction == 0xA0)
-        {
-            u16 offset = read_inst<u16>();
-            get_r8(0) = memory8(registers[get_segment(DS)],offset);
-        }
-        else if (instruction == 0xA1)
-        {
-            u16 offset = read_inst<u16>();
-            registers[AX] = memory16(registers[get_segment(DS)],offset);
-        }
-        else if (instruction == 0xA2)
-        {
-            u16 offset = read_inst<u16>();
-            memory8(registers[get_segment(DS)],offset) = get_r8(0);
-        }
-        else if (instruction == 0xA3)
-        {
-            u16 offset = read_inst<u16>();
-            memory16(registers[get_segment(DS)],offset) = registers[AX];
-        }
-        else if (instruction == 0xA8) //test imm8
-        {
-            u8 imm8 = read_inst<u8>();
-            test_flags(u8(registers[AX]&imm8));
-        }
-        else if (instruction == 0xA9) //test imm16
-        {
-            u16 imm16 = read_inst<u16>();
-            test_flags(u16(registers[AX]&imm16));
-        }*/
         else if (instruction >= 0xA0 && instruction <= 0xAF) //AL/X=MEM  MEM=AL/X MOVSB/W CMPSB/W TEST AL/X,imm8/16 STOSB/W LODSB/W SCASB/W
         {
             bool big = (instruction&0x01); //word-sized?
@@ -3068,7 +2979,6 @@ struct CPU8088
         }
         else if (instruction == 0xD4) // AAM
         {
-            //cout << "AAM" << endl; std::abort();
             u8 imm = read_inst<u8>();
             if (imm != 0)
             {
@@ -3096,12 +3006,9 @@ struct CPU8088
                 interrupt(0, true);
             }
         }
-        else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still AUX_CARRY is slightly wrong
+        else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
         {
-            //cout << "AAD" << endl; std::abort();
             u8 imm = read_inst<u8>();
-            //if ((registers[AX]&0xFF) == 0)
-            //    cout << "imm=" << u32(imm) << " ";
             u16 orig16 = registers[AX];
             u16 temp16 = (registers[AX]&0xFF) + (registers[AX]>>8)*imm;
             registers[AX] = (temp16&0xFF);
@@ -3145,7 +3052,6 @@ struct CPU8088
             {
                 registers[IP] = i16(registers[IP]) + offset;
             }
-            //delay += 4;
         }
         else if (instruction == 0xE4)
         {
@@ -3179,7 +3085,7 @@ struct CPU8088
             i16 ip_offset = read_inst<i16>();
             registers[IP] = i16(registers[IP])+ip_offset;
         }
-        else if (instruction == 0xEA) //long jump
+        else if (instruction == 0xEA) //far jump
         {
             u16 new_ip = read_inst<u16>();
             u16 new_cs = read_inst<u16>();
@@ -3328,7 +3234,6 @@ struct CPU8088
         else if(instruction == 0xF7)
         {
             u8 modrm = read_inst<u8>();
-            //cout << "0xF7 modrm: " << u32(modrm) << endl;
             u16& rm = decode_modrm_u16(modrm);
             u8 op = ((modrm>>3)&0x07);
             if (op == 0) // TEST
@@ -3368,9 +3273,6 @@ struct CPU8088
             {
                 u16 op2 = registers[AX];
                 i32 result = i32(i16(rm))*i32(i16(op2));
-                //set_flag(F_OVERFLOW,result>=0x10000 || result <= -0x10000);
-                //set_flag(F_CARRY,result>=0x10000 || result <= -0x10000);
-
                 set_flag(F_SIGN,result&0x80000000);
                 set_flag(F_PARITY,byte_parity[(result>>16)&0xFF]);
                 set_flag(F_OVERFLOW,result>=0x8000 || result < -0x8000);
@@ -3539,40 +3441,7 @@ void PrintCSIP()
     //if (cpu.registers[cpu.CS] == 0xEA && cpu.registers[cpu.IP] == 0x2A0A)
     if (cpu.registers[cpu.CS] == 0x00 && cpu.registers[cpu.IP] == 0x7C00)
     {
-        if (!startprinting)
-        {
-            //dump_memory("memory.raw");
-        }
-        //startprinting = true;
         realtime_timing = true; //when we start booting up the OS, switch the CPU to super mode
-    }
-    if (startprinting)
-    {
-        u32 csip = (cpu.registers[cpu.CS]<<16)+cpu.registers[cpu.IP];
-        if (csip != previous_csip)
-        {
-            if (csip_counter != 0)
-            {
-                cout << "..." << csip_counter << "x" << endl;
-                csip_counter = 0;
-            }
-            //cout << "ds status: " << u32(diskettecontroller.status);
-            //cout  << " CSIP=" << cpu.registers[cpu.CS]*16+cpu.registers[cpu.IP]<< " ";
-            //cout  << " IP=" << cpu.registers[cpu.IP]<< " ";
-            //cpu.print_regs();
-            /*cout << cpu.registers[cpu.CS] << ":" << cpu.registers[cpu.IP] << " ds status: " << u32(diskettecontroller.status) << endl;
-
-            if (cpu.registers[cpu.CS] == 0xF000 && cpu.registers[cpu.IP] == 0xEC59)
-            {
-                cout << "FLOPPY Interrupt" << endl;
-                cpu.print_regs();
-            }*/
-        }
-        else
-        {
-            ++csip_counter;
-        }
-        previous_csip = csip;
     }
 }
 
@@ -3738,7 +3607,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 }
 
-vector<u8> readfile(const std::string& filename) //reads the entire contents of *filename* and returns the data as a vector<u8>
+vector<u8> readfile(const std::string& filename)
 {
     std::vector<u8> buffer;
     std::ifstream file(filename, std::ios::binary);
@@ -3849,8 +3718,6 @@ void configline(std::string line)
         readonly_start = 0xFFFF0000;
         string test_filename;
         iss >> test_filename;
-
-        //cout << test_filename << endl;
 
         vector<u8> filedata = readfile(test_filename);
         u32 ptr = 0;
@@ -3966,10 +3833,6 @@ void configline(std::string line)
                 cout << flags_failed[i] << (i%4==3?"  ":" ");
             cout << endl;
         }
-
-        //else
-        //    cout << "PASS" << endl;
-
         readonly_start = 0xE0000;
     }
     else if (command == "end_tests")
