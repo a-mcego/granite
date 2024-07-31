@@ -2415,8 +2415,18 @@ struct CPU8088
                 std::cout << "prefix read. #" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
         }
 
-        if (false);
-        else if (instruction < 0x40 && (instruction&0x07) < 6)
+        //if (false);
+        switch(instruction){
+        //else if (instruction < 0x40 && (instruction&0x07) < 6)
+        case 0x00: case 0x01: case 0x02: case 0x03: case 0x04: case 0x05:
+        case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15:
+        case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25:
+        case 0x30: case 0x31: case 0x32: case 0x33: case 0x34: case 0x35:
+
+        case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D:
+        case 0x18: case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D:
+        case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D:
+        case 0x38: case 0x39: case 0x3A: case 0x3B: case 0x3C: case 0x3D:
         {
             u8 instr_choice = (instruction&0x38)>>3;
             if (instruction&0x04)
@@ -2454,16 +2464,23 @@ struct CPU8088
                     rout = run_arith(rout, rin, instr_choice);
                 }
             }
+            break;
         }
-        else if ((instruction&0xE6) == 0x06)
+        //else if ((instruction&0xE6) == 0x06)
+        case 0x06: case 0x07:
+        case 0x0E: case 0x0F:
+        case 0x16: case 0x17:
+        case 0x1E: case 0x1F:
         {
             u16& reg = get_segment_r16((instruction>>3)&0x03);
             if (instruction&0x01)
                 reg = pop();
             else
                 push(reg);
+            break;
         }
-        else if (instruction == 0x27) // DAA
+        //else if (instruction == 0x27) // DAA
+        case 0x27:
         {
             u8 old_AL = registers[AX]&0xFF;
             bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
@@ -2484,8 +2501,10 @@ struct CPU8088
             set_flag(F_SIGN, (registers[AX] & 0x80));
             set_flag(F_PARITY, byte_parity[registers[AX]&0xFF]);
             set_flag(F_OVERFLOW, (old_AL ^ registers[AX]) & (added ^ registers[AX])&0x80);
+            break;
         }
-        else if (instruction == 0x37) // AAA
+        //else if (instruction == 0x37) // AAA
+        case 0x37:
         {
             u16 old_AX = registers[AX];
             bool add_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
@@ -2504,8 +2523,10 @@ struct CPU8088
             set_flag(F_OVERFLOW, (old_AX ^ registers[AX]) & (added ^ registers[AX])&0x80);
 
             get_r8(0) &= 0x0F;
+            break;
         }
-        else if (instruction == 0x2F) // DAS
+        //else if (instruction == 0x2F) // DAS
+        case 0x2F:
         {
             u8 old_AL = registers[AX] & 0xFF;
             bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
@@ -2527,8 +2548,10 @@ struct CPU8088
             set_flag(F_SIGN, (registers[AX] & 0x80));
             set_flag(F_PARITY, byte_parity[registers[AX] & 0xFF]);
             set_flag(F_OVERFLOW, ((old_AL ^ subtracted) & (old_AL ^ registers[AX]))&0x80);
+            break;
         }
-        else if (instruction == 0x3F) // AAS
+        //else if (instruction == 0x3F) // AAS
+        case 0x3F:
         {
             u16 old_AX = registers[AX];
             bool sub_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
@@ -2546,8 +2569,11 @@ struct CPU8088
             set_flag(F_OVERFLOW, (old_AX ^ subtracted) & (old_AX ^ registers[AX])&0x80);
 
             get_r8(0) &= 0x0F;
+            break;
         }
-        else if ((instruction&0xF0) == 0x40) //INC/DEC register
+        //else if ((instruction&0xF0) == 0x40) //INC/DEC register
+        case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
+        case 0x48: case 0x49: case 0x4A: case 0x4B: case 0x4C: case 0x4D: case 0x4E: case 0x4F:
         {
             u16 result = registers[instruction&0x07]+(1-((instruction&0x08)?2:0));
             set_flag(F_SIGN, result&0x8000);
@@ -2556,20 +2582,30 @@ struct CPU8088
             set_flag(F_PARITY, byte_parity[result&0xFF]);
             set_flag(F_OVERFLOW, result==0x8000-((instruction&0x08)?1:0));
             registers[instruction&0x07] = result;
+            break;
         }
-        else if ((instruction&0xF8) == 0x50) // push reg
+        //else if ((instruction&0xF8) == 0x50) // push reg
+        case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
         {
             push(registers[instruction&0x07]);
+            break;
         }
-        else if ((instruction&0xF8) == 0x58) //pop reg
+        //else if ((instruction&0xF8) == 0x58) //pop reg
+        case 0x58: case 0x59: case 0x5A: case 0x5B: case 0x5C: case 0x5D: case 0x5E: case 0x5F:
         {
             registers[instruction&0x07] = pop();
+            break;
         }
-        else if ((instruction&0xF0) == 0x60) // on 8086 these are synonymous to 0x7*
+        //else if ((instruction&0xF0) == 0x60) // on 8086 these are synonymous to 0x7*
+        case 0x60: case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67:
+        case 0x68: case 0x69: case 0x6A: case 0x6B: case 0x6C: case 0x6D: case 0x6E: case 0x6F:
         {
             cout << "*";
+            break;
         }
-        else if ((instruction&0xE0) == 0x60) //various short jumps
+        //else if ((instruction&0xE0) == 0x60) //various short jumps
+        case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
+        case 0x78: case 0x79: case 0x7A: case 0x7B: case 0x7C: case 0x7D: case 0x7E: case 0x7F:
         {
             u8 type = (instruction&0x0F)>>1;
             u16 f = (registers[FLAGS]&0xFFFD) | (flag(F_SIGN) != flag(F_OVERFLOW) ? 0x2:0x0);
@@ -2582,43 +2618,55 @@ struct CPU8088
             {
                 registers[IP] += offset;
             }
+            break;
         }
-        else if (instruction == 0x80 || instruction == 0x82)
+        //else if (instruction == 0x80 || instruction == 0x82)
+        case 0x80: case 0x82:
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
             u8 imm = read_inst<u8>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            break;
         }
-        else if (instruction == 0x81)
+        //else if (instruction == 0x81)
+        case 0x81:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             u16 imm = read_inst<u16>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            break;
         }
-        else if (instruction == 0x83)
+        //else if (instruction == 0x83)
+        case 0x83:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             u16 imm = i16(read_inst<i8>());
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            break;
         }
-        else if (instruction == 0x84)
+        //else if (instruction == 0x84)
+        case 0x84:
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
             u8& r = get_r8((modrm>>3)&0x07);
             test_flags(u8(rm&r));
+            break;
         }
-        else if (instruction == 0x85)
+        //else if (instruction == 0x85)
+        case 0x85:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             u16& r = get_r16((modrm>>3)&0x07);
             test_flags(u16(rm&r));
+            break;
         }
-        else if (instruction == 0x86)
+        //else if (instruction == 0x86)
+        case 0x86:
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
@@ -2626,8 +2674,10 @@ struct CPU8088
             u8 temp = rm;
             rm = r;
             r = temp;
+            break;
         }
-        else if (instruction == 0x87)
+        //else if (instruction == 0x87)
+        case 0x87:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
@@ -2635,8 +2685,10 @@ struct CPU8088
             u16 temp = rm;
             rm = r;
             r = temp;
+            break;
         }
-        else if ((instruction&0xFC) == 0x88)
+        //else if ((instruction&0xFC) == 0x88)
+        case 0x88: case 0x89: case 0x8A: case 0x8B:
         {
             u8 modrm = read_inst<u8>();
             if (instruction&0x01)//16bit
@@ -2655,51 +2707,67 @@ struct CPU8088
                 u8& rin = (instruction&0x02?rm:r);
                 rout = rin;
             }
+            break;
         }
-        else if (instruction == 0x8C) // MOV Ew Sw
+        //else if (instruction == 0x8C) // MOV Ew Sw
+        case 0x8C:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             u16& r = get_segment_r16((modrm>>3)&0x07);
             rm = r;
+            break;
         }
-        else if (instruction == 0x8D) // LEA Gv M
+        //else if (instruction == 0x8D) // LEA Gv M
+        case 0x8D:
         {
             u8 modrm = read_inst<u8>();
             u16& r = get_r16((modrm>>3)&0x07);
             r = effective_address(modrm);
+            break;
         }
-        else if (instruction == 0x8E) // MOV Sw Ew
+        //else if (instruction == 0x8E) // MOV Sw Ew
+        case 0x8E:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             u16& r = get_segment_r16((modrm>>3)&0x07);
             r = rm;
+            break;
         }
-        else if (instruction == 0x8F) //POP modrm
+        //else if (instruction == 0x8F) //POP modrm
+        case 0x8F:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             rm = pop();
+            break;
         }
-        else if ((instruction&0xF8) == 0x90) // XCHG AX, r16 - note how 0x90 is effectively NOP :-)
+        //else if ((instruction&0xF8) == 0x90) // XCHG AX, r16 - note how 0x90 is effectively NOP :-)
+        case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
         {
             u8 reg_id = instruction&0x7;
             u16 tmp = registers[AX];
             registers[AX] = registers[reg_id];
             registers[reg_id] = tmp;
+            break;
         }
-        else if (instruction == 0x98) //CBW
+        //else if (instruction == 0x98) //CBW
+        case 0x98:
         {
             u16 r = (registers[AX])&0xFF;
             r |= (r&0x80)?0xFF00:0x0000;
             registers[AX] = r;
+            break;
         }
-        else if (instruction == 0x99) //CWD
+        //else if (instruction == 0x99) //CWD
+        case 0x99:
         {
             registers[DX] = (registers[AX]&0x8000)?0xFFFF:0x0000;
+            break;
         }
-        else if (instruction == 0x9A) //call Ap
+        //else if (instruction == 0x9A) //call Ap
+        case 0x9A:
         {
             u16 pointer = read_inst<u16>();
             u16 segment = read_inst<u16>();
@@ -2707,31 +2775,44 @@ struct CPU8088
             push(registers[IP]);
             registers[CS] = segment;
             registers[IP] = pointer;
+            break;
         }
-        else if (instruction == 0x9B) // WAIT/FWAIT
+        //else if (instruction == 0x9B) // WAIT/FWAIT
+        case 0x9B:
         {
             // waits for floating point exceptions.
             // basically a NOP because I don't have a FPU yet
+            break;
         }
-        else if (instruction == 0x9C) //pushf
+        //else if (instruction == 0x9C) //pushf
+        case 0x9C:
         {
             push(registers[FLAGS]);
+            break;
         }
-        else if (instruction == 0x9D) //popf
+        //else if (instruction == 0x9D) //popf
+        case 0x9D:
         {
             u16 newflags = pop();
             const u16 FLAG_MASK = 0b0000'1111'1101'0101;
             registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK);
+            break;
         }
-        else if (instruction == 0x9E) //sahf
+        //else if (instruction == 0x9E) //sahf
+        case 0x9E:
         {
             reg8()[FLAGS*2] = (get_r8(4)&0xD5) | 0x02;
+            break;
         }
-        else if (instruction == 0x9F) //lahf
+        //else if (instruction == 0x9F) //lahf
+        case 0x9F:
         {
             get_r8(4) = reg8()[FLAGS*2];
+            break;
         }
-        else if (instruction >= 0xA0 && instruction <= 0xAF) //AL/X=MEM  MEM=AL/X MOVSB/W CMPSB/W TEST AL/X,imm8/16 STOSB/W LODSB/W SCASB/W
+        //else if (instruction >= 0xA0 && instruction <= 0xAF) //AL/X=MEM  MEM=AL/X MOVSB/W CMPSB/W TEST AL/X,imm8/16 STOSB/W LODSB/W SCASB/W
+        case 0xA0: case 0xA1: case 0xA2: case 0xA3: case 0xA4: case 0xA5: case 0xA6: case 0xA7:
+        case 0xA8: case 0xA9: case 0xAA: case 0xAB: case 0xAC: case 0xAD: case 0xAE: case 0xAF:
         {
             bool big = (instruction&0x01); //word-sized?
             i8 size = i8(big)+1;
@@ -2811,71 +2892,95 @@ struct CPU8088
                         break;
                 }
             }
+            break;
         }
-        else if ((instruction&0xF8) == 0xB0) //mov reg8, Ib
+        //else if ((instruction&0xF8) == 0xB0) //mov reg8, Ib
+        case 0xB0: case 0xB1: case 0xB2: case 0xB3: case 0xB4: case 0xB5: case 0xB6: case 0xB7:
         {
             get_r8(instruction&0x07) = read_inst<u8>();
+            break;
         }
-        else if ((instruction&0xF8) == 0xB8) //mov reg16, Iv
+        //else if ((instruction&0xF8) == 0xB8) //mov reg16, Iv
+        case 0xB8: case 0xB9: case 0xBA: case 0xBB: case 0xBC: case 0xBD: case 0xBE: case 0xBF:
         {
             get_r16(instruction&0x07) = read_inst<u16>();
+            break;
         }
-        else if (instruction == 0xC0 || instruction == 0xC2) // near return w/imm
+        //else if (instruction == 0xC0 || instruction == 0xC2) // near return w/imm
+        case 0xC0: case 0xC2:
         {
             u16 imm = read_inst<u16>();
             registers[IP] = pop();
             registers[SP] += imm;
+            break;
         }
-        else if (instruction == 0xC1 || instruction == 0xC3) // near return
+        //else if (instruction == 0xC1 || instruction == 0xC3) // near return
+        case 0xC1: case 0xC3:
         {
             registers[IP] = pop();
+            break;
         }
-        else if (instruction == 0xC8 || instruction == 0xCA) // far return w/imm
+        //else if (instruction == 0xC8 || instruction == 0xCA) // far return w/imm
+        case 0xC8: case 0xCA:
         {
             u16 imm = read_inst<u16>();
             registers[IP] = pop();
             registers[CS] = pop();
             registers[SP] += imm;
+            break;
         }
-        else if (instruction == 0xC9 || instruction == 0xCB) // far return
+        //else if (instruction == 0xC9 || instruction == 0xCB) // far return
+        case 0xC9: case 0xCB:
         {
             registers[IP] = pop();
             registers[CS] = pop();
+            break;
         }
-        else if ((instruction&0xFE) == 0xC4) // LES LDS
+        //else if ((instruction&0xFE) == 0xC4) // LES LDS
+        case 0xC4: case 0xC5:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             u16& r = get_r16((modrm>>3)&0x07);
             r = rm;
             registers[(instruction&1)?DS:ES] = *((&rm)+1); //ES or DS, based on the opcode
+            break;
         }
-        else if (instruction == 0xC6)
+        //else if (instruction == 0xC6)
+        case 0xC6:
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
             rm = read_inst<u8>();
+            break;
         }
-        else if (instruction == 0xC7)
+        //else if (instruction == 0xC7)
+        case 0xC7:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             rm = read_inst<u16>();
+            break;
         }
-        else if (instruction == 0xCC) // INT 3
+        //else if (instruction == 0xCC) // INT 3
+        case 0xCC:
         {
             if constexpr (DEBUG_LEVEL > 0)
                 cout << "Calling interrupt 3... AX=" << registers[AX] << endl;
             interrupt(3, true);
+            break;
         }
-        else if (instruction == 0xCD) // INT imm8
+        //else if (instruction == 0xCD) // INT imm8
+        case 0xCD:
         {
             u8 int_num = read_inst<u8>();
             if constexpr (DEBUG_LEVEL > 0)
                 cout << "Calling interrupt... " << u32(int_num) << " AX=" << registers[AX] << endl;
             interrupt(int_num, true);
+            break;
         }
-        else if (instruction == 0xCE) // INTO
+        //else if (instruction == 0xCE) // INTO
+        case 0xCE:
         {
             if (flag(F_OVERFLOW))
             {
@@ -2883,8 +2988,10 @@ struct CPU8088
                     cout << "Calling int 4... AX=" << registers[AX] << endl;
                 interrupt(4, true);
             }
+            break;
         }
-        else if (instruction == 0xCF) // IRET!
+        //else if (instruction == 0xCF) // IRET!
+        case 0xCF:
         {
             registers[IP] = pop();
             registers[CS] = pop();
@@ -2894,8 +3001,10 @@ struct CPU8088
 
             if (startprinting)
                 cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
+            break;
         }
-        else if (instruction == 0xD0 || instruction == 0xD2)
+        //else if (instruction == 0xD0 || instruction == 0xD2)
+        case 0xD0: case 0xD2:
         {
             bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
             u8 modrm = read_inst<u8>();
@@ -2935,8 +3044,10 @@ struct CPU8088
                 }
                 rm = result;
             }
+            break;
         }
-        else if (instruction == 0xD1 || instruction == 0xD3)
+        //else if (instruction == 0xD1 || instruction == 0xD3)
+        case 0xD1: case 0xD3:
         {
             bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
             u8 modrm = read_inst<u8>();
@@ -2976,8 +3087,10 @@ struct CPU8088
                 }
                 rm = result;
             }
+            break;
         }
-        else if (instruction == 0xD4) // AAM
+        //else if (instruction == 0xD4) // AAM
+        case 0xD4:
         {
             u8 imm = read_inst<u8>();
             if (imm != 0)
@@ -3005,8 +3118,10 @@ struct CPU8088
                 set_flag(F_CARRY,false);
                 interrupt(0, true);
             }
+            break;
         }
-        else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
+        //else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
+        case 0xD5:
         {
             u8 imm = read_inst<u8>();
             u16 orig16 = registers[AX];
@@ -3027,24 +3142,32 @@ struct CPU8088
             bool af = ((a ^ b ^ result) & 0x10);
             set_flag(F_OVERFLOW,of);
             set_flag(F_AUX_CARRY,af);
+            break;
         }
-        else if (instruction == 0xD6) // SALC (undocumented!)
+        //else if (instruction == 0xD6) // SALC (undocumented!)
+        case 0xD6:
         {
             get_r8(0) = flag(F_CARRY)?0xFF:0x00;
+            break;
         }
-        else if (instruction == 0xD7) // XLAT
+        //else if (instruction == 0xD7) // XLAT
+        case 0xD7:
         {
             u8 result = memory8(registers[get_segment(DS)],registers[BX]+(registers[AX]&0xFF));
             get_r8(0) = result;
+            break;
         }
-        else if (instruction >= 0xD8 && instruction <= 0xDF)
+        //else if (instruction >= 0xD8 && instruction <= 0xDF)
+        case 0xD8: case 0xD9: case 0xDA: case 0xDB: case 0xDC: case 0xDE: case 0xDF:
         {
             //cout << "Trying to run floating point instruction! :(" << endl;
             u8 modrm = read_inst<u8>(); //read modrm data anyway to sync up
             decode_modrm_u8(modrm);
             //FLOATING POINT INSTRUCTIONS! 8087! we don't have this. yet?
+            break;
         }
-        else if ((instruction & 0xFC) == 0xE0) // LOOPNZ LOOPZ LOOP JCXZ
+        //else if ((instruction & 0xFC) == 0xE0) // LOOPNZ LOOPZ LOOP JCXZ
+        case 0xE0: case 0xE1: case 0xE2: case 0xE3:
         {
             i8 offset = read_inst<i8>();
             registers[CX] -= ((instruction&0x03)!=3);
@@ -3052,86 +3175,118 @@ struct CPU8088
             {
                 registers[IP] = i16(registers[IP]) + offset;
             }
+            break;
         }
-        else if (instruction == 0xE4)
+        //else if (instruction == 0xE4)
+        case 0xE4:
         {
             get_r8(0) = IO::in(read_inst<u8>());
+            break;
         }
-        else if (instruction == 0xE5)
+        //else if (instruction == 0xE5)
+        case 0xE5:
         {
             u8 port = read_inst<u8>();
             u8 low = IO::in(port);
             u8 high = IO::in(port+1);
             registers[AX] = (high<<8)|low;
+            break;
         }
-        else if (instruction == 0xE6)
+        //else if (instruction == 0xE6)
+        case 0xE6:
         {
             IO::out(read_inst<u8>(), registers[AX]&0xFF);
+            break;
         }
-        else if (instruction == 0xE7)
+        //else if (instruction == 0xE7)
+        case 0xE7:
         {
             u8 port = read_inst<u8>();
             IO::out(port, registers[AX]&0xFF);
             IO::out(port+1, registers[AX]>>8);
+            break;
         }
-        else if (instruction == 0xE8)
+        //else if (instruction == 0xE8)
+        case 0xE8:
         {
             i16 ip_offset = read_inst<i16>();
             push(registers[IP]);
             registers[IP] = i16(registers[IP])+ip_offset;
+            break;
         }
-        else if (instruction == 0xE9)
+        //else if (instruction == 0xE9)
+        case 0xE9:
         {
             i16 ip_offset = read_inst<i16>();
             registers[IP] = i16(registers[IP])+ip_offset;
+            break;
         }
-        else if (instruction == 0xEA) //far jump
+        //else if (instruction == 0xEA) //far jump
+        case 0xEA:
         {
             u16 new_ip = read_inst<u16>();
             u16 new_cs = read_inst<u16>();
 
             registers[IP] = new_ip;
             registers[CS] = new_cs;
+            break;
         }
-        else if (instruction == 0xEB)
+        //else if (instruction == 0xEB)
+        case 0xEB:
         {
             i8 ip_offset = read_inst<i8>();
             registers[IP] = i16(registers[IP])+ip_offset;
+            break;
         }
-        else if (instruction == 0xEC)
+        //else if (instruction == 0xEC)
+        case 0xEC:
         {
             get_r8(0) = IO::in(registers[DX]);
+            break;
         }
-        else if (instruction == 0xED)
+        //else if (instruction == 0xED)
+        case 0xED:
         {
             u16 port = registers[DX];
             u8 low = IO::in(port);
             u8 high = IO::in(port+1);
             registers[AX] = (high<<8)|low;
+            break;
         }
-        else if (instruction == 0xEE)
+        //else if (instruction == 0xEE)
+        case 0xEE:
         {
             IO::out(registers[DX], registers[AX]&0xFF);
+            break;
         }
-        else if (instruction == 0xEF)
+        //else if (instruction == 0xEF)
+        case 0xEF:
         {
             IO::out(registers[DX], registers[AX]&0xFF);
             IO::out(registers[DX]+1, registers[AX]>>8);
+            break;
         }
-        else if (instruction == 0xF1)
+        //else if (instruction == 0xF1)
+        case 0xF1:
         {
             // THIS ISN'T VALID ON 8088 / 8086
+            break;
         }
-        else if (instruction == 0xF4) // HALT / HLT
+        //else if (instruction == 0xF4) // HALT / HLT
+        case 0xF4:
         {
             halt = true;
             //registers[IP] -= 1;
+            break;
         }
-        else if (instruction == 0xF5) // cmc
+        //else if (instruction == 0xF5) // cmc
+        case 0xF5:
         {
             set_flag(F_CARRY, !flag(F_CARRY));
+            break;
         }
-        else if(instruction == 0xF6)
+        //else if(instruction == 0xF6)
+        case 0xF6:
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
@@ -3230,8 +3385,10 @@ struct CPU8088
                 std::cout << "0xF6 op " << u32(op) << " is invalid!" << std::endl;
                 std::abort();
             }
+            break;
         }
-        else if(instruction == 0xF7)
+        //else if(instruction == 0xF7)
+        case 0xF7:
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
@@ -3327,20 +3484,28 @@ struct CPU8088
                 std::cout << "0xF7 op " << u32(op) << " is invalid!" << std::endl;
                 std::abort();
             }
+            break;
         }
-        else if ((instruction&0xFE) == 0xF8) //carry flag bit 0
+        //else if ((instruction&0xFE) == 0xF8) //carry flag bit 0
+        case 0xF8: case 0xF9:
         {
             set_flag(F_CARRY, instruction&0x01);
+            break;
         }
-        else if ((instruction&0xFE) == 0xFA) //interrupt flag bit 9
+        //else if ((instruction&0xFE) == 0xFA) //interrupt flag bit 9
+        case 0xFA: case 0xFB:
         {
             set_flag(F_INTERRUPT, instruction&0x01);
+            break;
         }
-        else if ((instruction&0xFE) == 0xFC) //direction flag bit 10
+        //else if ((instruction&0xFE) == 0xFC) //direction flag bit 10
+        case 0xFC: case 0xFD:
         {
             set_flag(F_DIRECTIONAL, instruction&0x01);
+            break;
         }
-        else if (instruction == 0xFE)
+        //else if (instruction == 0xFE)
+        case 0xFE:
         {
             u8 modrm = read_inst<u8>();
             u8& reg = decode_modrm_u8(modrm);
@@ -3361,8 +3526,10 @@ struct CPU8088
                 //no carry!
                 reg = result;
             }
+            break;
         }
-        else if (instruction == 0xFF)
+        //else if (instruction == 0xFF)
+        case 0xFF:
         {
             u8 modrm = read_inst<u8>();
             u16& reg = decode_modrm_u16(modrm);
@@ -3411,12 +3578,15 @@ struct CPU8088
                 std::cout << "Unimplemented opcode combo: 0x" << u32(instruction) << " 0x" << u32(modrm) << std::endl;
                 std::abort();
             }
+            break;
         }
-        else
+        default:
         {
             std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
             std::cout << "# " << std::dec << cycles << std::hex << ", Unknown opcode: 0x" << u32(instruction) << std::endl;
             std::abort();
+            break;
+        }
         }
 
         clear_prefix();
