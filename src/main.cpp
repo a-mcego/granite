@@ -1852,8 +1852,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                 out_buffer.clear();
                 cout << "FLOPPY Reset is now done!" << endl;
                 main_status = 0x80;
-                st0 |= 0xC0;
-                //st0 = 0;
+                st0 = 0xC0;
                 st1 = 0;
                 st2 = 0;
                 pic.request_interrupt(6);
