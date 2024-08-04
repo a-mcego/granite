@@ -210,14 +210,31 @@ struct CGA
     u8 mode_select{};
     u8 color_select{};
 
+    bool snow{false};
+    bool snow_enabled{false};
+
     u8 mem[0x4000 + 1] = {};
     u8& memory8(u16 address)
     {
-       return mem[address&0x3FFF];
+        snow = snow_enabled;
+        return mem[address&0x3FFF];
     }
     u16& memory16(u16 address)
     {
-       return *(u16*)(void*)(mem+(address&0x3FFF));
+        snow = snow_enabled;
+        return *(u16*)(void*)(mem+(address&0x3FFF));
+    }
+    u8 memory8_internal(u16 address)
+    {
+        if (snow)
+            return 0xFF;
+        return mem[address&0x3FFF];
+    }
+    u16 memory16_internal(u16 address)
+    {
+        if (snow)
+            return 0xFF;
+        return *(u16*)(void*)(mem+(address&0x3FFF));
     }
     void print_regs()
     {
@@ -269,7 +286,6 @@ struct CGA
         {
             if (current_register < 0x12)
             {
-                //readdata = registers[(mode_id()<<4)+current_register];
                 readdata = registers[current_register];
             }
             else
@@ -373,7 +389,7 @@ struct CGA
                     int x = columnbyte;
                     if (x < registers[H_DISPLAYED]*2)
                     {
-                        u8 gfx_byte = memory8((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
+                        u8 gfx_byte = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
                         const u8 colorburst[16] =
                         {
                             0, 120, 1, 3, 108, 24, 35, 80,
@@ -397,7 +413,7 @@ struct CGA
                     int x = columnbyte;
                     if (x < registers[H_DISPLAYED]*2)
                     {
-                        u8 gfx_byte = memory8((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
+                        u8 gfx_byte = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
                         for(int i=0; i<4; ++i)
                         {
                             u8 p1 = (resolution?((gfx_byte&0x80)?15:0):palette[(gfx_byte&0xC0)>>6]);
@@ -419,8 +435,8 @@ struct CGA
                         u32 current_line = y%max_scanline;
 
                         u32 offset = base_offset + (screen_row * registers[H_DISPLAYED] + x) * 2;
-                        u8 char_code = memory8(offset);
-                        u8 attribute = memory8(offset+1);
+                        u8 char_code = memory8_internal(offset);
+                        u8 attribute = memory8_internal(offset+1);
                         u8 fg_color = attribute & 0x0F;
                         u8 bg_color = (attribute >> 4) & 0x0F;
                         u8 char_row = CGABIOS[char_code*8+current_line];
@@ -446,6 +462,7 @@ struct CGA
 
         horizontal_retrace = (cycle_n%912 >= 640);
         vertical_retrace = (cycle_n >= 912*200);
+        snow = false;
     }
 } cga;
 
