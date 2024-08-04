@@ -1442,49 +1442,52 @@ struct HARDDISK
 
         static const u32 DISKTYPE_ID = 1;
         DiskType type{disktypes[DISKTYPE_ID]};
-        vector<u8> data, dirty;
+        vector<u8> data;
         std::string filename = "cdisk.img";
-
-        void flush_complete()
-        {
-            FILE* filu = fopen(filename.c_str(), "wb");
-            fwrite(data.data(), data.size(), 1, filu);
-            fclose(filu);
-        }
 
         void flush()
         {
+            const u64 BLOCK_SIZE = 0x10000;
+
             FILE* filu = fopen(filename.c_str(), "rb+");
-
-            if (filu == nullptr)
+            fseek(filu, 0, SEEK_END);
+            u64 filesize = ftell(filu);
+            if (data.size() != filesize)
             {
-                flush_complete();
-                return;
+                cout << "Data size " << data.size() << " is not file size " << filesize << endl;
+                std::abort();
             }
+            fseek(filu, 0, SEEK_SET);
 
-            for(int i=0; i<i32(dirty.size()); ++i)
+            vector<u8> filedata(BLOCK_SIZE,0);
+            for(u64 pos=0; pos<data.size(); pos += BLOCK_SIZE)
             {
-                if (dirty[i])
+                fseek(filu, pos, SEEK_SET);
+                int sectors_read = fread(filedata.data(), 512, BLOCK_SIZE/512, filu);
+
+                if (memcmp(filedata.data(), data.data()+pos, sectors_read*512) != 0)
                 {
-                    fseek(filu,i*DiskType::BYTES_PER_SECTOR,SEEK_SET);
-                    fwrite(data.data()+i*512,512,1,filu);
-                    dirty[i] = 0;
+                    cout << "Block " << pos/BLOCK_SIZE << " changed." << endl;
+                    fseek(filu, pos, SEEK_SET);
+                    fwrite(data.data()+pos, 512, BLOCK_SIZE/512, filu);
                 }
             }
+
+
+            //fwrite(data.data(), data.size(), 1, filu);
             fclose(filu);
+
         }
 
         DISK()
         {
             data.assign(type.totalsize(),0);
-            dirty.assign(type.totalsize()/512, 0);
             cout << "HD: " << data.size() << " bytes." << endl;
         }
 
         DISK(const std::string& filename_):filename(filename_)
         {
             data.assign(type.totalsize(),0);
-            dirty.assign(type.totalsize()/512, 0);
 
             FILE* filu = fopen(filename.c_str(), "rb");
             if (filu != nullptr)
@@ -1689,10 +1692,6 @@ struct HARDDISK
 
                             dma.print_params(3);
                             dma.transfer(3, &disk.data, offset);
-                            for(int i=0; i<dma.chans[3].transfer_count/512+1; ++i) //TODO: move this where the dma is actually finished
-                            {
-                                disk.dirty[offset/512+i] = 1;
-                            }
                             dma_in_progress = true;
                         }
                         else
@@ -4135,7 +4134,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             else if (key == GLFW_KEY_F)
             {
                 cout << "Flushing disk." << endl;
-                harddisk.disk.flush_complete();
+                harddisk.disk.flush();
                 cout << "Disk flushed." << endl;
             }
             else if (key == GLFW_KEY_G)
