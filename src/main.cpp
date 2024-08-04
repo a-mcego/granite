@@ -1450,6 +1450,15 @@ struct HARDDISK
             const u64 BLOCK_SIZE = 0x10000;
 
             FILE* filu = fopen(filename.c_str(), "rb+");
+
+            if (filu == nullptr)
+            {
+                filu = fopen(filename.c_str(), "wb");
+                fwrite(data.data(), data.size(), 1, filu);
+                fclose(filu);
+                return;
+            }
+
             fseek(filu, 0, SEEK_END);
             u64 filesize = ftell(filu);
             if (data.size() != filesize)
