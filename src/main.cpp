@@ -2612,7 +2612,7 @@ struct CPU8088
     u8 segment_override{};
     u8 string_prefix{};
     u8 lock{};
-    u8 delay{}; //HACK: to make the cpu slow down a bit so it passes POST lol.
+    u32 delay{}; //HACK: to make the cpu slow down a bit so it passes POST lol.
     enum SP_VALUES
     {
         SP_REPNZ = 1,
@@ -2971,6 +2971,7 @@ struct CPU8088
             registers[IP] = memory16(0, n*4);
             registers[CS] = memory16(0, n*4+2);
             set_flag(F_INTERRUPT,false);
+            delay = 0;
             if (!forced)
             {
                 if constexpr(DEBUG_LEVEL > 0)
@@ -3432,6 +3433,7 @@ struct CPU8088
                 if (string_prefix == 0)
                     break;
                 registers[CX] -= 1;
+                delay += 4;
                 if ((program&0xC000)==0x8000)
                 {
                     if (string_prefix == SP_REPNZ && flag(F_ZERO))
