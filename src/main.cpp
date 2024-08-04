@@ -205,6 +205,7 @@ struct YM3812
 struct CGA
 {
     static const u8 REGISTER_COUNT = 18;
+    static const u8 COLORBURST_START = 240;
     u8 registers[REGISTER_COUNT] = {};
     u8 current_register{};
     u8 mode_select{};
@@ -347,6 +348,71 @@ struct CGA
 
     u64 total_frames{};
 
+    void HSBtoRGB(u8 hue, u8 saturation, u8 brightness, u8& red, u8& green, u8& blue)
+    {
+        float h = hue / 256.0f * 6.0f;
+        float s = saturation / 255.0f;
+        float v = brightness / 255.0f;
+
+        int i = (hue*6)>>8;
+        float f = h - i;
+        float p = v * (1.0f - s);
+        float q = v * (1.0f - f * s);
+        float t = v * (1.0f - (1.0f - f) * s);
+
+        float r, g, b;
+        switch (i)
+        {
+            case 0: r = v; g = t; b = p; break;
+            case 1: r = q; g = v; b = p; break;
+            case 2: r = p; g = v; b = t; break;
+            case 3: r = p; g = q; b = v; break;
+            case 4: r = t; g = p; b = v; break;
+            case 5: r = v; g = p; b = q; break;
+        }
+
+        r = min(r,1.0f);
+        g = min(g,1.0f);
+        b = min(b,1.0f);
+
+        red = static_cast<u8>(r * 255.0f);
+        green = static_cast<u8>(g * 255.0f);
+        blue = static_cast<u8>(b * 255.0f);
+    }
+
+    void do_cb_palette()
+    {
+        const u8 brightness[16] = //magnitude of FT[0]
+        {
+            0,1,1,2, 1,2,2,3,
+            1,2,2,3, 2,3,3,4,
+        };
+
+        //put together: 3,0,0 and 0,3,5,1,7
+        const u8 hue[16] = //angle of FT[1]
+        {
+            0,3,5,4,7,
+            0,6,5,1,2,
+            0,3,0,1,7,
+            0,
+        };
+        const u8 saturation[16] = //magnitude of FT[1]
+        {
+            0,1,1,1,1,
+            0,1,1,1,1,
+            0,1,1,1,1,
+            0,
+        };
+        for(int i=0; i<16; ++i)
+        {
+            u8& r = PALETTE[(i+COLORBURST_START)*4+0];
+            u8& g = PALETTE[(i+COLORBURST_START)*4+1];
+            u8& b = PALETTE[(i+COLORBURST_START)*4+2];
+            HSBtoRGB((hue[i]*32)&0xFF,saturation[i]*0x90,brightness[i]*52+16, r,g,b);
+        }
+        screen.remake_buffers();
+    }
+
     u32 cycle_n{};
     void cycle()
     {
@@ -389,21 +455,22 @@ struct CGA
                     int x = columnbyte;
                     if (x < registers[H_DISPLAYED]*2)
                     {
-                        u8 gfx_byte = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
-                        const u8 colorburst[16] =
-                        {
-                            0, 120, 1, 3, 108, 24, 35, 80,
-                            188, 47, 24, 72, 41, 43, 60, 15
-                        };
+                        u8 gfx_byte_prev = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x-1);
+                        u8 gfx_byte_now = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
+                        u8 gfx_byte = (gfx_byte_prev<<4)|(gfx_byte_now>>4);
 
                         for(int i=0; i<2; ++i)
                         {
-                            u8 p1 = colorburst[(gfx_byte&0xF0)>>4];
-                            screen.pixels[y*screen.X + x*8 + 4*i] = p1;
-                            screen.pixels[y*screen.X + x*8 + 4*i+1] = p1;
-                            screen.pixels[y*screen.X + x*8 + 4*i+2] = p1;
-                            screen.pixels[y*screen.X + x*8 + 4*i+3] = p1;
+                            gfx_byte = (gfx_byte&~0x80) | (gfx_byte_now&0x80);
+                            screen.pixels[y*screen.X + x*8 + 4*i] = COLORBURST_START+(gfx_byte>>4);
+                            gfx_byte = (gfx_byte&~0x40) | (gfx_byte_now&0x40);
+                            screen.pixels[y*screen.X + x*8 + 4*i+1] = COLORBURST_START+(gfx_byte>>4);
+                            gfx_byte = (gfx_byte&~0x20) | (gfx_byte_now&0x20);
+                            screen.pixels[y*screen.X + x*8 + 4*i+2] = COLORBURST_START+(gfx_byte>>4);
+                            gfx_byte = (gfx_byte&~0x10) | (gfx_byte_now&0x10);
+                            screen.pixels[y*screen.X + x*8 + 4*i+3] = COLORBURST_START+(gfx_byte>>4);
                             gfx_byte <<= 4;
+                            gfx_byte_now <<= 4;
                         }
                     }
 
@@ -4533,6 +4600,7 @@ int main(int argc, char* argv[])
 
 
     screen.SCREEN_start();
+    cga.do_cb_palette();
 
     Opl2::Init();
 
