@@ -1740,7 +1740,7 @@ struct HARDDISK
                     {
                         set_current_params();
                         u32 offset = disk.type.get_byte_offset(current_cylinder, current_head, current_sector);
-                        cout << "HD READ offset: " << offset << endl;
+                        //cout << "HD READ offset: " << offset << endl;
                         if (address_valid)
                         {
                             dma.print_params(3);
@@ -1848,7 +1848,7 @@ struct HARDDISK
         }
         else if (port == 1) //controller reset
         {
-            cout << "HD WRITE: reset controller" << endl;
+            //cout << "HD WRITE: reset controller" << endl;
             //startprinting = true;
             error=false;
             r1_busy = false;
@@ -1858,14 +1858,14 @@ struct HARDDISK
         }
         else if (port == 2) //generate controller-select pulse (?)
         {
-            cout << "HD WRITE: controller select pulse! unn tss unn tss" << endl;
+            //cout << "HD WRITE: controller select pulse! unn tss unn tss" << endl;
             //idk
         }
         else if (port == 3)
         {
             dma_enabled = (data&0x01);
             irq_enabled = (data&0x02);
-            cout << "HD WRITE: dma=" << (dma_enabled?"enabled":"disabled") << " irq=" << (irq_enabled?"enabled":"disabled") << endl;
+            //cout << "HD WRITE: dma=" << (dma_enabled?"enabled":"disabled") << " irq=" << (irq_enabled?"enabled":"disabled") << endl;
             r1_iomode = IO_A;
             r1_busy = true;
             r1_bus = true;
@@ -1906,12 +1906,12 @@ struct HARDDISK
             data |= (r1_iomode << 1);
             data |= (r1_req << 0);
             data |= (r1_int_occurred << 5);
-            cout << "HD READ hw status: " << u32(data) << endl;
+            //cout << "HD READ hw status: " << u32(data) << endl;
         }
         else if (port == 2) //switch settings
         {
             data = 0b0101; //both drives type 2 (note inverted logic)
-            cout << "HD READ switch: " << u32(data) << endl;
+            //cout << "HD READ switch: " << u32(data) << endl;
             r1_req = true;
         }
         else
@@ -1919,7 +1919,7 @@ struct HARDDISK
             cout << "HD READ: unknown port " << u32(port) << endl;
             std::abort();
         }
-        cout << "HD READ total=" << u32(data) << endl;
+        //cout << "HD READ total=" << u32(data) << endl;
         return data;
     }
 
