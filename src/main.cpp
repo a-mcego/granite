@@ -986,8 +986,9 @@ struct CHIP8237 //DMA
         }
         else
         {
-            std::cout << "Unsupported DMA port " << u32(port) << endl;
-            std::abort();
+            std::cout << "Unsupported DMA read port " << u32(port) << endl;
+            //std::abort();
+            result = 0;
         }
         cout << "DMA READ " << u32(port) << " <- " << u32(result) <<     endl;
         return result;
@@ -1060,7 +1061,7 @@ struct CHIP8237 //DMA
             }
             else
             {
-                std::cout << "Unsupported DMA port " << u32(port) << endl;
+                std::cout << "Unsupported DMA write port " << u32(port) << endl;
                 std::abort();
             }
         }
