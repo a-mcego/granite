@@ -2944,9 +2944,9 @@ struct CPU8088
             string_prefix = 1+(instruction&0x01); //REPNZ REPZ
             return true;
         }
-        if (instruction == 0xF0)
+        if (instruction == 0xF0 || instruction == 0xF1)
         {
-            lock = true;
+            lock = 1;
             return true;
         }
         return false;
