@@ -1808,6 +1808,12 @@ struct HARDDISK
                         r1_req = false;
                         dma_in_progress = true;
                     }
+                    else if (data_in[0] == SEEK)
+                    {
+                        //do nothing(?)
+                        interrupttime = 0x300;
+                        r1_req = false;
+                    }
                     else if (data_in[0] == READY_VERIFY)
                     {
                         //do nothing(?)
