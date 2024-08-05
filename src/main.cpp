@@ -2866,8 +2866,6 @@ struct CPU8088
     {
         for(int i=0; i<8; ++i)
             std::cout << " " << r16_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i];
-        std::cout << endl;
-        cout << "                    ";
         for(int i=0; i<4; ++i)
             std::cout << " " << seg_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i+8];
         std::cout << " FL=" << std::setw(4) << std::setfill('0') << registers[FLAGS] << " IP=" << std::setw(4) << std::setfill('0') << registers[IP]-1;
