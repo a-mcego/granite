@@ -24,7 +24,6 @@ Should compile on any platform that supports C++23.
 # Bugs
 
 * Windows 1.04 launches but cannot start any applications, it often freezes.
-* Keyboard keys get stuck down often
 
 # To do
 
