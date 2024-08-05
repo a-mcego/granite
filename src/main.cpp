@@ -4300,6 +4300,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             startprinting = true;
             turbo = false;
             globalsettings.entertrace = false;
+            dump_memory("memory.raw");
         }
         u8 pc_scancode = key_lookup[key];
         if (pc_scancode != 0)
