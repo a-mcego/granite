@@ -1365,7 +1365,7 @@ struct CHIP8253 //PIT
             if constexpr (DEBUG_LEVEL > 0)
                 cout << "--- operating mode " << u32(c.operating_mode) << endl;
 
-            if (c.operating_mode == 0 || c.operating_mode == 2)
+            if (c.operating_mode == 0 || c.operating_mode == 1 || c.operating_mode == 2)
             {
                 c.current = c.reload;
                 c.output = false;
@@ -1396,6 +1396,17 @@ struct CHIP8253 //PIT
                         pic.request_interrupt(0);
                     }
                     c.output = true;
+                }
+            }
+            else if (c.operating_mode == 1)
+            {
+                if (c.current == 0)
+                {
+                    c.output = true;
+                }
+                else
+                {
+                    c.current -= 1;
                 }
             }
             else if (c.operating_mode == 2)
