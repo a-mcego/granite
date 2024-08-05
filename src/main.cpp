@@ -554,14 +554,14 @@ struct BEEPER
                 filu = fopen("d:\\out2.raw", "wb");
             fwrite(&sampleA, 2, 1, filu);
         }*/
-        sampleA = (value&pb1)?60*256:0;
+        sampleA = ((value&pb1)?60*256:0)*(pb0?-1:1);
         sampleB = ((sampleB<<5)-sampleB+sampleA)>>5; //crude lowpass
         sampleC = ((sampleC<<5)-sampleC+sampleB)>>5; //crude lowpass
     }
 
     void cycle()
     {
-        i16 state = sampleC*(pb0?-1:1);
+        i16 state = sampleC;
         i32 data = state+ym3812.sample;
         data = (data<-32768?-32768:data);
         data = (data>32767?32767:data);
