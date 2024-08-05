@@ -148,11 +148,11 @@ struct YM3812
             {
                 timer2 = data;
             }
-            else if (current_register == 0x04)
+            else if (current_register == 0x04) //reset IRQ
             {
                 if (data&0x80)
                 {
-                    status &= 0x80;
+                    status = 0;
                 }
             }
             else
