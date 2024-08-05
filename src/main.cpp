@@ -1017,12 +1017,12 @@ struct CHIP8237 //DMA
 
     void print_params(u8 channel)
     {
-        Channel& c = chans[channel];
+        /*Channel& c = chans[channel];
         cout << ">DMA port " << u32(channel) << "!< ";
         cout << "p+addr=" << c.page*65536+c.start_addr << " ";
         cout << "n=" << c.transfer_count << " ";
         cout << "mode=" << u32(c.mode) << " ";
-        cout << "direction=" << u32(c.transfer_direction) << endl;
+        cout << "direction=" << u32(c.transfer_direction) << endl;*/
     }
 
     bool enabled{};
@@ -1709,7 +1709,7 @@ struct HARDDISK
             {
                 r1_iomode = IO_B;
                 r1_req = true;
-                cout << "HD: doing more drive characteristics! c[" << u32(dc_index) << "] = " << u32(data) << endl;
+                //cout << "HD: doing more drive characteristics! c[" << u32(dc_index) << "] = " << u32(data) << endl;
                 drive_characteristics[dc_index] = data;
                 ++dc_index;
                 if (dc_index == 8)
@@ -1731,11 +1731,11 @@ struct HARDDISK
                 ++current_data_in_index;
                 if (current_data_in_index == 6)
                 {
-                    cout << "HD: All data collected! ";
-                    for(int i=0; i<6; ++i)
-                        cout << u32(data_in[i]) << ' ';
-                    cout << endl;
-                    print_data_in();
+                    //cout << "HD: All data collected! ";
+                    //for(int i=0; i<6; ++i)
+                    //    cout << u32(data_in[i]) << ' ';
+                    //cout << endl;
+                    //print_data_in();
 
                     if (false);
                     else if (data_in[0] == READ)
@@ -1760,12 +1760,12 @@ struct HARDDISK
                     {
                         set_current_params();
                         u32 offset = disk.type.get_byte_offset(current_cylinder, current_head, current_sector);
-                        cout << "HD WRITE offset: " << offset << endl;
+                        //cout << "HD WRITE offset: " << offset << endl;
                         if (address_valid)
                         {
                             if (dma.chans[3].transfer_count != 0x1FF)
                             {
-                                cout << "----------------Transfer count: " << dma.chans[3].transfer_count << endl;
+                                //cout << "----------------Transfer count: " << dma.chans[3].transfer_count << endl;
                             }
 
                             dma.print_params(3);
@@ -1933,7 +1933,7 @@ struct HARDDISK
             {
                 dma_in_progress = false;
                 pic.request_interrupt(5);
-                cout << "HD IRQ AFTER DMA!!!" << endl;
+                //cout << "HD IRQ AFTER DMA!!!" << endl;
                 r1_int_occurred = true;
             }
         }
@@ -1945,7 +1945,7 @@ struct HARDDISK
             {
                 if (irq_enabled)
                 {
-                    cout << "HD IRQ!!!" << endl;
+                    //cout << "HD IRQ!!!" << endl;
                     pic.request_interrupt(5);
                     r1_int_occurred = true;
                 }
