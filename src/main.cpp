@@ -579,17 +579,17 @@ void miniaudio_data_callback(ma_device* pDevice, void* pOutput, const void* pInp
         return;
 
     //METHOD 1: always take the N last frames. might lead to misses or repetition, but has stable pitch!
-    offset_start = offset_end-frameCount;
+    /*offset_start = offset_end-frameCount;
     i16* pi16Output = (i16*)pOutput;
     for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
     {
         i16 data = beeper.buffer[u16(offset_start+done_frames)];
         *pi16Output = data;
         ++pi16Output;
-    }
+    }*/
 
     //METHOD 2: resample the M last frames to fit into frameCount. always uses every sample but has unstable pitch!
-    /*u64 frame_counter=0;
+    u64 frame_counter=0;
     i16* pi16Output = (i16*)pOutput;
     for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
     {
@@ -598,7 +598,7 @@ void miniaudio_data_callback(ma_device* pDevice, void* pOutput, const void* pInp
         ++pi16Output;
         frame_counter += done_count;
     }
-    beeper.read_offset += frame_counter/frameCount;*/
+    beeper.read_offset += frame_counter/frameCount;
 }
 
 struct MiniAudio
