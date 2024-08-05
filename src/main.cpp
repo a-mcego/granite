@@ -129,7 +129,6 @@ struct YM3812
 
     i16 sample{};
     i16 previous_sample{};
-    u8 oplcycles{}; //for synchronizing sound
 
     void write(u8 port, u8 data) //port from 0 to 1! inclusive.
     {
@@ -3424,7 +3423,7 @@ struct CPU8088
                 if (string_prefix == 0)
                     break;
                 registers[CX] -= 1;
-                delay += 4;
+                delay += 2;
                 if ((program&0xC000)==0x8000)
                 {
                     if (string_prefix == SP_REPNZ && flag(F_ZERO))
@@ -4053,7 +4052,7 @@ struct CPU8088
         {
             interrupt_true_cycles = 0;
         }
-        delay += 4;
+        delay += 2;
     }
 } cpu;
 
@@ -4596,8 +4595,6 @@ int main(int argc, char* argv[])
     double previousTime=0.0;
 
     u64 loop_counter=0, clockgen_fast=0, clockgen_real=0;
-    u8 pitcycles=0; //for synchronising beeper/PIT
-    u8 cgacycle{};
     u32 cpu_steps{};
     while(true)
     {
@@ -4650,10 +4647,7 @@ int main(int argc, char* argv[])
             if (clockgen_fast%298 == 0) //ca. 48kHz. handles sound output in general
                 beeper.cycle();
             if (clockgen_fast%288 == 0)
-            {
                 ym3812.cycle();
-                ym3812.cycle_timers();
-            }
         }
 
         //do realtime stuff
