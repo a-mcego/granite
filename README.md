@@ -39,3 +39,4 @@ Should compile on any platform that supports C++23.
 * Adjustable resolution and filtering options
 * Overlay window when pressing F12
 * Mouse
+* Serial and parallel ports
