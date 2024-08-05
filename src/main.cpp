@@ -817,12 +817,14 @@ struct CHIP8255 //keyboard etc
     u8 current_scancode = 0;
     bool is_initialized{false};
 
+    deque<u8> scancode_queue;
+    u16 kbd_wait{};
+
     void press(u8 scancode)
     {
         if (is_initialized)
         {
-            current_scancode = scancode;
-            pic.request_interrupt(1);
+            scancode_queue.push_back(scancode);
         }
     }
 
@@ -921,6 +923,21 @@ struct CHIP8255 //keyboard etc
                 keyboard_self_test_done = true;
                 is_initialized = true;
                 pic.request_interrupt(1);
+            }
+        }
+
+        if (!scancode_queue.empty())
+        {
+            if (kbd_wait == 0)
+            {
+                current_scancode = scancode_queue.front();
+                scancode_queue.pop_front();
+                pic.request_interrupt(1);
+                kbd_wait = 1024;
+            }
+            else
+            {
+                --kbd_wait;
             }
         }
     }
