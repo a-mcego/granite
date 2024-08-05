@@ -4616,7 +4616,6 @@ int main(int argc, char* argv[])
         {
             ++clockgen_fast;
 
-            bool do_opl = clockgen_fast%288;
             if (clockgen_fast%3 == 0)
             {
                 cpu.cycle();
@@ -4642,7 +4641,7 @@ int main(int argc, char* argv[])
                 harddisk.cycle();
                 dma.cycle();
             }
-            if (do_opl)
+            if (clockgen_fast%288)
             {
                 ym3812.cycle_timers();
             }
