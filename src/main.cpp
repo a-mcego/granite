@@ -41,8 +41,8 @@ constexpr bool FLOPPY_DEBUG = false;
 
 bool startprinting=false;
 
-bool realtime_timing = false;
-bool lockstep = false;
+bool turbo = false;
+bool lockstep = true;
 
 #include "cgabios.h" //cga character ROM
 
@@ -562,13 +562,8 @@ struct BEEPER
 
     void cycle()
     {
-
-        //i16 state = ((pb1&timer)?60*256:0)*(pb0?-1:1) * (divisor>=64?1:0);
-        i16 state = sampleC*(pb0?-1:1);// * (divisor>=64?1:0);
-
-        float prev_weight = float(ym3812.oplcycles)*(1.0f/24.0f);
-
-        i32 data = state+i16(prev_weight*ym3812.previous_sample)+i16((1.0f-prev_weight)*ym3812.sample);
+        i16 state = sampleC*(pb0?-1:1);
+        i32 data = state+ym3812.sample;
         data = (data<-32768?-32768:data);
         data = (data>32767?32767:data);
         buffer[write_offset] = globalsettings.sound_on?i16(data):i16(0);
@@ -1470,9 +1465,6 @@ struct CHIP8253 //PIT
         beeper.set_output_from_pit(!channels[2].output);
     }
 } pit;
-
-
-void PrintCSIP();
 
 struct HARDDISK
 {
@@ -3014,7 +3006,6 @@ struct CPU8088
             return;
         }
 
-        PrintCSIP();
         if (registers[CS] == 0 && registers[IP] == 0)
         {
             cout << "Trying to run code at CS:IP 0:0" << endl;
@@ -4066,17 +4057,6 @@ struct CPU8088
     }
 } cpu;
 
-u32 previous_csip{};
-u32 csip_counter{};
-void PrintCSIP()
-{
-    //if (cpu.registers[cpu.CS] == 0xEA && cpu.registers[cpu.IP] == 0x2A0A)
-    if (cpu.registers[cpu.CS] == 0x00 && cpu.registers[cpu.IP] == 0x7C00)
-    {
-        realtime_timing = true; //when we start booting up the OS, switch the CPU to super mode
-    }
-}
-
 unsigned char key_lookup[GLFW_KEY_LAST+1] = {};
 void initialize_key_lookup()
 {
@@ -4304,7 +4284,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         if (globalsettings.entertrace && key == GLFW_KEY_ENTER)
         {
             startprinting = true;
-            realtime_timing = false;
+            turbo = false;
             globalsettings.entertrace = false;
         }
         u8 pc_scancode = key_lookup[key];
@@ -4317,7 +4297,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 
     if (key == GLFW_KEY_F11)
     {
-        realtime_timing = (action != GLFW_PRESS);
+        turbo = (action == GLFW_PRESS);
     }
 
     if (key == GLFW_KEY_F12)
@@ -4615,82 +4595,84 @@ int main(int argc, char* argv[])
 
     double previousTime=0.0;
 
-    u64 clockgen=0, clockgen_counter=0;
+    u64 loop_counter=0, clockgen_fast=0, clockgen_real=0;
     u8 pitcycles=0; //for synchronising beeper/PIT
     u8 cgacycle{};
-    u32 lockstep_cpu{};
+    u32 cpu_steps{};
     while(true)
     {
         //the loop is ca. ~14.31818 MHz
-        ++clockgen;
-        ++clockgen_counter;
-        if (clockgen%3 == 0 && !lockstep)
+        ++loop_counter;
+
+        if (!lockstep || turbo)
         {
-            cpu.cycle();
-            ++lockstep_cpu;
-            pic.cycle();
-            for(u8 irq=0; irq<8; ++irq)
+            ++clockgen_fast;
+
+            bool do_opl = clockgen_fast%288;
+            if (clockgen_fast%3 == 0)
             {
-                if (pic.isr&(1<<irq))
+                cpu.cycle();
+                ++cpu_steps;
+                pic.cycle();
+                for(u8 irq=0; irq<8; ++irq)
                 {
-                    if constexpr(DEBUG_LEVEL > 0)
-                        cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
-                    if (cpu.accepts_interrupts())
+                    if (pic.isr&(1<<irq))
                     {
                         if constexpr(DEBUG_LEVEL > 0)
-                            cout << "IRQ: SENT TO CPU " << u32(irq) << endl;
-                        cpu.irq(irq);
-                        break;
+                            cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
+                        if (cpu.accepts_interrupts())
+                        {
+                            if constexpr(DEBUG_LEVEL > 0)
+                                cout << "IRQ: SENT TO CPU " << u32(irq) << endl;
+                            cpu.irq(irq);
+                            break;
+                        }
                     }
                 }
+                kbd.cycle();
+                diskettecontroller.cycle();
+                harddisk.cycle();
+                dma.cycle();
             }
-            kbd.cycle();
-            diskettecontroller.cycle();
-            harddisk.cycle();
-            dma.cycle();
-        }
-        bool do_opl = clockgen%288;
-        if (!realtime_timing && !lockstep && clockgen%12 == 0)
-        {
-            if (clockgen%8 == 0)
-            {
-                cga.cycle();
-            }
-            if (clockgen%12 == 0)
-            {
-                pit.cycle();
-            }
-            if (clockgen%298 == 0) //ca. 48kHz. handles sound output in general
-                beeper.cycle();
             if (do_opl)
             {
+                ym3812.cycle_timers();
+            }
+
+        }
+        //realtime stuff
+        if (turbo)
+        {
+            if (clockgen_fast%8 == 0)
+                cga.cycle();
+            if (clockgen_fast%12 == 0)
+                pit.cycle();
+            if (clockgen_fast%298 == 0) //ca. 48kHz. handles sound output in general
+                beeper.cycle();
+            if (clockgen_fast%288 == 0)
+            {
                 ym3812.cycle();
+                ym3812.cycle_timers();
             }
         }
 
-        if (do_opl)
-        {
-            ym3812.cycle_timers();
-        }
-
-
-        if ((clockgen&0x1F) == 0)
+        //do realtime stuff
+        if (!turbo && (loop_counter&0x1F) == 0) //calculate how many cycles we need to do
         {
             double newTime = glfwGetTime();
-            if (realtime_timing | lockstep)
+            if (newTime-previousTime >= 0.1)
+                previousTime = newTime-0.1;
+            u64 cycles_done = (newTime-previousTime)*(14318180.0);
+            for(u64 i=0; i<cycles_done; ++i)
             {
-                u64 cycles_done = (newTime-previousTime)*(14318180.0/3.0);
-
-                //if there's a slowdown, prevent it from going "faster than realtime" in the emulation
-                //u64 actual_cycles_done = cycles_done>=0x100?0x100:cycles_done;
-                //cout << cycles_done<<' ';
-                u64 actual_cycles_done = cycles_done;
-                for(u64 i=0; i<actual_cycles_done; ++i) //3 divisor (4.77 MHz)
+                ++clockgen_real;
+                //fast stuff
+                if (lockstep)
                 {
-                    if (lockstep)
+                    if (clockgen_real%3 == 0)
                     {
                         cpu.cycle();
-                        ++lockstep_cpu;
+                        ++cpu_steps;
                         pic.cycle();
                         for(u8 irq=0; irq<8; ++irq)
                         {
@@ -4712,63 +4694,42 @@ int main(int argc, char* argv[])
                         harddisk.cycle();
                         dma.cycle();
                     }
-
-                    static u8 realtime_clock{};
-                    ++realtime_clock;
-
-                    if (realtime_timing | lockstep)
-                    {
-                        cgacycle += 3; //convert /3 divisor to /8
-                        while (cgacycle >= 8)
-                        {
-                            cga.cycle();
-                            cgacycle -= 8;
-                        }
-                    }
-
-                    if ((realtime_clock&0x03) == 0 && (realtime_timing | lockstep))// 12 divisor
-                    {
-                        pit.cycle();
-                        pitcycles += 7;
-                        if (pitcycles >= 174) //ca. 48kHz. handles sound output in general
-                        {
-                            beeper.cycle();
-                            pitcycles -= 174;
-                        }
-                        ++ym3812.oplcycles;
-                        if (ym3812.oplcycles >= 24)
-                        {
-                            ym3812.cycle();
-                            ym3812.oplcycles -= 24;
-                        }
-                    }
                 }
-                //update the time with the original cycles done
-                //so when the slowdown ends, we don't try to "catch up"
-                previousTime += double(cycles_done)/(14318180.0/3.0);
-            }
-            else
-                previousTime = newTime;
-
-            if ((clockgen&0xFFFF) == 0)
-            {
-                //check_bios(__LINE__);
-                if (newTime-startTime >= 1.0)
+                //realtime stuff
+                if (!turbo)
                 {
-                    startTime += 1.0;
-                    cout << clockgen_counter/14318180.0 << "x realtime ";
-                    cout << std::dec << lockstep_cpu << std::hex << " inst/s";
-                    //cout << u32(memory_bytes[0x410]) << " " << u32(memory_bytes[0x411]);
-                    cout << endl;
-
-                    harddisk.disk.flush();
-
-                    //cga.print_regs();
-                    lockstep_cpu = 0;
-                    clockgen_counter = 0;
+                    if (clockgen_real%8 == 0)
+                        cga.cycle();
+                    if (clockgen_real%12 == 0)
+                        pit.cycle();
+                    if (clockgen_real%298 == 0) //ca. 48kHz. handles sound output in general
+                        beeper.cycle();
+                    if (clockgen_real%288 == 0)
+                    {
+                        ym3812.cycle();
+                        ym3812.cycle_timers();
+                    }
                 }
+            }
+            previousTime += double(cycles_done)/14318180.0;
+        }
+        if ((loop_counter&0xFFFF) == 0)
+        {
+            if (!lockstep || turbo)
+            {
+                previousTime = glfwGetTime();
+            }
+            if (glfwGetTime()-startTime >= 1.0)
+            {
+                startTime += 1.0;
+                cout << cpu_steps*3/14318180.0 << "x realtime ";
+                cout << std::dec << cpu_steps/1000000.0 << std::hex << " MHz";
+                cout << endl;
+                harddisk.disk.flush();
+                cpu_steps = 0;
             }
         }
+
     }
     Opl2::Quit();
     glfwTerminate();
