@@ -3545,7 +3545,11 @@ struct CPU8088
                 //F_OVERFLOW, F_SIGN, F_ZERO, F_AUX_CARRY, F_PARITY, F_CARRY
                 u8 original=rm;
                 u8 result=0;
-                if (false);
+                if(inst_type == 6)
+                {
+                    cout << "¤";
+                    break;
+                }
                 //ROL ROR RCL RCR SHL SHR SAL SAR
                 else if ((inst_type&1) == 0) //ROL RCL SHL SAL
                 {
@@ -3753,10 +3757,6 @@ struct CPU8088
         {
             IO::out(registers[DX], registers[AX]&0xFF);
             IO::out(registers[DX]+1, registers[AX]>>8);
-        }
-        else if (instruction == 0xF1)
-        {
-            // THIS ISN'T VALID ON 8088 / 8086
         }
         else if (instruction == 0xF4) // HALT / HLT
         {
