@@ -1459,7 +1459,14 @@ struct CHIP8253 //PIT
             }
             else if (c.operating_mode == 3)
             {
-                c.current -= 2;
+                if (c.current&1)
+                {
+                    c.current -= c.output?1:3;
+                }
+                else
+                {
+                    c.current -= 2;
+                }
                 if (c.current < 2)
                 {
                     c.output = !c.output;
