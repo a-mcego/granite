@@ -570,25 +570,53 @@ struct BEEPER
     }
 } beeper;
 
-void miniaudio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+u64 totalframes = 0;
+
+//we need to somehow sync the "real audio timing" to the "emulator timing"
+//this takes some thinking.
+
+//METHOD 1: always take the N last frames. might lead to misses or repetition, but has stable pitch!
+void audio_method1(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
+    static bool started{false};
+    if (!started)
+    {
+        started = true;
+        beeper.read_offset = beeper.write_offset-256;
+    }
     u16 offset_end = beeper.write_offset;
     u16 offset_start = beeper.read_offset;
-    u32 done_count = offset_end-offset_start;
+    u16 done_count = u16(offset_end-offset_start);
     if (frameCount == 0 || done_count == 0)
         return;
 
-    //METHOD 1: always take the N last frames. might lead to misses or repetition, but has stable pitch!
-    /*offset_start = offset_end-frameCount;
+    totalframes += frameCount;
+    offset_start = offset_end-frameCount;
     i16* pi16Output = (i16*)pOutput;
     for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
     {
         i16 data = beeper.buffer[u16(offset_start+done_frames)];
         *pi16Output = data;
         ++pi16Output;
-    }*/
+    }
+}
 
-    //METHOD 2: resample the M last frames to fit into frameCount. always uses every sample but has unstable pitch!
+//METHOD 2: resample the M last frames to fit into frameCount. always uses every sample but has unstable pitch!
+void audio_method2(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+{
+    static bool started{false};
+    if (!started)
+    {
+        started = true;
+        beeper.read_offset = beeper.write_offset-256;
+    }
+    u16 offset_end = beeper.write_offset;
+    u16 offset_start = beeper.read_offset;
+    u16 done_count = u16(offset_end-offset_start);
+    if (frameCount == 0 || done_count == 0)
+        return;
+
+    totalframes += frameCount;
     u64 frame_counter=0;
     i16* pi16Output = (i16*)pOutput;
     for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
@@ -599,6 +627,60 @@ void miniaudio_data_callback(ma_device* pDevice, void* pOutput, const void* pInp
         frame_counter += done_count;
     }
     beeper.read_offset += frame_counter/frameCount;
+}
+
+//METHOD 3: dynamic resampling. experimental!
+//          might not work if your output sample rate is not 48000
+i16 additional_samples = 0;
+void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+{
+    static bool started{false};
+    if (!started)
+    {
+        started = true;
+        beeper.read_offset = beeper.write_offset-256;
+    }
+    u16 offset_end = beeper.write_offset;
+    u16 offset_start = beeper.read_offset;
+    u16 done_count = u16(offset_end-offset_start);
+    if (frameCount == 0 || done_count == 0)
+        return;
+
+    totalframes += frameCount;
+    u64 frame_counter=0;
+
+    done_count = frameCount+additional_samples;
+    i16* pi16Output = (i16*)pOutput;
+    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
+    {
+        i16 data = beeper.buffer[offset_start];
+        *pi16Output = data;
+        ++pi16Output;
+        frame_counter += done_count;
+        while(frame_counter >= frameCount)
+        {
+            ++offset_start;
+            frame_counter -= frameCount;
+            if (offset_start == offset_end)
+                goto double_break; //oh no :o
+        }
+    }
+double_break: // oh no :O
+    u16 left = (offset_end-offset_start);
+
+    if (u16(offset_end-offset_start) >= 2048)
+        offset_start = offset_end-256;
+
+    if (left > 1024)
+        additional_samples = 4;
+    else if (left > 256)
+        additional_samples = 1;
+    else if (left == 256)
+        additional_samples = 0;
+    else if (left < 256)
+        additional_samples = -1;
+
+    beeper.read_offset = offset_start;
 }
 
 struct MiniAudio
@@ -613,7 +695,7 @@ struct MiniAudio
         deviceConfig.playback.format   = ma_format_s16;
         deviceConfig.playback.channels = 1;
         deviceConfig.sampleRate        = 48000;
-        deviceConfig.dataCallback      = miniaudio_data_callback;
+        deviceConfig.dataCallback      = audio_method3;
 
         deviceConfig.noPreSilencedOutputBuffer = true;
         deviceConfig.noClip = true;
