@@ -675,16 +675,16 @@ double_break: // oh no :O
 
     if (left > 1024)
         additional_samples = 2;
-    else if (left > 256)
+    else if (left > 260)
         additional_samples = 1;
-    else if (left == 256)
-        additional_samples = 0;
-    else if (left < 256)
+    else if (left < 252)
         additional_samples = -1;
+    else
+        additional_samples = 0;
 
-    if (left < 1024)
+    if (left < 64)
         veer *= 0.9999f;
-    else if (left > 1024)
+    else if (left > 384)
         veer *= 1.0001f;
 
     beeper.read_offset = offset_start;
