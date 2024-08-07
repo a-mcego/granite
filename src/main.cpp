@@ -632,15 +632,17 @@ void audio_method2(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 //METHOD 3: dynamic resampling. experimental!
 //          might not work if your output sample rate is not 48000
 i16 additional_samples = 0;
+const float SAMPLERATE = 48000;
+float veer = 48000.0f/SAMPLERATE;
 void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
     static bool started{false};
+    u16 offset_end = beeper.write_offset;
     if (!started)
     {
         started = true;
-        beeper.read_offset = beeper.write_offset-256;
+        beeper.read_offset = offset_end-256;
     }
-    u16 offset_end = beeper.write_offset;
     u16 offset_start = beeper.read_offset;
     u16 done_count = u16(offset_end-offset_start);
     if (frameCount == 0 || done_count == 0)
@@ -649,7 +651,7 @@ void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
     totalframes += frameCount;
     u64 frame_counter=0;
 
-    done_count = frameCount+additional_samples;
+    done_count = frameCount*veer+additional_samples;
     i16* pi16Output = (i16*)pOutput;
     for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
     {
@@ -672,13 +674,18 @@ double_break: // oh no :O
         offset_start = offset_end-256;
 
     if (left > 1024)
-        additional_samples = 4;
+        additional_samples = 2;
     else if (left > 256)
         additional_samples = 1;
     else if (left == 256)
         additional_samples = 0;
     else if (left < 256)
         additional_samples = -1;
+
+    if (left < 1024)
+        veer *= 0.9999f;
+    else if (left > 1024)
+        veer *= 1.0001f;
 
     beeper.read_offset = offset_start;
 }
@@ -694,7 +701,7 @@ struct MiniAudio
         deviceConfig = ma_device_config_init(ma_device_type_playback);
         deviceConfig.playback.format   = ma_format_s16;
         deviceConfig.playback.channels = 1;
-        deviceConfig.sampleRate        = 48000;
+        deviceConfig.sampleRate        = u32(SAMPLERATE);
         deviceConfig.dataCallback      = audio_method3;
 
         deviceConfig.noPreSilencedOutputBuffer = true;
