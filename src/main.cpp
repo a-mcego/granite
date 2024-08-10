@@ -272,9 +272,18 @@ struct CGA
     u8 current_modeselect{};
     u8 vcc{};
 
+    u32 totalvsync{};
+
+    double last_render{};
+
     void render()
     {
-        screen.render();
+        double now = glfwGetTime();
+        if (now-last_render > 0.01)
+        {
+            screen.render();
+            last_render = now;
+        }
     }
 
     u8 read(u8 port) //port from 0 to 15! inclusive
@@ -322,6 +331,10 @@ struct CGA
             if (current_register < 0x10)
             {
                 registers[current_register] = data;
+                u32 line = cycle_n/912;
+                u32 column = cycle_n%912;
+                //if (current_register != 0x0E && current_register != 0x0F)
+                //      cout << "CGA " << u32(current_register) << "=" << u32(data) << " " << std::dec << column << ":" << line << "(" << logical_line << ")" << std::hex << "  ", print_regs();
             }
             else
             {
@@ -407,46 +420,83 @@ struct CGA
             u8& r = PALETTE[(i+COLORBURST_START)*4+0];
             u8& g = PALETTE[(i+COLORBURST_START)*4+1];
             u8& b = PALETTE[(i+COLORBURST_START)*4+2];
-            HSBtoRGB((hue[i]*32)&0xFF,saturation[i]*0x90,brightness[i]*52+16, r,g,b);
+            HSBtoRGB((hue[i]*32)&0xFF,saturation[i]*0xA0,brightness[i]*63, r,g,b);
         }
         screen.remake_buffers();
     }
 
     u32 cycle_n{};
+    u32 logical_line{};
+    u32 line_inside_character{};
     void cycle()
     {
         cycle_n += 8;
         cycle_n -= (cycle_n>=912*262?912*262:0);
+
+        if (cycle_n == 0)
+        {
+            logical_line = 0;
+            line_inside_character = 0;
+        }
         if (cycle_n == 262*640)
         {
             ++total_frames;
+        }
+        if ((cycle_n % 256) == 0)
+        {
             render();
         }
 
         u32 line = cycle_n/912;
         u32 column = cycle_n%912;
 
+        if (column == 0 && logical_line==0)
+        {
+            render();
+            current_startaddress = ((registers[START_ADDRESS_H]<<8) | registers[START_ADDRESS_L])*2;
+            current_modeselect = mode_select;
+        }
+
+        u8 is_graphics_mode = (current_modeselect>>1)&0x01;
+        u8 max_scanline = (is_graphics_mode?0:registers[MAX_SCAN_LINE])+1;
+
+        if (line != 0 && column == 0)
+        {
+            ++line_inside_character;
+            if (line_inside_character >= max_scanline)
+            {
+                line_inside_character = 0;
+                ++logical_line;
+                //cout << std::dec << line << "-" << logical_line <<std::hex << endl;
+            }
+        }
+        else if (line == 0 && column == 0)
+        {
+            line_inside_character = 0;
+            logical_line = 0;
+        }
+        if (logical_line >= u32(registers[V_TOTAL]+1)*2*max_scanline)
+        {
+            line_inside_character = 0;
+            logical_line = 0;
+        }
+
         u32 columnbyte = column/8;
 
         if (line < 200)
         {
-            if (column == 0 && line==0)
-            {
-                current_startaddress = ((registers[START_ADDRESS_H]<<8) | registers[START_ADDRESS_L])*2;
-                current_modeselect = mode_select;
-            }
             //cout << line << ": "; print_regs();
             u8 textmode_40_80 = (current_modeselect>>0)&0x01;
-            u8 is_graphics_mode = (current_modeselect>>1)&0x01;
             u8 no_colorburst = (current_modeselect>>2)&0x01;
             u8 resolution = (current_modeselect>>4)&0x01;
-            u16 base_offset = current_startaddress;
-            u8 max_scanline = registers[MAX_SCAN_LINE]+1;
 
             const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
             const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+add), u8(6+add)};
 
             int y = line;
+            int y_logical = logical_line;
+            //if (registers[V_DISPLAYED] > 0)
+            //    cout << line << "-" << logical_line << " ", print_regs();
             if (is_graphics_mode)
             {
                 if (resolution && !no_colorburst)
@@ -454,8 +504,8 @@ struct CGA
                     int x = columnbyte;
                     if (x < registers[H_DISPLAYED]*2)
                     {
-                        u8 gfx_byte_prev = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x-1);
-                        u8 gfx_byte_now = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
+                        u8 gfx_byte_prev = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x-1);
+                        u8 gfx_byte_now = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
                         u8 gfx_byte = (gfx_byte_prev<<4)|(gfx_byte_now>>4);
 
                         for(int i=0; i<2; ++i)
@@ -479,7 +529,7 @@ struct CGA
                     int x = columnbyte;
                     if (x < registers[H_DISPLAYED]*2)
                     {
-                        u8 gfx_byte = memory8_internal((base_offset+(y&1?0x2000:0))+(y>>1)*registers[H_DISPLAYED]*2+x);
+                        u8 gfx_byte = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
                         for(int i=0; i<4; ++i)
                         {
                             u8 p1 = (resolution?((gfx_byte&0x80)?15:0):palette[(gfx_byte&0xC0)>>6]);
@@ -497,10 +547,13 @@ struct CGA
                 {
                     if (x < registers[H_DISPLAYED])
                     {
-                        u32 screen_row = y/max_scanline;
-                        u32 current_line = y%max_scanline;
+                        //u32 screen_row = y_logical/max_scanline;
+                        //u32 current_line = y_logical%max_scanline;
 
-                        u32 offset = base_offset + (screen_row * registers[H_DISPLAYED] + x) * 2;
+                        u32 screen_row = logical_line;
+                        u32 current_line = line_inside_character;
+
+                        u32 offset = current_startaddress + (screen_row * registers[H_DISPLAYED] + x) * 2;
                         u8 char_code = memory8_internal(offset);
                         u8 attribute = memory8_internal(offset+1);
                         u8 fg_color = attribute & 0x0F;
@@ -526,8 +579,22 @@ struct CGA
             }
         }
 
+        bool old_vrt = vertical_retrace;
+
         horizontal_retrace = (cycle_n%912 >= 640);
-        vertical_retrace = (cycle_n >= 912*200);
+        //vertical_retrace = (cycle_n >= 912*200);
+        vertical_retrace = (logical_line >= registers[V_SYNC_POS]*(is_graphics_mode?2:1));
+
+        if (column == 0 && globalsettings.entertrace)
+        {
+            cout << std::dec << u32(line) << " " << u32(logical_line) << " " << u32(max_scanline) << " " << u32(vertical_retrace) << std::endl;
+        }
+
+
+
+        if (!old_vrt && vertical_retrace)
+            ++totalvsync;
+
         snow = false;
     }
 } cga;
