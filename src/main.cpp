@@ -239,7 +239,7 @@ struct CGA
     void print_regs()
     {
         for(int i=0; i<16; ++i)
-            cout << u32(registers[i]) << " ";
+            cout << u32(registers[i]) << (i%4==3?"  ":" ");
         cout << endl;
     }
 
@@ -318,10 +318,6 @@ struct CGA
 
     void write(u8 port, u8 data) //port from 0 to 15! inclusive.
     {
-        if constexpr (DEBUG_LEVEL > 0)
-        {
-            cout << "CGA WRITE! " << u32(port) << " <- " << u32(data) << endl;
-        }
         if (port == 0x04)
         {
             current_register = data;
@@ -331,8 +327,6 @@ struct CGA
             if (current_register < 0x10)
             {
                 registers[current_register] = data;
-                u32 line = cycle_n/912;
-                u32 column = cycle_n%912;
                 //if (current_register != 0x0E && current_register != 0x0F)
                 //      cout << "CGA " << u32(current_register) << "=" << u32(data) << " " << std::dec << column << ":" << line << "(" << logical_line << ")" << std::hex << "  ", print_regs();
             }
@@ -425,176 +419,197 @@ struct CGA
         screen.remake_buffers();
     }
 
-    u32 cycle_n{};
+    u32 column{};
     u32 logical_line{};
+    u32 scan_line{};
+    u32 scan_column{};
     u32 line_inside_character{};
+    u32 vsyncadjust{};
+    bool hsync{};
     void cycle()
     {
-        cycle_n += 8;
-        cycle_n -= (cycle_n>=912*262?912*262:0);
+        column += 8;
+        column = (column>=912?0:column);
+        if (!hsync)
+        {
+            scan_column += 8;
+            scan_column = (scan_column>=912?0:scan_column);
+        }
+        else
+        {
+            scan_column = 0;
+        }
 
-        if (cycle_n == 0)
+        if (column == 0) //new line
         {
-            logical_line = 0;
-            line_inside_character = 0;
-        }
-        if (cycle_n == 262*640)
-        {
-            ++total_frames;
-        }
-        if ((cycle_n % 256) == 0)
-        {
+            scan_line += (scan_line>=261?-261:1);
             render();
-        }
 
-        u32 line = cycle_n/912;
-        u32 column = cycle_n%912;
-
-        if (column == 0 && logical_line==0)
-        {
-            render();
-            current_startaddress = ((registers[START_ADDRESS_H]<<8) | registers[START_ADDRESS_L])*2;
-            current_modeselect = mode_select;
-        }
-
-        u8 is_graphics_mode = (current_modeselect>>1)&0x01;
-        u8 max_scanline = (is_graphics_mode?0:registers[MAX_SCAN_LINE])+1;
-
-        if (line != 0 && column == 0)
-        {
             ++line_inside_character;
-            if (line_inside_character >= max_scanline)
+            if (line_inside_character > registers[MAX_SCAN_LINE])
             {
                 line_inside_character = 0;
                 ++logical_line;
-                //cout << std::dec << line << "-" << logical_line <<std::hex << endl;
+                //cout << std::dec << physical_line << "-" << logical_line <<std::hex << endl;
             }
-        }
-        else if (line == 0 && column == 0)
-        {
-            line_inside_character = 0;
-            logical_line = 0;
-        }
-        if (logical_line >= u32(registers[V_TOTAL]+1)*2*max_scanline)
-        {
-            line_inside_character = 0;
-            logical_line = 0;
-        }
-
-        u32 columnbyte = column/8;
-
-        if (line < 200)
-        {
-            //cout << line << ": "; print_regs();
-            u8 textmode_40_80 = (current_modeselect>>0)&0x01;
-            u8 no_colorburst = (current_modeselect>>2)&0x01;
-            u8 resolution = (current_modeselect>>4)&0x01;
-
-            const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
-            const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+add), u8(6+add)};
-
-            int y = line;
-            int y_logical = logical_line;
-            //if (registers[V_DISPLAYED] > 0)
-            //    cout << line << "-" << logical_line << " ", print_regs();
-            if (is_graphics_mode)
-            {
-                if (resolution && !no_colorburst)
-                {
-                    int x = columnbyte;
-                    if (x < registers[H_DISPLAYED]*2)
-                    {
-                        u8 gfx_byte_prev = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x-1);
-                        u8 gfx_byte_now = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
-                        u8 gfx_byte = (gfx_byte_prev<<4)|(gfx_byte_now>>4);
-
-                        for(int i=0; i<2; ++i)
-                        {
-                            gfx_byte = (gfx_byte&~0x80) | (gfx_byte_now&0x80);
-                            screen.pixels[y*screen.X + x*8 + 4*i] = COLORBURST_START+(gfx_byte>>4);
-                            gfx_byte = (gfx_byte&~0x40) | (gfx_byte_now&0x40);
-                            screen.pixels[y*screen.X + x*8 + 4*i+1] = COLORBURST_START+(gfx_byte>>4);
-                            gfx_byte = (gfx_byte&~0x20) | (gfx_byte_now&0x20);
-                            screen.pixels[y*screen.X + x*8 + 4*i+2] = COLORBURST_START+(gfx_byte>>4);
-                            gfx_byte = (gfx_byte&~0x10) | (gfx_byte_now&0x10);
-                            screen.pixels[y*screen.X + x*8 + 4*i+3] = COLORBURST_START+(gfx_byte>>4);
-                            gfx_byte <<= 4;
-                            gfx_byte_now <<= 4;
-                        }
-                    }
-
-                }
-                else
-                {
-                    int x = columnbyte;
-                    if (x < registers[H_DISPLAYED]*2)
-                    {
-                        u8 gfx_byte = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
-                        for(int i=0; i<4; ++i)
-                        {
-                            u8 p1 = (resolution?((gfx_byte&0x80)?15:0):palette[(gfx_byte&0xC0)>>6]);
-                            u8 p2 = (resolution?((gfx_byte&0x40)?15:0):p1);
-                            screen.pixels[y*screen.X + x*8 + 2*i] = p1;
-                            screen.pixels[y*screen.X + x*8 + 2*i+1] = p2;
-                            gfx_byte <<= 2;
-                        }
-                    }
-                }
-            }
+            bool all_lines_drawn = (logical_line > registers[V_TOTAL]);
+            if (all_lines_drawn)
+                ++vsyncadjust;
             else
+                vsyncadjust = 0;
+
+            if (all_lines_drawn && vsyncadjust > registers[V_TOTAL_ADJUST])
             {
-                int x = columnbyte;
-                {
-                    if (x < registers[H_DISPLAYED])
-                    {
-                        //u32 screen_row = y_logical/max_scanline;
-                        //u32 current_line = y_logical%max_scanline;
+                vsyncadjust = 0;
+                logical_line = 0;
+                line_inside_character = 0;
+            }
 
-                        u32 screen_row = logical_line;
-                        u32 current_line = line_inside_character;
-
-                        u32 offset = current_startaddress + (screen_row * registers[H_DISPLAYED] + x) * 2;
-                        u8 char_code = memory8_internal(offset);
-                        u8 attribute = memory8_internal(offset+1);
-                        u8 fg_color = attribute & 0x0F;
-                        u8 bg_color = (attribute >> 4) & 0x0F;
-                        u8 char_row = CGABIOS[char_code*8+current_line];
-
-                        for (u32 x_off = 0; x_off < 8; x_off++)
-                        {
-                            u32 pixel_x = x * 8 + x_off;
-                            u8 color = (char_row & (1 << (7 - x_off))) ? fg_color : bg_color;
-                            if (textmode_40_80)
-                            {
-                                screen.pixels[y * screen.X + pixel_x] = color; //screen.pixels is one byte per pixel
-                            }
-                            else
-                            {
-                                screen.pixels[y * screen.X + pixel_x*2] = color;
-                                screen.pixels[y * screen.X + pixel_x*2+1] = color;
-                            }
-                        }
-                    }
-                }
+            if (logical_line == 0)
+            {
+                current_startaddress = ((registers[START_ADDRESS_H]<<8) | registers[START_ADDRESS_L])*2;
+                current_modeselect = mode_select;
             }
         }
+        u8 is_graphics_mode = (current_modeselect>>1)&0x01;
+
 
         bool old_vrt = vertical_retrace;
 
-        horizontal_retrace = (cycle_n%912 >= 640);
-        //vertical_retrace = (cycle_n >= 912*200);
-        vertical_retrace = (logical_line >= registers[V_SYNC_POS]*(is_graphics_mode?2:1));
+        vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
 
-        if (column == 0 && globalsettings.entertrace)
+        if (column == 0 && logical_line == registers[V_SYNC_POS])
         {
-            cout << std::dec << u32(line) << " " << u32(logical_line) << " " << u32(max_scanline) << " " << u32(vertical_retrace) << std::endl;
+            scan_line = 1;
         }
 
-
+        if (column == 0)
+        {
+            //cout << std::dec << u32(scan_line) << " " << u32(logical_line) << " " << u32(line_inside_character) << " " << u32(vsyncadjust) << " " << u32(vertical_retrace) << " regs: ";
+            //print_regs();
+        }
 
         if (!old_vrt && vertical_retrace)
+        {
             ++totalvsync;
+        }
 
+        horizontal_retrace = (column >= 640);
+        u32 columnbyte = column/8;
+
+        u8 textmode_40_80 = (current_modeselect>>0)&0x01;
+        u16 hsync_mult = 16;
+
+        if (!is_graphics_mode && textmode_40_80)
+        {
+            hsync_mult = 8;
+        }
+        u16 hsync_start = (registers[H_SYNC_POS])*hsync_mult;
+        u16 hsync_end = (registers[H_SYNC_POS]+registers[H_SYNC_WIDTH])*hsync_mult;
+        hsync = (column >= hsync_start && column <= hsync_end);
+
+        if (column == hsync_end)
+        {
+            scan_column = 0;
+        }
+
+        //cout << scan_line << ": "; print_regs();
+        u8 no_colorburst = (current_modeselect>>2)&0x01;
+        u8 resolution = (current_modeselect>>4)&0x01;
+
+        const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
+        const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+add), u8(6+add)};
+
+        if (is_graphics_mode)
+        {
+            /*if (resolution && !no_colorburst)
+            {
+                int x = columnbyte;
+                if (x < registers[H_DISPLAYED]*2)
+                {
+                    u8 gfx_byte_prev = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x-1);
+                    u8 gfx_byte_now = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
+                    u8 gfx_byte = (gfx_byte_prev<<4)|(gfx_byte_now>>4);
+
+                    for(int i=0; i<2; ++i)
+                    {
+                        gfx_byte = (gfx_byte&~0x80) | (gfx_byte_now&0x80);
+                        screen.pixels[y*screen.X + x*8 + 4*i] = COLORBURST_START+(gfx_byte>>4);
+                        gfx_byte = (gfx_byte&~0x40) | (gfx_byte_now&0x40);
+                        screen.pixels[y*screen.X + x*8 + 4*i+1] = COLORBURST_START+(gfx_byte>>4);
+                        gfx_byte = (gfx_byte&~0x20) | (gfx_byte_now&0x20);
+                        screen.pixels[y*screen.X + x*8 + 4*i+2] = COLORBURST_START+(gfx_byte>>4);
+                        gfx_byte = (gfx_byte&~0x10) | (gfx_byte_now&0x10);
+                        screen.pixels[y*screen.X + x*8 + 4*i+3] = COLORBURST_START+(gfx_byte>>4);
+                        gfx_byte <<= 4;
+                        gfx_byte_now <<= 4;
+                    }
+                }
+
+            }
+            else
+            {*/
+                int x = column/8;
+                u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
+                //u8 gfx_byte = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
+                u8 gfx_byte = memory8_internal(offset);
+                for(int i=0; i<8; i+=2)
+                {
+                    u8 p1 = (resolution?((gfx_byte&0x80)?15:0):palette[(gfx_byte&0xC0)>>6]);
+                    u8 p2 = (resolution?((gfx_byte&0x40)?15:0):p1);
+
+                    if (vertical_retrace || horizontal_retrace)
+                        p1 = 0x11, p2 = 0x11;
+
+                    screen.pixels[scan_line*screen.X + scan_column + i] = p1;
+                    screen.pixels[scan_line*screen.X + scan_column + i+1] = p2;
+                    gfx_byte <<= 2;
+                }
+            //}
+        }
+        else
+        {
+            if (textmode_40_80) //80col
+            {
+                int x = column/8;
+                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
+                u8 char_code = memory8_internal(offset);
+                u8 attribute = memory8_internal(offset+1);
+                u8 fg_color = attribute & 0x0F;
+                u8 bg_color = (attribute >> 4) & 0x0F;
+                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+
+                for (u32 x_off = 0; x_off < 8; x_off++)
+                {
+                    u32 pixel_x = scan_column + x_off;
+                    u8 color = (char_row & (1 << (7 - x_off))) ? fg_color : bg_color;
+                    if (vertical_retrace || horizontal_retrace)
+                        color = 0x11;
+
+                    screen.pixels[scan_line * screen.X + pixel_x] = color; //screen.pixels is one byte per pixel
+                }
+            }
+            else //40col
+            {
+                int x = column/16;
+                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
+                u8 char_code = memory8_internal(offset);
+                u8 attribute = memory8_internal(offset+1);
+                u8 fg_color = attribute & 0x0F;
+                u8 bg_color = (attribute >> 4) & 0x0F;
+                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+
+                for (u32 x_off = 0; x_off < 8; x_off++)
+                {
+                    u32 pixel_x = scan_column + x_off;
+                    u8 color = (char_row & (1 << (7 - x_off))) ? fg_color : bg_color;
+                    if (vertical_retrace || horizontal_retrace)
+                        color = 0x11;
+                    screen.pixels[scan_line * screen.X + pixel_x] = color;
+                    //screen.pixels[scan_line * screen.X + pixel_x*2+1] = color;
+                }
+            }
+        }
         snow = false;
     }
 } cga;

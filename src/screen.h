@@ -5,8 +5,12 @@
 
 struct SCREEN
 {
-    u8 pixels[640*400] = {};
-    u16 X{640}, Y{200};
+    //u8 pixels[640*400] = {};
+    //u16 X{640}, Y{200};
+
+    u8 pixels[912*264] = {};
+    u16 X{912}, Y{262};
+
     GLuint textures[2] = {};
     GLuint shaderProgram{};
     GLFWwindow* window{};
