@@ -1812,7 +1812,7 @@ struct HARDDISK
                 cout << "File " << filename << " not found when loading harddisk." << endl;
             }
         }
-    } disk;
+    } disks[2];
 
     enum COMMAND
     {
@@ -1921,7 +1921,7 @@ struct HARDDISK
         current_head = (data_in[1]&0x1F);
         current_drive = (data_in[1]&0x20)>>5;
 
-        address_valid = disk.type.is_valid(current_cylinder,current_head,current_sector);
+        address_valid = disks[current_drive].type.is_valid(current_cylinder,current_head,current_sector);
     }
 
     void write(u8 port, u8 data) //port from 0 to 3! inclusive.
@@ -1964,12 +1964,12 @@ struct HARDDISK
                     else if (data_in[0] == READ)
                     {
                         set_current_params();
-                        u32 offset = disk.type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
                         //cout << "HD READ offset: " << offset << endl;
                         if (address_valid)
                         {
                             dma.print_params(3);
-                            dma.transfer(3, &disk.data, offset);
+                            dma.transfer(3, &disks[current_drive].data, offset);
                             dma_in_progress = true;
                         }
                         else
@@ -1982,7 +1982,7 @@ struct HARDDISK
                     else if (data_in[0] == WRITE)
                     {
                         set_current_params();
-                        u32 offset = disk.type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
                         //cout << "HD WRITE offset: " << offset << endl;
                         if (address_valid)
                         {
@@ -1992,7 +1992,7 @@ struct HARDDISK
                             }
 
                             dma.print_params(3);
-                            dma.transfer(3, &disk.data, offset);
+                            dma.transfer(3, &disks[current_drive].data, offset);
                             dma_in_progress = true;
                         }
                         else
@@ -4691,9 +4691,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             }
             else if (key == GLFW_KEY_F)
             {
-                cout << "Flushing disk." << endl;
-                harddisk.disk.flush();
-                cout << "Disk flushed." << endl;
+                cout << "Flushing disks." << endl;
+                harddisk.disks[0].flush();
+                harddisk.disks[1].flush();
+                cout << "Disks flushed." << endl;
             }
             else if (key == GLFW_KEY_G)
             {
@@ -4890,10 +4891,10 @@ void configline(std::string line)
         {
             diskettecontroller.drives[drive_number].diskette = DISKETTECONTROLLER::Drive::DISKETTE(image_filename);
         }
-        else if (drive_number >= 2 && drive_number < 3)
+        else if (drive_number >= 2 && drive_number < 4)
         {
             cout << "Loading hard disk from " << image_filename << endl;
-            harddisk.disk = HARDDISK::DISK(image_filename);
+            harddisk.disks[drive_number-2] = HARDDISK::DISK(image_filename);
         }
         else
         {
@@ -5234,7 +5235,8 @@ int main(int argc, char* argv[])
                 cout << "halt=" << cpu.halt << " ";
 
                 cout << endl;
-                harddisk.disk.flush();
+                harddisk.disks[0].flush();
+                harddisk.disks[1].flush();
                 cpu.cpu_steps = 0;
                 totalframes = 0;
                 cga.totalvsync = 0;
