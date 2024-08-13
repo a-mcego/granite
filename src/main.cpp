@@ -201,6 +201,66 @@ struct YM3812
     }
 } ym3812;
 
+struct Gameport
+{
+    u8 reg{0xFF};
+    /*
+    bit 7: button 4 off
+    bit 6: button 3 off
+    bit 5: button 2 off
+    bit 4: button 1 off
+
+    bit 3: #2 axis y state
+    bit 2: #2 axis x state
+    bit 1: #1 axis y state
+    bit 0: #1 axis x state
+    */
+
+    i16 axes[4] = {};
+    u16 counters[4] = {};
+
+    u16 axis_to_counter(i16 axis_value)
+    {
+        //u32 resistor = u32((u64(axis_value+32768)*100000ULL)>>16); //ohms
+        u32 cycles = u32((u64(axis_value+32768)*246ULL)>>16) + 6; //ohms
+        return u16(cycles);
+    }
+
+    void set_button_state(u8 button, bool is_on)
+    {
+        reg = (reg&~(0x10<<button)) | (is_on?0:(0x10<<button));
+    }
+
+    void write(u8 port, u8 data) //port from 0 to 1! inclusive.
+    {
+        reg = (reg&0xF0);
+
+        for(int axis=0; axis<4; ++axis)
+        {
+            counters[0] = axis_to_counter(axes[axis]);
+        }
+    }
+
+    u8 read(u8 port) //port from 0 to 1! inclusive.
+    {
+        return reg;
+    }
+
+    void cycle()
+    {
+        reg &= 0xF0;
+        counters[0] -= counters[0]?1:0;
+        counters[1] -= counters[1]?1:0;
+        counters[2] -= counters[2]?1:0;
+        counters[3] -= counters[3]?1:0;
+
+        reg |= (counters[0]==0)?1:0;
+        reg |= (counters[1]==0)?2:0;
+        reg |= (counters[2]==0)?4:0;
+        reg |= (counters[3]==0)?8:0;
+    }
+} gameport;
+
 struct CGA
 {
     static const u8 REGISTER_COUNT = 18;
@@ -2749,6 +2809,10 @@ struct IO
         {
             harddisk.write(port-0x320, data&0xFF);
         }
+        else if (port == 0x201)
+        {
+            gameport.write(port-0x201, data&0xFF);
+        }
         else
         {
             if constexpr(DEBUG_LEVEL > 0)
@@ -2791,6 +2855,10 @@ struct IO
         else if (port >= 0x320 && port <= 0x323)
         {
             data = harddisk.read(port-0x320);
+        }
+        else if (port == 0x201)
+        {
+            data = gameport.read(port-0x201);
         }
         else
         {
