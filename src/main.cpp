@@ -5112,7 +5112,8 @@ int main(int argc, char* argv[])
                 kbd.cycle();
                 diskettecontroller.cycle();
                 harddisk.cycle();
-                dma.cycle();
+                if (clockgen_fast%4 == 0) //we're already inside %3 so this makes for %12
+                    dma.cycle();
             }
             if (clockgen_fast%288)
             {
@@ -5171,7 +5172,8 @@ int main(int argc, char* argv[])
                         kbd.cycle();
                         diskettecontroller.cycle();
                         harddisk.cycle();
-                        dma.cycle();
+                        if (clockgen_real%4 == 0) //we're already inside %3 so this makes for %12
+                            dma.cycle();
                     }
                 }
                 //realtime stuff
