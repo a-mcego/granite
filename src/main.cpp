@@ -5131,6 +5131,8 @@ int main(int argc, char* argv[])
                 beeper.cycle();
             if (clockgen_fast%288 == 0)
                 ym3812.cycle();
+            if (clockgen_fast%64 == 0)
+                gameport.cycle();
         }
 
         //do realtime stuff
@@ -5186,6 +5188,8 @@ int main(int argc, char* argv[])
                         ym3812.cycle();
                         ym3812.cycle_timers();
                     }
+                    if (clockgen_real%64 == 0)
+                        gameport.cycle();
                 }
             }
             previousTime += double(cycles_done)/14318180.0;
