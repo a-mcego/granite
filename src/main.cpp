@@ -2284,6 +2284,24 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                     heads = 2;
                     sectors = 15;
                 }
+                else if (size == 737280) //720k disk
+                {
+                    cylinders = 80;
+                    heads = 2;
+                    sectors = 9;
+                }
+                else if (size == 1474560) //1.44M disk
+                {
+                    cylinders = 80;
+                    heads = 2;
+                    sectors = 18;
+                }
+                else if (size == 2949120) //2.88M disk
+                {
+                    cylinders = 80;
+                    heads = 2;
+                    sectors = 36;
+                }
                 else
                 {
                     cout << "Unknown floppy size in bytes: " << size << " and in sectors: " << size/512 << endl;
