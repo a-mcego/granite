@@ -5151,7 +5151,7 @@ int main(int argc, char* argv[])
                     if (clockgen_real%3 == 0)
                     {
                         cpu.cycle();
-                        ++cpu_steps;
+                        ++cpu.cpu_steps;
                         pic.cycle();
                         for(u8 irq=0; irq<8; ++irq)
                         {
