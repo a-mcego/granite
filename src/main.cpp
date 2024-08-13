@@ -2164,6 +2164,8 @@ struct HARDDISK
                 pic.request_interrupt(5);
                 //cout << "HD IRQ AFTER DMA!!!" << endl;
                 r1_int_occurred = true;
+                current_sector += dma.chans[3].transfer_count/512; //this is correct. the count is -1, but we want -1.
+                set_current_params();
             }
         }
         else if (interrupttime > 0)
