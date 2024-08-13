@@ -741,10 +741,9 @@ void audio_method2(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 }
 
 //METHOD 3: dynamic resampling. experimental!
-//          might not work if your output sample rate is not 48000
 i16 additional_samples = 0;
-const float SAMPLERATE = 48000;
-float veer = 48000.0f/SAMPLERATE;
+const float SAMPLERATE = 48000.0;
+float veer = (14318180.0/298.0)/SAMPLERATE;
 void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
     static bool started{false};
@@ -792,11 +791,6 @@ double_break: // oh no :O
         additional_samples = -1;
     else
         additional_samples = 0;
-
-    if (left < 64)
-        veer *= 0.9999f;
-    else if (left > 384)
-        veer *= 1.0001f;
 
     beeper.read_offset = offset_start;
 }
