@@ -490,15 +490,8 @@ struct CGA
     {
         column += 8;
         column = (column>=912?0:column);
-        if (!hsync)
-        {
-            scan_column += 8;
-            scan_column = (scan_column>=912?0:scan_column);
-        }
-        else
-        {
-            scan_column = 0;
-        }
+        scan_column += 8;
+        scan_column = (scan_column>=912?0:scan_column);
 
         if (column == 0) //new line
         {
@@ -555,7 +548,6 @@ struct CGA
         }
 
         horizontal_retrace = (column >= 640);
-        u32 columnbyte = column/8;
 
         u8 textmode_40_80 = (current_modeselect>>0)&0x01;
         u16 hsync_mult = 16;
@@ -566,9 +558,12 @@ struct CGA
         }
         u16 hsync_start = (registers[H_SYNC_POS])*hsync_mult;
         u16 hsync_end = (registers[H_SYNC_POS]+registers[H_SYNC_WIDTH])*hsync_mult;
+
+        bool old_hsync = hsync;
+
         hsync = (column >= hsync_start && column <= hsync_end);
 
-        if (column == hsync_end)
+        if (!old_hsync && hsync)
         {
             scan_column = 0;
         }
@@ -582,36 +577,32 @@ struct CGA
 
         if (is_graphics_mode)
         {
-            /*if (resolution && !no_colorburst)
+            int x = column>>3;
+            u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
+            if (resolution && !no_colorburst)
             {
-                int x = columnbyte;
-                if (x < registers[H_DISPLAYED]*2)
+                u8 gfx_byte_prev = memory8_internal(offset-1);
+                u8 gfx_byte_now = memory8_internal(offset);
+                u8 gfx_byte = (gfx_byte_prev<<4)|(gfx_byte_now>>4);
+
+                bool blank = (vertical_retrace || horizontal_retrace);
+
+                for(int i=0; i<8; i+=4)
                 {
-                    u8 gfx_byte_prev = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x-1);
-                    u8 gfx_byte_now = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
-                    u8 gfx_byte = (gfx_byte_prev<<4)|(gfx_byte_now>>4);
-
-                    for(int i=0; i<2; ++i)
-                    {
-                        gfx_byte = (gfx_byte&~0x80) | (gfx_byte_now&0x80);
-                        screen.pixels[y*screen.X + x*8 + 4*i] = COLORBURST_START+(gfx_byte>>4);
-                        gfx_byte = (gfx_byte&~0x40) | (gfx_byte_now&0x40);
-                        screen.pixels[y*screen.X + x*8 + 4*i+1] = COLORBURST_START+(gfx_byte>>4);
-                        gfx_byte = (gfx_byte&~0x20) | (gfx_byte_now&0x20);
-                        screen.pixels[y*screen.X + x*8 + 4*i+2] = COLORBURST_START+(gfx_byte>>4);
-                        gfx_byte = (gfx_byte&~0x10) | (gfx_byte_now&0x10);
-                        screen.pixels[y*screen.X + x*8 + 4*i+3] = COLORBURST_START+(gfx_byte>>4);
-                        gfx_byte <<= 4;
-                        gfx_byte_now <<= 4;
-                    }
+                    gfx_byte = (gfx_byte&~0x80) | (gfx_byte_now&0x80);
+                    screen.pixels[scan_line*screen.X + scan_column + i] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
+                    gfx_byte = (gfx_byte&~0x40) | (gfx_byte_now&0x40);
+                    screen.pixels[scan_line*screen.X + scan_column + i+1] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
+                    gfx_byte = (gfx_byte&~0x20) | (gfx_byte_now&0x20);
+                    screen.pixels[scan_line*screen.X + scan_column + i+2] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
+                    gfx_byte = (gfx_byte&~0x10) | (gfx_byte_now&0x10);
+                    screen.pixels[scan_line*screen.X + scan_column + i+3] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
+                    gfx_byte <<= 4;
+                    gfx_byte_now <<= 4;
                 }
-
             }
             else
-            {*/
-                int x = column/8;
-                u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
-                //u8 gfx_byte = memory8_internal((current_startaddress+(y_logical&1?0x2000:0))+(y_logical>>1)*registers[H_DISPLAYED]*2+x);
+            {
                 u8 gfx_byte = memory8_internal(offset);
                 for(int i=0; i<8; i+=2)
                 {
@@ -625,49 +616,27 @@ struct CGA
                     screen.pixels[scan_line*screen.X + scan_column + i+1] = p2;
                     gfx_byte <<= 2;
                 }
-            //}
+            }
         }
         else
         {
-            if (textmode_40_80) //80col
+            int x = column>>(textmode_40_80?3:4);
+            bool half = (textmode_40_80?0:(column&8));
+            u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
+            u8 char_code = memory8_internal(offset);
+            u8 attribute = memory8_internal(offset+1);
+            u8 fg_color = attribute & 0x0F;
+            u8 bg_color = (attribute >> 4) & 0x0F;
+            u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+
+            for (u32 x_off = 0; x_off < 8; x_off++)
             {
-                int x = column/8;
-                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
-                u8 char_code = memory8_internal(offset);
-                u8 attribute = memory8_internal(offset+1);
-                u8 fg_color = attribute & 0x0F;
-                u8 bg_color = (attribute >> 4) & 0x0F;
-                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+                u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
+                u8 color = (char_row & mask) ? fg_color : bg_color;
+                if (vertical_retrace || horizontal_retrace)
+                    color = palette[0];
 
-                for (u32 x_off = 0; x_off < 8; x_off++)
-                {
-                    u32 pixel_x = scan_column + x_off;
-                    u8 color = (char_row & (1 << (7 - x_off))) ? fg_color : bg_color;
-                    if (vertical_retrace || horizontal_retrace)
-                        color = 0x11;
-
-                    screen.pixels[scan_line * screen.X + pixel_x] = color; //screen.pixels is one byte per pixel
-                }
-            }
-            else //40col
-            {
-                int x = column/16;
-                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
-                u8 char_code = memory8_internal(offset);
-                u8 attribute = memory8_internal(offset+1);
-                u8 fg_color = attribute & 0x0F;
-                u8 bg_color = (attribute >> 4) & 0x0F;
-                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
-
-                for (u32 x_off = 0; x_off < 8; x_off++)
-                {
-                    u32 pixel_x = scan_column + x_off;
-                    u8 color = (char_row & (1 << (7 - x_off))) ? fg_color : bg_color;
-                    if (vertical_retrace || horizontal_retrace)
-                        color = 0x11;
-                    screen.pixels[scan_line * screen.X + pixel_x] = color;
-                    //screen.pixels[scan_line * screen.X + pixel_x*2+1] = color;
-                }
+                screen.pixels[scan_line * screen.X + scan_column + x_off] = color; //screen.pixels is one byte per pixel
             }
         }
         snow = false;
