@@ -3386,6 +3386,9 @@ struct CPU8088
     }
 
     u32 interrupt_true_cycles{};
+
+    u32 interrupt_table[256] = {};
+
     bool accepts_interrupts()
     {
         return interrupt_true_cycles >= 2;
@@ -3396,6 +3399,8 @@ struct CPU8088
         if (flag(F_INTERRUPT) || forced)
         {
             halt = false;
+
+            ++interrupt_table[n];
 
             push(registers[FLAGS]);
             push(registers[CS]);
@@ -4412,6 +4417,7 @@ struct CPU8088
                 if (rm == 0)
                 {
                     interrupt(0, true);
+                    cycles_used += 80; //FIXME: this is made up
                 }
                 else if (op == 6)
                 {
@@ -4522,6 +4528,7 @@ struct CPU8088
                 if (rm == 0)
                 {
                     interrupt(0, true); //division by zero
+                    cycles_used += 80; //FIXME: this is made up
                 }
                 else if (op == 6)
                 {
@@ -4678,6 +4685,8 @@ struct CPU8088
         {
             interrupt_true_cycles = 0;
         }
+
+        mem.update();
 
         if (cycles_used > 0)
         {
@@ -5086,6 +5095,7 @@ void configline(std::string line)
         u32 tests_failed = 0;
 
         u32 flags_failed[16] = {};
+        u32 regs_failed[16] = {};
         while(ptr < filedata.size())
         {
             bool test_passed = true;
@@ -5143,9 +5153,8 @@ void configline(std::string line)
                         {
                             flags_failed[flag] += bool(final_regs[i]&(1<<flag)) ^ bool(test_reg&(1<<flag));
                         }
-
                     }
-
+                    regs_failed[i] += 1;
 
                     //ÅÄÖ
 
@@ -5177,6 +5186,10 @@ void configline(std::string line)
 
         if (tests_failed > 0)
         {   cout << test_filename << ": " << tests_failed << " TESTS FAILED!" << endl;
+            cout << "Reg failures:   ";
+            for(int i=0; i<14; ++i)
+                cout << regs_failed[i] << (i%4==3?"  ":" ");
+            cout << endl;
             cout << "Flag failures:   ";
             for(int i=0; i<16; ++i)
                 cout << flags_failed[i] << (i%4==3?"  ":" ");
@@ -5381,6 +5394,16 @@ int main(int argc, char* argv[])
                 totalframes = 0;
                 cga.totalvsync = 0;
                 pit.int0_count = 0;
+
+                for(int i=0; i<256; ++i)
+                {
+                    if (cpu.interrupt_table[i] != 0)
+                    {
+                        cout << std::hex << "int" << i << "=" << std::dec << cpu.interrupt_table[i] << "Hz ";
+                        cpu.interrupt_table[i] = 0;
+                    }
+                }
+                cout << endl;
             }
         }
 
