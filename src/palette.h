@@ -259,3 +259,8 @@ u8 PALETTE[1024] =
     0x00, 0x00, 0x00, 0xFF,
     0x00, 0x00, 0x00, 0xFF,
 };
+
+static u32 getpalette(u8 index)
+{
+    return (PALETTE[index*4]<<0) + (PALETTE[index*4+1]<<8)+(PALETTE[index*4+2]<<16);
+}

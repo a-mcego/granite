@@ -303,6 +303,101 @@ struct CGA
         cout << endl;
     }
 
+    struct CompositeColor
+    {
+        float getlevel(u8 color, u8 pos)
+        {
+            //black  00000000
+            //blue   00011110
+            //green  11000011
+            //cyan   10000111
+            //red    01111000
+            //mgnt   00111100
+            //yellow 11100001
+            //white  11111111
+
+            //       00011110
+            //       22211112
+
+            //       21111222
+            //       11222211
+
+            //       BAA--AAB
+            //       aa-AAA-a
+
+            const float curve[8] = {0,0,0,0,1,1,1,1};
+            const u8 add[8] = {0,1,1,1,1,1,1,0};
+            const u8 start[8] = {0,1,6,7,3,2,5,4};
+            return curve[(start[color]+add[color]*pos)&7];
+        }
+
+        u8 curr_idx[4] = {};
+        bool intense[4] = {false, false, false, false};
+        void Clear()
+        {
+            for(int i=0; i<4; ++i)
+            {
+                curr_idx[i] = 0;
+                intense[i] = false;
+            }
+        }
+
+        void Set(u8 position, u8 color_index)
+        {
+            curr_idx[position] = color_index&7;
+            intense[position] = color_index&8;
+        }
+
+        u32 Get() //return type AABBGGRR
+        {
+            float num[8];
+
+            for(int i=0; i<8; ++i)
+            {
+                //num[i] = float(levels[curr_idx[i>>1]*8+i])+(intense[i>>1]?2.2f/5.6f:0.0);
+                num[i] = getlevel(curr_idx[((i+7)>>1)%4],i)+(intense[((i+7)>>1)%4]?2.2f/5.6f:0.0);
+            }
+
+            const float phase[8] =
+            {
+                //0, 1, 1, 0, 0, -1, -1, 0, //works worse
+                1,1,1,1,-1,-1,-1,-1 //works better
+            };
+
+            float fy{}, fi{}, fq{};
+            for(int i=0; i<8; ++i)
+            {
+                fy += num[i];
+                fi += num[i]*phase[i];
+                fq += num[i]*phase[(i+6)&7];
+            }
+
+            fy *= 1.0f/12.0f;
+            fi *= 1.0f/12.0f;
+            fq *= 1.0f/12.0f;
+
+            const float yiq2rgb[9] =
+            {
+                1, 0.956, 0.619,
+                1, -0.272, -0.647,
+                1, -1.106, 1.703,
+            };
+            float fr = fy*yiq2rgb[0] + fi*yiq2rgb[1] + fq*yiq2rgb[2];
+            float fg = fy*yiq2rgb[3] + fi*yiq2rgb[4] + fq*yiq2rgb[5];
+            float fb = fy*yiq2rgb[6] + fi*yiq2rgb[7] + fq*yiq2rgb[8];
+
+            fr = std::min(std::max(fr,0.0f),1.0f);
+            fg = std::min(std::max(fg,0.0f),1.0f);
+            fb = std::min(std::max(fb,0.0f),1.0f);
+
+            u8 r = fr*255.0f;
+            u8 g = fg*255.0f;
+            u8 b = fb*255.0f;
+
+            return 0xFF000000+(b<<16)+(g<<8)+r;
+        }
+    } compositecolor;
+
     enum REGISTER
     {
         H_TOTAL,
@@ -469,13 +564,13 @@ struct CGA
             0,1,1,1,1,
             0,
         };
-        for(int i=0; i<16; ++i)
+        /*for(int i=0; i<16; ++i)
         {
             u8& r = PALETTE[(i+COLORBURST_START)*4+0];
             u8& g = PALETTE[(i+COLORBURST_START)*4+1];
             u8& b = PALETTE[(i+COLORBURST_START)*4+2];
             HSBtoRGB((hue[i]*32)&0xFF,saturation[i]*0xA0,brightness[i]*63, r,g,b);
-        }
+        }*/
         screen.remake_buffers();
     }
 
@@ -495,6 +590,7 @@ struct CGA
 
         if (column == 0) //new line
         {
+            compositecolor.Clear();
             scan_line += (scan_line>=261?-261:1);
             render();
 
@@ -573,7 +669,7 @@ struct CGA
         u8 resolution = (current_modeselect>>4)&0x01;
 
         const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
-        const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+add), u8(6+add)};
+        const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
 
         if (is_graphics_mode)
         {
@@ -581,24 +677,12 @@ struct CGA
             u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
             if (resolution && !no_colorburst)
             {
-                u8 gfx_byte_prev = memory8_internal(offset-1);
-                u8 gfx_byte_now = memory8_internal(offset);
-                u8 gfx_byte = (gfx_byte_prev<<4)|(gfx_byte_now>>4);
-
-                bool blank = (vertical_retrace || horizontal_retrace);
-
-                for(int i=0; i<8; i+=4)
+                u8 gfx_byte = memory8_internal(offset);
+                for(int i=0; i<8; ++i)
                 {
-                    gfx_byte = (gfx_byte&~0x80) | (gfx_byte_now&0x80);
-                    screen.pixels[scan_line*screen.X + scan_column + i] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
-                    gfx_byte = (gfx_byte&~0x40) | (gfx_byte_now&0x40);
-                    screen.pixels[scan_line*screen.X + scan_column + i+1] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
-                    gfx_byte = (gfx_byte&~0x20) | (gfx_byte_now&0x20);
-                    screen.pixels[scan_line*screen.X + scan_column + i+2] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
-                    gfx_byte = (gfx_byte&~0x10) | (gfx_byte_now&0x10);
-                    screen.pixels[scan_line*screen.X + scan_column + i+3] = (blank?0x11:(COLORBURST_START+(gfx_byte>>4)));
-                    gfx_byte <<= 4;
-                    gfx_byte_now <<= 4;
+                    compositecolor.Set(i&0x03, (gfx_byte&0x80)?palette[0]:0);
+                    gfx_byte <<= 1;
+                    screen.pixels[scan_line*screen.X + scan_column + i] = (vertical_retrace || horizontal_retrace) ? 0 : compositecolor.Get();
                 }
             }
             else
@@ -606,14 +690,19 @@ struct CGA
                 u8 gfx_byte = memory8_internal(offset);
                 for(int i=0; i<8; i+=2)
                 {
-                    u8 p1 = (resolution?((gfx_byte&0x80)?15:0):palette[(gfx_byte&0xC0)>>6]);
-                    u8 p2 = (resolution?((gfx_byte&0x40)?15:0):p1);
+                    u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
+                    u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
 
                     if (vertical_retrace || horizontal_retrace)
-                        p1 = 0x11, p2 = 0x11;
+                    {
+                        if (!resolution)
+                            p1 = palette[0], p2 = palette[0];
+                        else
+                            p1 = 0x11, p2 = 0x11;
+                    }
 
-                    screen.pixels[scan_line*screen.X + scan_column + i] = p1;
-                    screen.pixels[scan_line*screen.X + scan_column + i+1] = p2;
+                    screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
+                    screen.pixels[scan_line*screen.X + scan_column + i+1] = getpalette(p2);
                     gfx_byte <<= 2;
                 }
             }
@@ -629,14 +718,32 @@ struct CGA
             u8 bg_color = (attribute >> 4) & 0x0F;
             u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
 
-            for (u32 x_off = 0; x_off < 8; x_off++)
+            if (no_colorburst)
             {
-                u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
-                u8 color = (char_row & mask) ? fg_color : bg_color;
-                if (vertical_retrace || horizontal_retrace)
-                    color = palette[0];
+                for (u32 x_off = 0; x_off < 8; x_off++)
+                {
+                    u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
+                    u8 color = (char_row & mask) ? fg_color : bg_color;
+                    if (vertical_retrace || horizontal_retrace)
+                        color = palette[0];
 
-                screen.pixels[scan_line * screen.X + scan_column + x_off] = color; //screen.pixels is one byte per pixel
+                    screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
+                }
+            }
+            else
+            {
+                for (u32 x_off = 0; x_off < 8; x_off++)
+                {
+                    u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
+                    u8 color = (char_row & mask) ? fg_color : bg_color;
+                    if (vertical_retrace || horizontal_retrace)
+                        color = palette[0];
+
+                    compositecolor.Set(x_off&0x03, color);
+
+                    //screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
+                    screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get();
+                }
             }
         }
         snow = false;
