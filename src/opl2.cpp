@@ -8,7 +8,7 @@ int ADSR_A[ADSR_A_SIZE];
 int ADSR_S[ADSR_S_SIZE];
 int ADSR_DR[ADSR_DR_SIZE];
 
-int* sine[4];
+int sine[4][SINE_SIZE];
 
 int LKS[LKS_N][LKS_SIZE];
 
@@ -22,31 +22,21 @@ int VOL2DIV[ADSR_MAX] = {};
 
 void Opl2::Init()
 {
-	//cout << "calculating tables" << endl;
 
-	//cout << "sine..";
-	//calculate sine table
-	sine[0] = new int[SINE_SIZE];
-	sine[1] = new int[SINE_SIZE];
-	sine[2] = new int[SINE_SIZE];
-	sine[3] = new int[SINE_SIZE];
 	for(int i=0; i<SINE_SIZE; i++)
 	{
-		//for (int j=0; j<SINE_VALI; j++)
-		//{
-			sine[0][i] = int(sin(i*2*PI/double(SINE_SIZE))*32767.0);
-			if (i<SINE_SIZE/2)
-				sine[1][i] = sine[0][i];
-			else
-				sine[1][i] = 0;
+        sine[0][i] = int(sin(i*2*PI/double(SINE_SIZE))*32767.0);
+        if (i<SINE_SIZE/2)
+            sine[1][i] = sine[0][i];
+        else
+            sine[1][i] = 0;
 
-			sine[2][i] = abs(sine[0][i]);
+        sine[2][i] = abs(sine[0][i]);
 
-			if (!((4*i/SINE_SIZE)%2))
-				sine[3][i] = sine[2][i];
-			else
-				sine[3][i] = 0;
-		//}
+        if (!((4*i/SINE_SIZE)%2))
+            sine[3][i] = sine[2][i];
+        else
+            sine[3][i] = 0;
 	}
 
 	//cout << "adsr..";
@@ -133,7 +123,7 @@ void Opl2::Init()
 
 
 //write shit to opl2
-void Opl2::write(uint r, uint d)
+void Opl2::write(unsigned char r, unsigned char d)
 {
 	if (!USE_REG[r])
 		return;
@@ -145,26 +135,6 @@ void Opl2::write(uint r, uint d)
 	case 0x00:
 		if (r==0)
 			opl2.mode = bit(d&0x20);
-		if (r==2)
-			opl2.timer1_state = (d<<2);
-		if (r==3)
-			opl2.timer2_state = (d<<4);
-		if (r==4)
-		{
-			if (d&0x80)
-			{
-				//run_timer1 = false;
-				//run_timer2 = false;
-				opl2.status = 0;
-			}
-			else
-			{
-				if (!(d&0x20))
-					opl2.run_timer2 = bit(d&0x02);
-				if (!(d&0x40))
-					opl2.run_timer1 = bit(d&0x01);
-			}
-		}
 		if (r==0x08)
 		{
 			opl2.keysplit = bit(d&0x40);
@@ -268,6 +238,7 @@ void Opl2::update_ADSR()
 	{
 		for(int o=0; o<2; o++)
 		{
+		    //if (startprinting) std::cout << c << '-' << o << '-' << int(chans[c].ops[o].adsr) << ' ' << std::flush;
 			switch(chans[c].ops[o].adsr)
 			{
 			case A:
@@ -297,10 +268,13 @@ void Opl2::update_ADSR()
 					}
 					break;
 				}
-				chans[c].ops[o].ADSR_volume = ADSR_DR[chans[c].ops[o].DR_state]/chans[c].ops[o].DR_div;
+				if (chans[c].ops[o].DR_div != 0)
+                    chans[c].ops[o].ADSR_volume = ADSR_DR[chans[c].ops[o].DR_state]/chans[c].ops[o].DR_div;
+                else
+                    chans[c].ops[o].adsr = R;
 				if (chans[c].ops[o].D > 0)
 					chans[c].ops[o].DR_state += pow4rt2[chans[c].ops[o].D*4+chans[c].ops[o].rof];
-				if (chans[c].ops[o].DR_state >= ADSR_DR_SIZE)
+				while (chans[c].ops[o].DR_state >= ADSR_DR_SIZE)
 				{
 					chans[c].ops[o].DR_state -= ADSR_DR_SIZE;
 					chans[c].ops[o].DR_div*=2;
@@ -308,10 +282,7 @@ void Opl2::update_ADSR()
 				break;
 			case S:
 				if (chans[c].note == false)
-				{
-					//cout << "KARKELOT PYSTYYN JA ILAKOIMAAN!" << endl;
 					chans[c].ops[o].adsr = R;
-				}
 				break;
 			case R:
 				if (chans[c].ops[o].DR_div != 0)
@@ -337,11 +308,9 @@ void Opl2::update_ADSR()
 int OP::update(int fm, Opl2& opl2)
 {
 	int sample=0;
-	int tempstate;
-	tempstate = sinestate+fm;
-	tempstate %= PERIOD_SIZE;
-	if (tempstate < 0)
-		tempstate += PERIOD_SIZE;
+	unsigned int tempstate = (sinestate+fm);
+	tempstate &= (PERIOD_SIZE-1);
+
 	sample = sine[wavetype][tempstate>>SINE_BLOCK]
 	*TOTLVL[volume]/ADSR_MAX
 		*ADSR_volume/ADSR_MAX
@@ -349,8 +318,7 @@ int OP::update(int fm, Opl2& opl2)
 	if (ampmod)
 		sample = sample*AMPMOD[opl2.ampmod_depth][opl2.ampmod_state]/ADSR_MAX;
 	sinestate += freq_harmonic;
-	while (sinestate >= PERIOD_SIZE)
-		sinestate -= PERIOD_SIZE;
+	sinestate &= (PERIOD_SIZE-1);
 	wanha2 = wanha1;
 	wanha1 = sample;
 	return sample;
@@ -364,10 +332,6 @@ short Opl2::update()
     Opl2& opl2 = *this;
 
 	ups++;
-	//we don't need resample in this project, only on dosbox
-	//resample_state++;
-	//if (resample_state >= RESAMPLE_SIZE)
-	//	resample_state-=RESAMPLE_SIZE;
 	vibrato_state++;
 	if (vibrato_state >= VIBRATO_SIZE)
 		vibrato_state=0;
@@ -509,155 +473,3 @@ void Opl2::writebyte(int port, int val)
 	else
 		write(writereg, val);
 }
-
-/*
-int SONGSPEED_IMF = 560*SAMPLERATE_DIV;
-int SONGSPEED_DRO = 1000*SAMPLERATE_DIV;
-
-
-//this function loads an IMF file
-vector<SongBytes> load_imf(const char* filename)
-{
-    vector<SongBytes> song;
-	cout << "opening " << filename << " as IMF file" << endl;
-	FILE* songfile = fopen(filename, "rb");
-	if (songfile == NULL)
-        return song;
-
-	uint counter = 0;
-
-	//crude detection of IMF type 0 or type 1. enworden always uses type 0.
-	{
-		ushort turha;
-		fread(&turha, 2, 1, songfile);
-		if (turha == 0)
-			fseek(songfile, 0, SEEK_SET);
-	}
-
-	while( !feof(songfile) )
-	{
-		SongBytes temp;
-		unsigned short tempshort=0;
-		temp.data = 0;
-		temp.reg = 0;
-		temp.position = counter;
-		fread(&temp.reg, 1, 1, songfile);
-		fread(&temp.data, 1, 1, songfile);
-		song.push_back(temp);
-		fread(&tempshort, 2, 1, songfile);
-		counter += tempshort;
-	}
-	for (uint i=0; i<song.size(); i++)
-	{
-		song[i].position = int(double(song[i].position)*double(OPL2_HZ)/double(SONGSPEED_IMF));
-	}
-	fclose(songfile);
-	return song;
-}
-
-//this function loads a DRO file
-vector<SongBytes> load_dro(char* filename)
-{
-    vector<SongBytes> song;
-	cout << "opening " << filename << " as DRO file" << endl;
-	FILE* songfile = fopen(filename, "rb");
-	uint counter = 0;
-
-	//there is 24 bytes of padding at the start :P
-	char kirj[24];
-	fread(kirj, 24, 1, songfile);
-
-	while(!feof(songfile))
-	{
-		SongBytes temp;
-		temp.data = 0;
-		temp.reg = 0;
-		temp.position = 0;
-		unsigned char tempchar;
-		unsigned short tempshort;
-		fread(&tempchar, 1, 1, songfile);
-		switch(tempchar)
-		{
-		case 0x00:
-			fread(&tempchar, 1, 1, songfile);
-			counter += tempchar;
-			counter++;
-			break;
-		case 0x01:
-			fread(&tempshort, 2, 1, songfile);
-			counter += tempshort;
-			counter++;
-			break;
-		case 0x02:
-			break;
-		case 0x03:
-			cout << "DRO FILE USES MULTIPLE OPL CHIPS, WTF" << endl;
-			break;
-		case 0x04:
-			fread(&tempchar, 1, 1, songfile);
-			[[fallthrough]];//fallthrough intentional!
-		default:
-			temp.reg = tempchar;
-			fread(&tempchar, 1, 1, songfile);
-			temp.data = tempchar;
-			temp.position = counter;
-			//cout << hex << temp.reg << " " << temp.data << " at " << dec << temp.position << endl;
-			song.push_back(temp);
-			break;
-
-		}
-	}
-	for (uint i=0; i<song.size(); i++)
-	{
-		song[i].position = uint(double(song[i].position)*double(OPL2_HZ)/double(SONGSPEED_DRO));
-	}
-	fclose(songfile);
-	return song;
-}
-
-vector<short> opl2_play(const vector<SongBytes>& song)
-{
-    Opl2 opl2;
-	//int ticks = clock();
-	uint currtick = 0;
-
-	vector<short> audiodata;
-	for(uint i=0; i<song.size(); i++)
-	{
-		while(currtick < song[i].position)
-		{
-			int sample = opl2.update();
-			//fwrite(&sample, sizeof(ushort), 1, outfile);
-			audiodata.push_back(sample);
-			++currtick;
-		}
-		opl2.write(song[i].reg, song[i].data);
-	}
-
-	for(int i=0; i<50000; ++i)
-    {
-        int sample = opl2.update();
-        //fwrite(&sample, sizeof(ushort), 1, outfile);
-        audiodata.push_back(sample);
-    }
-
-	//cout.precision(7);
-	//cout << floor(double(currtick)*double(CLOCKS_PER_SEC)/double(clock()-ticks)) << " ticks per second." << endl;
-	//cout << "emulated at " << (double(currtick)*double(CLOCKS_PER_SEC)*double(SAMPLERATE_DIV))/(double(clock()-ticks)*double(OPL2_HZ)) << "x speed" << endl;
-	//cout << "Sample rate: 1/" << SAMPLERATE_DIV << endl;
-
-	//FILE* filu = fopen("out.raw", "wb");
-	//fwrite(audiodata.data(), audiodata.size()*2, 1, filu);
-	//fclose(filu);
-
-	return audiodata;
-}
-
-vector<short> opl2_play_imf(const string& filename)
-{
-    vector<SongBytes> songbytes = load_imf(filename.c_str());
-    if (songbytes.empty())
-        return vector<short>();
-    return opl2_play(songbytes);
-}
-*/

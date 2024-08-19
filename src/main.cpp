@@ -341,7 +341,7 @@ struct CGA
             for(int i=0; i<8; ++i)
             {
                 //num[i] = float(levels[curr_idx[i>>1]*8+i])+(intense[i>>1]?2.2f/5.6f:0.0);
-                num[i] = getlevel(curr_idx[((i+7)>>1)%4],i)+(intense[((i+7)>>1)%4]?2.2f/5.6f:0.0);
+                num[i] = getlevel(curr_idx[((i+7)>>1)&3],i)+(intense[((i+7)>>1)&3]?2.2f/5.6f:0.0);
             }
 
             const float phase[8] =
@@ -525,39 +525,6 @@ struct CGA
         red = static_cast<u8>(r * 255.0f);
         green = static_cast<u8>(g * 255.0f);
         blue = static_cast<u8>(b * 255.0f);
-    }
-
-    void do_cb_palette()
-    {
-        const u8 brightness[16] = //magnitude of FT[0]
-        {
-            0,1,1,2, 1,2,2,3,
-            1,2,2,3, 2,3,3,4,
-        };
-
-        //put together: 3,0,0 and 0,3,5,1,7
-        const u8 hue[16] = //angle of FT[1]
-        {
-            0,3,5,4,7,
-            0,6,5,1,2,
-            0,3,0,1,7,
-            0,
-        };
-        const u8 saturation[16] = //magnitude of FT[1]
-        {
-            0,1,1,1,1,
-            0,1,1,1,1,
-            0,1,1,1,1,
-            0,
-        };
-        /*for(int i=0; i<16; ++i)
-        {
-            u8& r = PALETTE[(i+COLORBURST_START)*4+0];
-            u8& g = PALETTE[(i+COLORBURST_START)*4+1];
-            u8& b = PALETTE[(i+COLORBURST_START)*4+2];
-            HSBtoRGB((hue[i]*32)&0xFF,saturation[i]*0xA0,brightness[i]*63, r,g,b);
-        }*/
-        screen.remake_buffers();
     }
 
     u32 column{};
@@ -1110,7 +1077,7 @@ struct CHIP8259 //PIC
         {
             if (!masked(i) && pending(i))
             {
-                if constexpr(DEBUG_LEVEL > 0)
+                if (startprinting)
                     cout << "IRQ: SERVICE " << u32(i) << endl;
                 isr |= (1 << i);
                 irr &= ~(1 << i);
@@ -1132,7 +1099,7 @@ struct CHIP8259 //PIC
         if (!is_initialized || irq >= 8)
             return;
 
-        if constexpr(DEBUG_LEVEL > 0)
+        if (startprinting)
             cout << "IRQ: REQUEST " << u32(irq) << endl;
         irr |= (1<<irq);
     }
@@ -1596,9 +1563,9 @@ struct CHIP8253 //PIT
 
     u8 read(u8 port) //port from 0 to 3! inclusive
     {
-        if constexpr (DEBUG_LEVEL > 1)
+        if (startprinting)
             cout << "READ PIT---- " << u32(port) << endl;
-        if (port == 3) //can't read port 3
+        if (port >= 3) //can't read port 3
         {
             return 0;
         }
@@ -1902,10 +1869,14 @@ struct HARDDISK
         static const u32 DISKTYPE_ID = 1;
         DiskType type{disktypes[DISKTYPE_ID]};
         vector<u8> data;
-        std::string filename = "cdisk.img";
+        std::string filename;
 
         void flush()
         {
+            if (data.empty())
+            {
+                return;
+            }
             const u64 BLOCK_SIZE = 0x10000;
 
             FILE* filu = fopen(filename.c_str(), "rb+");
@@ -1940,22 +1911,20 @@ struct HARDDISK
                     fwrite(data.data()+pos, 512, BLOCK_SIZE/512, filu);
                 }
             }
-
-
-            //fwrite(data.data(), data.size(), 1, filu);
             fclose(filu);
-
         }
 
         DISK()
         {
-            data.assign(type.totalsize(),0);
-            cout << "HD: " << data.size() << " bytes." << endl;
+            //data.assign(type.totalsize(),0);
+            //cout << "HD: " << data.size() << " bytes." << endl;
+            filename = "pieru";
         }
 
         DISK(const std::string& filename_):filename(filename_)
         {
             data.assign(type.totalsize(),0);
+            cout << "HD: " << data.size() << " bytes." << endl;
 
             FILE* filu = fopen(filename.c_str(), "rb");
             if (filu != nullptr)
@@ -2165,6 +2134,7 @@ struct HARDDISK
                         else
                         {
                             interrupttime = 0x300;
+                            errorcode = NO_READY_AFTER_SELECT;
                         }
                         error = !address_valid;
                         r1_req = false;
@@ -2177,6 +2147,7 @@ struct HARDDISK
                         output_bytes.push_back(((current_cylinder&0x300)>>3)|current_sector);
                         output_bytes.push_back(current_cylinder&0xFF);
                         r1_iomode = IO_B;
+                        errorcode = NO_ERROR;
                     }
                     else if (data_in[0] == INITIALIZE_DRIVE_CHARACTERISTICS)
                     {
@@ -2909,9 +2880,10 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             out_buffer.push_back(st2);
             out_buffer.push_back(cylinder);
             out_buffer.push_back(0);
-            out_buffer.push_back(sector + (dma.chans[2].transfer_count)/512);
+            out_buffer.push_back(sector + (dma.chans[2].transfer_count+1)/512);
             out_buffer.push_back(2);
             cout << "DMA COMPLETE lol. interrupt 6. did " << dma.chans[2].transfer_count << " bytes aka " << (dma.chans[2].transfer_count)/512+1 << " sectors" << endl;
+            dma.print_params(2);
         }
     }
 } diskettecontroller;
@@ -2920,7 +2892,7 @@ struct IO
 {
     static void out(u16 port, u16 data)
     {
-        if constexpr (DEBUG_LEVEL > 1)
+        if (startprinting)
             cout << "Write Port 0x" << u32(port) << " ----> 0x" << u32(data) << endl;
         if (false);
         else if (port == 0xA0)
@@ -3021,7 +2993,7 @@ struct IO
                 //cout << "Reading unknown port " << u32(port) << endl;
             //std::abort();
         }
-        if constexpr (DEBUG_LEVEL > 1)
+        if (startprinting)
             cout << "Read  Port 0x" << u32(port) << " <---- 0x" << u32(data) << endl;
         return data;
     }
@@ -5237,10 +5209,7 @@ int main(int argc, char* argv[])
     }
 
     readConfigFile(configFilename);
-
-
     screen.SCREEN_start();
-    cga.do_cb_palette();
 
     Opl2::Init();
 
@@ -5399,7 +5368,7 @@ int main(int argc, char* argv[])
                 {
                     if (cpu.interrupt_table[i] != 0)
                     {
-                        cout << std::hex << "int" << i << "=" << std::dec << cpu.interrupt_table[i] << "Hz ";
+                        cout << std::hex << "int" << i << "=" << std::dec << cpu.interrupt_table[i] << std::hex << "Hz ";
                         cpu.interrupt_table[i] = 0;
                     }
                 }
