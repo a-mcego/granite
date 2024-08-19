@@ -66,20 +66,6 @@ const u32 DEBUG_LEVEL = 0;
 
 const u32 PRINT_START = 0;
 u64 cycles{};
-
-u8 memory_bytes[(1<<20)+65536+1] = {};
-void dump_memory(const char* filename)
-{
-    FILE* filu = fopen(filename, "wb");
-    fwrite(memory_bytes, 0x100000, 1, filu);
-    fclose(filu);
-}
-
-u16 extrawords[256] = {};
-u8 extraword{};
-u8 extrabytes[256] = {};
-u8 extrabyte{};
-
 u32 readonly_start = 0xC0000;
 
 const char* r8_names[8] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
@@ -750,6 +736,68 @@ struct CGA
     }
 } cga;
 
+struct LTEMS
+{
+
+} ltems;
+
+struct MemoryManager
+{
+    u8 memory_bytes[(1<<20)+1] = {};
+    void dump_memory(const char* filename)
+    {
+        FILE* filu = fopen(filename, "wb");
+        fwrite(memory_bytes, 0x100000, 1, filu);
+        fclose(filu);
+    }
+
+    u16 readonly_words[256] = {};
+    u8 readonly_word{};
+    u8 readonly_bytes[256] = {};
+    u8 readonly_byte{};
+
+    u16 rw_words[256] = {};
+    u8 rw_word{};
+
+
+    u8& _8(u16 segment, u16 index)
+    {
+        u32 total_address = (((segment<<4)+index)&0xFFFFF);
+        if (total_address >= readonly_start)
+        {
+            ++readonly_byte;
+            readonly_bytes[readonly_byte] = memory_bytes[total_address];
+            return readonly_bytes[readonly_byte];
+        }
+
+        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
+            return cga.memory8(total_address&0x7FFF);
+       return memory_bytes[total_address];
+    }
+    u16& _16(u16 segment, u16 index)
+    {
+        if (index == 0xFFFF)
+        {
+            cout << segment << ":FFFF goes BRRRRRRRRRRRRRRRRRRRRRRRRR" << endl;
+        }
+        u32 total_address = (((segment<<4)+index)&0xFFFFF);
+        if (total_address >= readonly_start)
+        {
+            ++readonly_word;
+            readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+total_address);
+            return readonly_words[readonly_word];
+        }
+        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
+            return cga.memory16(total_address&0x7FFF);
+        return *(u16*)(void*)(memory_bytes+total_address);
+    }
+
+    void update()
+    {
+
+    }
+} mem;
+
 struct BEEPER
 {
     i16 buffer[1<<16] = {};
@@ -1297,11 +1345,11 @@ struct CHIP8237 //DMA
             }
             else if (transfer_direction == DIR_TO_MEMORY)
             {
-                memory_bytes[((page<<16)+curr_addr)&0xFFFFF] = (*device_vector)[curr_vector_offset];
+                mem._8(page<<12,curr_addr) = (*device_vector)[curr_vector_offset];
             }
             else if (transfer_direction == DIR_FROM_MEMORY)
             {
-                (*device_vector)[curr_vector_offset] = memory_bytes[((page<<16)+curr_addr)&0xFFFFF];
+                (*device_vector)[curr_vector_offset] = mem._8(page<<12,curr_addr);
             }
             else if (transfer_direction == DIR_VERIFY)
             {
@@ -1312,12 +1360,21 @@ struct CHIP8237 //DMA
             }
             //cout << "CYCLE TRANSFER " << curr_count << " data=" << u32(*curr_data) << endl;
             //cout << "transfer_direction=" << u32(transfer_direction) << endl;
-            ++curr_addr;
+            if (down)
+                --curr_addr;
+            else
+                ++curr_addr;
+
             ++curr_vector_offset;
             if (curr_count == 0)
             {
                 pending = false;
                 is_complete = true;
+                if (!automatic)
+                {
+                    start_addr = 0;
+                    transfer_count = 0;
+                }
             }
             else
             {
@@ -1335,12 +1392,13 @@ struct CHIP8237 //DMA
 
     void print_params(u8 channel)
     {
-        /*Channel& c = chans[channel];
+        Channel& c = chans[channel];
+        cout << std::hex;
         cout << ">DMA port " << u32(channel) << "!< ";
         cout << "p+addr=" << c.page*65536+c.start_addr << " ";
         cout << "n=" << c.transfer_count << " ";
         cout << "mode=" << u32(c.mode) << " ";
-        cout << "direction=" << u32(c.transfer_direction) << endl;*/
+        cout << "direction=" << u32(c.transfer_direction) << endl;
     }
 
     bool enabled{};
@@ -1361,6 +1419,8 @@ struct CHIP8237 //DMA
             {
                 result |= (chans[i].is_complete)<<i;
                 result |= (chans[i].pending)<<(i+4);
+
+                chans[i].is_complete = false;
             }
         }
         else
@@ -3033,33 +3093,6 @@ struct CPU8088
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
     }
 
-    u8& memory8(u16 segment, u16 index)
-    {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++extrabyte;
-            extrabytes[extrabyte] = memory_bytes[total_address];
-            return extrabytes[extrabyte];
-        }
-
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-            return cga.memory8(total_address&0x7FFF);
-       return memory_bytes[total_address];
-    }
-    u16& memory16(u16 segment, u16 index)
-    {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++extraword;
-            extrawords[extraword] = *(u16*)(void*)(memory_bytes+total_address);
-            return extrawords[extraword];
-        }
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-            return cga.memory16(total_address&0x7FFF);
-        return *(u16*)(void*)(memory_bytes+total_address);
-    }
 
     static const u32 PREFETCH_QUEUE_SIZE = 4;
     u8 prefetch_queue[PREFETCH_QUEUE_SIZE] = {};
@@ -3072,7 +3105,7 @@ struct CPU8088
         if constexpr(PREFETCH_QUEUE_SIZE == 0)
         {
             u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
-            T data = *(T*)(memory_bytes+position);
+            T data = *(T*)(mem.memory_bytes+position);
             registers[IP] += sizeof(T);
             return data;
         }
@@ -3083,7 +3116,7 @@ struct CPU8088
             prefetch_address = position;
             for(u32 i=0; i<PREFETCH_QUEUE_SIZE; ++i)
             {
-                prefetch_queue[i] = memory8(registers[CS], registers[IP]+i);
+                prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
             }
         }
 
@@ -3097,7 +3130,7 @@ struct CPU8088
         }
         for(u32 i=PREFETCH_QUEUE_SIZE-sizeof(T); i<PREFETCH_QUEUE_SIZE; ++i)
         {
-            prefetch_queue[i] = memory8(registers[CS], registers[IP]+i);
+            prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
         }
         if (startprinting)
         {
@@ -3199,8 +3232,8 @@ struct CPU8088
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
         if constexpr (DEBUG_LEVEL > 1)
-            cout << "MEM8! " << segment << ":" << offset << " has " << u32(memory8(segment, offset)) << " prm=" << u32(mod) << "," << u32(rm) << endl;
-        return memory8(segment, offset);
+            cout << "MEM8! " << segment << ":" << offset << " has " << u32(mem._8(segment, offset)) << " prm=" << u32(mod) << "," << u32(rm) << endl;
+        return mem._8(segment, offset);
     }
 
     u16& decode_modrm_u16(u8 modrm)
@@ -3215,8 +3248,8 @@ struct CPU8088
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
         if constexpr (DEBUG_LEVEL > 1)
-            cout << "MEM16! " << segment << ":" << offset << " has " << memory16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
-        return memory16(segment, offset);
+            cout << "MEM16! " << segment << ":" << offset << " has " << mem._16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
+        return mem._16(segment, offset);
     }
 
     u16 effective_address(u8 modrm)
@@ -3232,7 +3265,7 @@ struct CPU8088
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
         if constexpr (DEBUG_LEVEL > 1)
-            cout << "LEA! " << segment << ":" << offset << " has " << memory16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
+            cout << "LEA! " << segment << ":" << offset << " has " << mem._16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
         return offset;
     }
 
@@ -3262,10 +3295,10 @@ struct CPU8088
         std::cout << " FL=" << std::setw(4) << std::setfill('0') << registers[FLAGS] << " IP=" << std::setw(4) << std::setfill('0') << registers[IP]-1;
 
         std::cout << " S ";
-        std::cout << std::setw(4) << std::setfill('0') << memory16(registers[SS],registers[SP]) << ' ';
-        std::cout << std::setw(4) << std::setfill('0') << memory16(registers[SS],registers[SP]+2) << ' ';
-        std::cout << std::setw(4) << std::setfill('0') << memory16(registers[SS],registers[SP]+4) << ' ';
-        std::cout << std::setw(4) << std::setfill('0') << memory16(registers[SS],registers[SP]+6) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+2) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+4) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+6) << ' ';
         std::cout << std::endl;
     }
 
@@ -3368,8 +3401,8 @@ struct CPU8088
             push(registers[CS]);
             push(registers[IP]);
 
-            registers[IP] = memory16(0, n*4);
-            registers[CS] = memory16(0, n*4+2);
+            registers[IP] = mem._16(0, n*4);
+            registers[CS] = mem._16(0, n*4+2);
             set_flag(F_INTERRUPT,false);
             if (!forced)
             {
@@ -3388,11 +3421,11 @@ struct CPU8088
     void push(u16 data)
     {
         registers[SP] -= 2;
-        memory16(registers[SS], registers[SP]) = data;
+        mem._16(registers[SS], registers[SP]) = data;
     }
     u16 pop()
     {
-        u16 data = memory16(registers[SS], registers[SP]);
+        u16 data = mem._16(registers[SS], registers[SP]);
         registers[SP] += 2;
         return data;
     }
@@ -3827,10 +3860,10 @@ struct CPU8088
             u16 source_offset = read_inst<u16>();
             switch(instruction)
             {
-                case 0xA0: get_r8(0) = memory8(source_segment, source_offset); break;
-                case 0xA1: registers[AX] = memory16(source_segment, source_offset); break;
-                case 0xA2: memory8(source_segment, source_offset) = get_r8(0); break;
-                case 0xA3: memory16(source_segment, source_offset) = registers[AX]; break;
+                case 0xA0: get_r8(0) = mem._8(source_segment, source_offset); break;
+                case 0xA1: registers[AX] = mem._16(source_segment, source_offset); break;
+                case 0xA2: mem._8(source_segment, source_offset) = get_r8(0); break;
+                case 0xA3: mem._16(source_segment, source_offset) = registers[AX]; break;
             }
 
             cycles_used += 14;
@@ -3881,15 +3914,15 @@ struct CPU8088
                 if (big)
                 {
                     if (program&0x01)
-                        value1 = memory16(source_segment, registers[SI]);
+                        value1 = mem._16(source_segment, registers[SI]);
                     if (program&0x02)
-                        value2 = memory16(registers[ES], registers[DI]);
+                        value2 = mem._16(registers[ES], registers[DI]);
                     if (program&0x04)
                         value1 = registers[AX];
                     if (program&0x10)
-                        memory16(source_segment, registers[SI]) = value1;
+                        mem._16(source_segment, registers[SI]) = value1;
                     if (program&0x20)
-                        memory16(registers[ES],registers[DI]) = value1;
+                        mem._16(registers[ES],registers[DI]) = value1;
                     if (program&0x40)
                         registers[AX] = value1;
                     if (program&0x100)
@@ -3898,15 +3931,15 @@ struct CPU8088
                 else
                 {
                     if (program&0x01)
-                        value1 = memory8(source_segment, registers[SI]);
+                        value1 = mem._8(source_segment, registers[SI]);
                     if (program&0x02)
-                        value2 = memory8(registers[ES], registers[DI]);
+                        value2 = mem._8(registers[ES], registers[DI]);
                     if (program&0x04)
                         value1 = get_r8(0);
                     if (program&0x10)
-                        memory8(source_segment, registers[SI]) = value1;
+                        mem._8(source_segment, registers[SI]) = value1;
                     if (program&0x20)
-                        memory8(registers[ES],registers[DI]) = value1;
+                        mem._8(registers[ES],registers[DI]) = value1;
                     if (program&0x40)
                         get_r8(0) = value1;
                     if (program&0x100)
@@ -4206,7 +4239,7 @@ struct CPU8088
         }
         else if (instruction == 0xD7) // XLAT
         {
-            u8 result = memory8(registers[get_segment(DS)],registers[BX]+(registers[AX]&0xFF));
+            u8 result = mem._8(registers[get_segment(DS)],registers[BX]+(registers[AX]&0xFF));
             get_r8(0) = result;
             cycles_used += 11;
         }
@@ -4894,7 +4927,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             startprinting = true;
             turbo = false;
             globalsettings.entertrace = false;
-            dump_memory("memory.raw");
+            mem.dump_memory("memory.raw");
         }
         u8 pc_scancode = key_lookup[key];
         if (pc_scancode != 0)
@@ -4980,7 +5013,7 @@ void configline(std::string line)
         // Read file contents into memory
         if (address + fileSize <= 0x100000)
         {
-            file.read(reinterpret_cast<char*>(&memory_bytes[address]), fileSize);
+            file.read(reinterpret_cast<char*>(&mem.memory_bytes[address]), fileSize);
         }
         else
         {
@@ -5058,7 +5091,7 @@ void configline(std::string line)
             bool test_passed = true;
             CPU8088 testcpu;
             testcpu.reset();
-            memset(memory_bytes, 0, 1<<20);
+            memset(mem.memory_bytes, 0, 1<<20);
 
             u16 start_regs[14] = {};
             u16 final_regs[14] = {};
@@ -5074,7 +5107,7 @@ void configline(std::string line)
             {
                 u32 address = data32();
                 u32 value = data32();
-                memory_bytes[address] = value;
+                mem.memory_bytes[address] = value;
             }
 
             do
@@ -5129,7 +5162,7 @@ void configline(std::string line)
                 u32 address = data32();
                 u32 value = data32();
 
-                if (memory_bytes[address] != value)
+                if (mem.memory_bytes[address] != value)
                 {
                     test_passed = false;
                     //cout << test_filename << "#" << test_id << ": Memory bytes at " << address << " not correct: " << std::hex << u32(memory_bytes[address]) << "!=" << u32(value) << std::dec << endl;
