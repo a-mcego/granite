@@ -4863,21 +4863,23 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             }
             else if (key == GLFW_KEY_L)
             {
-                cout << "Load floppy to A:" << endl;
                 std::vector<std::string> files = list_all_files("disk/");
                 int start_id=0;
                 int chosen_id=-1;
+                int chosen_drive=0;
                 while(true)
                 {
+                    cout << "Load floppy to " << char('A'+chosen_drive) << ":" << endl;
                     for(int i=0; i<10; ++i)
                     {
                         if (start_id+i >= int(files.size()))
                             break;
                         cout << "[" << i << "] " << files[start_id+i] << endl;
                     }
-                    cout << "[,] previous" << endl;
-                    cout << "[.] next" << endl;
-                    cout << "[-] eject" << endl;
+                    cout << "[,] previous  ";
+                    cout << "[.] next  ";
+                    cout << "[-] eject  ";
+                    cout << "[A/B] choose drive" << endl;
                     std::string n;
                     cin >> n;
 
@@ -4904,16 +4906,24 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                         chosen_id = start_id+(n[0]-'0');
                         break;
                     }
+                    else if (n[0] == 'A' || n[0] == 'a')
+                    {
+                        chosen_drive = 0;
+                    }
+                    else if (n[0] == 'B' || n[0] == 'b')
+                    {
+                        chosen_drive = 1;
+                    }
                 }
                 if (chosen_id != -1)
                 {
-                    cout << "Loading " << files[chosen_id] << " to A:" << endl;
-                    diskettecontroller.drives[0].diskette = DISKETTECONTROLLER::Drive::DISKETTE(files[chosen_id]);
+                    cout << "Loading " << files[chosen_id] << " to " << char('A'+chosen_drive) << ":" << endl;
+                    diskettecontroller.drives[chosen_drive].diskette = DISKETTECONTROLLER::Drive::DISKETTE(files[chosen_id]);
                 }
                 else
                 {
-                    cout << "Ejecting A:" << endl;
-                    diskettecontroller.drives[0].diskette.eject();
+                    cout << "Ejecting " << char('A'+chosen_drive) << ":" << endl;
+                    diskettecontroller.drives[chosen_drive].diskette.eject();
                 }
             }
         }
