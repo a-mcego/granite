@@ -677,11 +677,25 @@ struct CGA
                 int x = column>>3;
                 u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
                 u8 gfx_byte = memory8_internal(offset);
-                for(int i=0; i<8; ++i)
+
+                for(int i=0; i<8; i+=2)
                 {
-                    compositecolor.Set(i&0x03, (gfx_byte&0x80)?palette[0]:0);
-                    gfx_byte <<= 1;
-                    screen.pixels[scan_line*screen.X + scan_column + i] = (vertical_retrace || horizontal_retrace) ? 0 : compositecolor.Get();
+                    u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
+                    u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
+
+                    if (vertical_retrace || horizontal_retrace)
+                    {
+                        if (!resolution)
+                            p1 = palette[0], p2 = palette[0];
+                        else
+                            p1 = 0x11, p2 = 0x11;
+                    }
+
+                    compositecolor.Set((i)&0x03, p1);
+                    screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get();
+                    compositecolor.Set((i+1)&0x03, p2);
+                    screen.pixels[scan_line*screen.X + scan_column + i+1] = compositecolor.Get();
+                    gfx_byte <<= 2;
                 }
             }
             else
