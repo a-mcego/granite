@@ -256,6 +256,12 @@ struct CGA
     u8 mode_select{};
     u8 color_select{};
 
+    enum struct OUTPUT
+    {
+        RGB,
+        COMPOSITE
+    } output{OUTPUT::RGB};
+
     bool snow{false};
     bool snow_enabled{false};
 
@@ -340,7 +346,6 @@ struct CGA
 
             for(int i=0; i<8; ++i)
             {
-                //num[i] = float(levels[curr_idx[i>>1]*8+i])+(intense[i>>1]?2.2f/5.6f:0.0);
                 num[i] = getlevel(curr_idx[((i+7)>>1)&3],i)+(intense[((i+7)>>1)&3]?2.2f/5.6f:0.0);
             }
 
@@ -359,14 +364,14 @@ struct CGA
             }
 
             fy *= 1.0f/12.0f;
-            fi *= 1.0f/12.0f;
-            fq *= 1.0f/12.0f;
+            fi *= 1.0f/12.0f/0.5957f;
+            fq *= 1.0f/12.0f/0.5226f;
 
             const float yiq2rgb[9] =
             {
-                1, 0.956, 0.619,
-                1, -0.272, -0.647,
-                1, -1.106, 1.703,
+                1, 0.5694, 0.3234,
+                1, -0.1620, -0.3381,
+                1, -0.6588, 0.8900,
             };
             float fr = fy*yiq2rgb[0] + fi*yiq2rgb[1] + fq*yiq2rgb[2];
             float fg = fy*yiq2rgb[3] + fi*yiq2rgb[4] + fq*yiq2rgb[5];
@@ -585,12 +590,6 @@ struct CGA
             scan_line = 1;
         }
 
-        if (column == 0)
-        {
-            //cout << std::dec << u32(scan_line) << " " << u32(logical_line) << " " << u32(line_inside_character) << " " << u32(vsyncadjust) << " " << u32(vertical_retrace) << " regs: ";
-            //print_regs();
-        }
-
         if (!old_vrt && vertical_retrace)
         {
             ++totalvsync;
@@ -624,22 +623,12 @@ struct CGA
         const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
         const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
 
-        if (is_graphics_mode)
+        if (output == OUTPUT::RGB)
         {
-            int x = column>>3;
-            u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
-            if (resolution && !no_colorburst)
+            if (is_graphics_mode)
             {
-                u8 gfx_byte = memory8_internal(offset);
-                for(int i=0; i<8; ++i)
-                {
-                    compositecolor.Set(i&0x03, (gfx_byte&0x80)?palette[0]:0);
-                    gfx_byte <<= 1;
-                    screen.pixels[scan_line*screen.X + scan_column + i] = (vertical_retrace || horizontal_retrace) ? 0 : compositecolor.Get();
-                }
-            }
-            else
-            {
+                int x = column>>3;
+                u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
                 u8 gfx_byte = memory8_internal(offset);
                 for(int i=0; i<8; i+=2)
                 {
@@ -659,20 +648,17 @@ struct CGA
                     gfx_byte <<= 2;
                 }
             }
-        }
-        else
-        {
-            int x = column>>(textmode_40_80?3:4);
-            bool half = (textmode_40_80?0:(column&8));
-            u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
-            u8 char_code = memory8_internal(offset);
-            u8 attribute = memory8_internal(offset+1);
-            u8 fg_color = attribute & 0x0F;
-            u8 bg_color = (attribute >> 4) & 0x0F;
-            u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
-
-            if (no_colorburst)
+            else
             {
+                int x = column>>(textmode_40_80?3:4);
+                bool half = (textmode_40_80?0:(column&8));
+                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
+                u8 char_code = memory8_internal(offset);
+                u8 attribute = memory8_internal(offset+1);
+                u8 fg_color = attribute & 0x0F;
+                u8 bg_color = (attribute >> 4) & 0x0F;
+                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+
                 for (u32 x_off = 0; x_off < 8; x_off++)
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
@@ -683,8 +669,32 @@ struct CGA
                     screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
                 }
             }
+        }
+        else if (output == OUTPUT::COMPOSITE)
+        {
+            if (is_graphics_mode)
+            {
+                int x = column>>3;
+                u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
+                u8 gfx_byte = memory8_internal(offset);
+                for(int i=0; i<8; ++i)
+                {
+                    compositecolor.Set(i&0x03, (gfx_byte&0x80)?palette[0]:0);
+                    gfx_byte <<= 1;
+                    screen.pixels[scan_line*screen.X + scan_column + i] = (vertical_retrace || horizontal_retrace) ? 0 : compositecolor.Get();
+                }
+            }
             else
             {
+                int x = column>>(textmode_40_80?3:4);
+                bool half = (textmode_40_80?0:(column&8));
+                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
+                u8 char_code = memory8_internal(offset);
+                u8 attribute = memory8_internal(offset+1);
+                u8 fg_color = attribute & 0x0F;
+                u8 bg_color = (attribute >> 4) & 0x0F;
+                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+
                 for (u32 x_off = 0; x_off < 8; x_off++)
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
@@ -693,12 +703,11 @@ struct CGA
                         color = palette[0];
 
                     compositecolor.Set(x_off&0x03, color);
-
-                    //screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
                     screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get();
                 }
             }
         }
+
         snow = false;
     }
 } cga;
@@ -4833,6 +4842,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             {
                 lockstep = false;
                 cout << "Lockstep disengaged." << endl;
+            }
+            else if (key == GLFW_KEY_V)
+            {
+                if (cga.output == cga.OUTPUT::RGB)
+                    cga.output = cga.OUTPUT::COMPOSITE;
+                else
+                    cga.output = cga.OUTPUT::RGB;
+                cout << "Cga output changed to " << (cga.output==cga.OUTPUT::RGB?"RGB.":"composite.") << endl;
             }
             else if (key == GLFW_KEY_9)
             {
