@@ -227,7 +227,7 @@ public:
     static void Init();
     static void Quit();
 
-	Opl2(){mode=0;keysplit=0;ups=0;ampmod_depth=0;vibrato_depth=0;rhythm=0;ampmod_state=0;vibrato_state=0;writereg=0;resample_state=0;run_timer1=0;run_timer2=0;timer1_state=0;timer2_state=0;status=0;}
+	Opl2(){mode=0;keysplit=0;ampmod_depth=0;vibrato_depth=0;rhythm=0;ampmod_state=0;vibrato_state=0;writereg=0;resample_state=0;run_timer1=0;run_timer2=0;timer1_state=0;timer2_state=0;status=0;}
 	~Opl2(){}
 
 	void write(unsigned char r, unsigned char d);
@@ -238,7 +238,6 @@ public:
 	short update();
 	void update_ADSR();
 
-	int ups;
 	bit ampmod_depth;
 	bit vibrato_depth;
 	bit rhythm; //is rhythm mode on or off? not implemented at all yet

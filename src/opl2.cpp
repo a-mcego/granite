@@ -73,8 +73,6 @@ void Opl2::Init()
 		LKS[3][i] = int(pow(double(LKS_START)/double(i),LKS_SPEED[3])*double(ADSR_MAX));
 	}
 
-	//opl2.ups = 0; //WTF IS THIS
-
 	//cout << "4rt2..";
 	//(4th root of 2) to the power of i -table
 	for(int i=0; i<256; i++)
@@ -102,15 +100,15 @@ void Opl2::Init()
 
 	//cout << "vol2..";
 	//adsr volume to dr_state and dr_div, lookup table
-	int state=0,div=1, i=8191;
+	int state=0,div=0, i=8191;
 	while(i>=0)
 	{
 		if (state >= ADSR_DR_SIZE)
 		{
 			state-=ADSR_DR_SIZE;
-			div*=2;
+			++div;
 		}
-		if (ADSR_DR[state]/div == i+1)
+		if ((ADSR_DR[state]>>div) == i+1)
 		{
 			VOL2DIV[i] = div;
 			VOL2STATE[i] = state;
@@ -238,67 +236,50 @@ void Opl2::update_ADSR()
 	{
 		for(int o=0; o<2; o++)
 		{
-		    //if (startprinting) std::cout << c << '-' << o << '-' << int(chans[c].ops[o].adsr) << ' ' << std::flush;
-			switch(chans[c].ops[o].adsr)
+		    auto& op = chans[c].ops[o];
+			switch(op.adsr)
 			{
 			case A:
-				if (chans[c].ops[o].A_state >= ADSR_A_SIZE)
+				if (op.A_state >= ADSR_A_SIZE)
 				{
-					chans[c].ops[o].DR_state = 0;
-					chans[c].ops[o].DR_div = 1;
-					chans[c].ops[o].adsr = D;
-					chans[c].ops[o].ADSR_volume = 8192;
+					op.DR_state = 0;
+					op.DR_div = 0;
+					op.adsr = D;
+					op.ADSR_volume = 8192;
 					break;
 				}
-				chans[c].ops[o].ADSR_volume = ADSR_A[chans[c].ops[o].A_state];
-				if (chans[c].ops[o].A > 0)
-					chans[c].ops[o].A_state += pow4rt2[chans[c].ops[o].A*4+chans[c].ops[o].rof];
+				op.ADSR_volume = ADSR_A[op.A_state];
+				if (op.A > 0)
+					op.A_state += pow4rt2[op.A*4+op.rof];
 				break;
 			case D:
-				if (chans[c].ops[o].ADSR_volume <= ADSR_S[chans[c].ops[o].S])
+				if (op.ADSR_volume <= ADSR_S[op.S])
 				{
-					chans[c].ops[o].ADSR_volume = ADSR_S[chans[c].ops[o].S];
-					if (chans[c].ops[o].hold_instr == true)
-					{
-						chans[c].ops[o].adsr = S;
-					}
-					else
-					{
-						chans[c].ops[o].adsr = R;
-					}
+					op.ADSR_volume = ADSR_S[op.S];
+					op.adsr = (op.hold_instr?S:R);
 					break;
 				}
-				if (chans[c].ops[o].DR_div != 0)
-                    chans[c].ops[o].ADSR_volume = ADSR_DR[chans[c].ops[o].DR_state]/chans[c].ops[o].DR_div;
+            [[fallthrough]]
+			case R:
+				if (op.DR_div <= 16)
+                    op.ADSR_volume = ADSR_DR[op.DR_state]>>op.DR_div;
                 else
-                    chans[c].ops[o].adsr = R;
-				if (chans[c].ops[o].D > 0)
-					chans[c].ops[o].DR_state += pow4rt2[chans[c].ops[o].D*4+chans[c].ops[o].rof];
-				while (chans[c].ops[o].DR_state >= ADSR_DR_SIZE)
+                    op.adsr = R;
+				if ((op.adsr==D?op.D:op.R) > 0)
+					op.DR_state += pow4rt2[(op.adsr==D?op.D:op.R)*4+op.rof];
+				while (op.DR_state >= ADSR_DR_SIZE)
 				{
-					chans[c].ops[o].DR_state -= ADSR_DR_SIZE;
-					chans[c].ops[o].DR_div*=2;
+					op.DR_state -= ADSR_DR_SIZE;
+					++op.DR_div;
 				}
+				if (op.ADSR_volume < 32 || op.DR_div > 16)
+					op.adsr = N;
 				break;
 			case S:
 				if (chans[c].note == false)
-					chans[c].ops[o].adsr = R;
+					op.adsr = R;
 				break;
-			case R:
-				if (chans[c].ops[o].DR_div != 0)
-					chans[c].ops[o].ADSR_volume = ADSR_DR[chans[c].ops[o].DR_state]/chans[c].ops[o].DR_div;
-				if (chans[c].ops[o].R > 0)
-                    chans[c].ops[o].DR_state += pow4rt2[chans[c].ops[o].R*4+chans[c].ops[o].rof];
-				while (chans[c].ops[o].DR_state >= ADSR_DR_SIZE)
-				{
-					chans[c].ops[o].DR_state -= ADSR_DR_SIZE;
-					chans[c].ops[o].DR_div*=2;
-				}
-				if (chans[c].ops[o].ADSR_volume < 32 || chans[c].ops[o].DR_div == 0)
-					chans[c].ops[o].adsr = N;
-				break;
-			case N:
-				// do nothing
+			default:
 				break;
 			}
 		}
@@ -331,7 +312,6 @@ short Opl2::update()
 {
     Opl2& opl2 = *this;
 
-	ups++;
 	vibrato_state++;
 	if (vibrato_state >= VIBRATO_SIZE)
 		vibrato_state=0;
