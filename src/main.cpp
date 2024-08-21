@@ -5201,6 +5201,21 @@ void configline(std::string line)
         cout << "tests failed: " << tests_totalfailed << "/" << tests_totaldone << endl;
         std::abort();
     }
+    else if (command == "sound")
+    {
+        string setting;
+        iss >> setting;
+
+        if (setting == "yes"|| setting=="on"|| setting=="true")
+            globalsettings.sound_on = true;
+        else if (setting == "no"|| setting=="off"|| setting=="false")
+            globalsettings.sound_on = false;
+        else
+        {
+            cout << "Unknown " << command << " setting: " << setting << endl;
+            std::abort();
+        }
+    }
     else
     {
         std::cerr << "Error: Unknown command: " << command << std::endl;
