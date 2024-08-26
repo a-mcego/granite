@@ -1048,8 +1048,6 @@ struct CHIP8259 //PIC
                 if (data & 0x18) // OCW3
                 {
                     ocw[3] = data;
-                    if constexpr (DEBUG_LEVEL > 0)
-                        cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
                 }
                 else // OCW2
                 {
@@ -1057,11 +1055,7 @@ struct CHIP8259 //PIC
                     if (data & 0x20) // End of Interrupt (EOI)
                     {
                         isr &= ~(1 << (data & 0x07));
-                        if constexpr (DEBUG_LEVEL > 0)
-                            cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
                     }
-                    if constexpr (DEBUG_LEVEL > 0)
-                        cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
                 }
             }
         }
@@ -1071,23 +1065,17 @@ struct CHIP8259 //PIC
             {
                 icw[2] = data;
                 init_state = 3; //TODO: support multiple DMA chips. we skip ICW3 when there's only one
-                if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
             }
             else if (init_state == 2) // ICW3
             {
                 icw[3] = data;
                 init_state = 3;
-                if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
             }
             else if (init_state == 3) // ICW4
             {
                 icw[4] = data;
                 init_state = 0;
                 is_initialized = true;
-                if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
             }
             else
             {
@@ -1140,8 +1128,6 @@ struct CHIP8259 //PIC
         if (!is_initialized || irq >= 8)
             return;
 
-        if (startprinting)
-            cout << "IRQ: REQUEST " << u32(irq) << endl;
         irr |= (1<<irq);
     }
 } pic;
@@ -3883,7 +3869,6 @@ struct CPU8088
                 case 0xA2: mem._8(source_segment, source_offset) = get_r8(0); break;
                 case 0xA3: mem._16(source_segment, source_offset) = registers[AX]; break;
             }
-
             cycles_used += 14;
         }
         else if (instruction >= 0xA8 && instruction <= 0xA9) //TEST AL/X,imm8/16
@@ -3898,7 +3883,6 @@ struct CPU8088
                 u8 value1 = read_inst<u8>();
                 test_flags<u8>(u8(value1&registers[AX]));
             }
-
             cycles_used += 4;
         }
         else if (instruction >= 0xA0 && instruction <= 0xAF) //MOVSB/W CMPSB/W --- STOSB/W LODSB/W SCASB/W
@@ -5199,8 +5183,6 @@ void configline(std::string line)
                     }
                     regs_failed[i] += 1;
 
-                    //ÅÄÖ
-
                     //if (i==0)
                     //    cout << test_filename << "#" << test_id << ": "  << hex << (start_regs[0]) << " should provide " << (final_reg) << " but CPU said " << (test_reg) << dec << endl;
 
@@ -5265,7 +5247,6 @@ void configline(std::string line)
         std::cerr << "Error: Unknown command: " << command << std::endl;
     }
 }
-
 
 void readConfigFile(const std::string& filename)
 {
