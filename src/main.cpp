@@ -314,10 +314,14 @@ struct CGA
             //       BAA--AAB
             //       aa-AAA-a
 
-            const float curve[8] = {0,0,0,0,1,1,1,1};
-            const u8 add[8] = {0,1,1,1,1,1,1,0};
+            //const float curve[8] = {0,0,0,0,1,1,1,1};
+            //const u8 add[8] = {0,1,1,1,1,1,1,0};
             const u8 start[8] = {0,1,6,7,3,2,5,4};
-            return curve[(start[color]+add[color]*pos)&7];
+            //return curve[(start[color]+add[color]*pos)&7];
+
+            const u8 mask[8] = {0,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0};
+
+            return ((start[color]+(mask[color]&pos))&4)?1.0f:0.0f;
         }
 
         u8 curr_idx[4] = {};
@@ -331,20 +335,18 @@ struct CGA
             }
         }
 
-        void Set(u8 position, u8 color_index)
+        /*void Set(u8 position, u8 color_index)
         {
             curr_idx[position] = color_index&7;
             intense[position] = color_index&8;
-        }
+        }*/
+        float num[8] = {};
 
-        u32 Get() //return type AABBGGRR
+        u32 Get(u8 position, u8 color_index) //return type AABBGGRR
         {
-            float num[8];
-
-            for(int i=0; i<8; ++i)
-            {
-                num[i] = getlevel(curr_idx[((i+7)>>1)&3],i)+(intense[((i+7)>>1)&3]?2.2f/5.6f:0.0);
-            }
+            //Set(position, color_index);
+            num[position*2+0] = getlevel(color_index&7,position*2+0)+(color_index&8?2.2f/5.6f:0.0f);
+            num[position*2+1] = getlevel(color_index&7,position*2+1)+(color_index&8?2.2f/5.6f:0.0f);
 
             const float phase[8] =
             {
@@ -359,16 +361,11 @@ struct CGA
                 fi += num[i]*phase[i];
                 fq += num[i]*phase[(i+6)&7];
             }
-
-            fy *= 1.0f/12.0f;
-            fi *= 1.0f/12.0f/0.5957f;
-            fq *= 1.0f/12.0f/0.5226f;
-
             const float yiq2rgb[9] =
             {
-                1, 0.5694, 0.3234,
-                1, -0.1620, -0.3381,
-                1, -0.6588, 0.8900,
+                1.0f/12.0f, 0.5694/12.0f/0.5957f, 0.3234/12.0f/0.5226f,
+                1.0f/12.0f, -0.1620/12.0f/0.5957f, -0.3381/12.0f/0.5226f,
+                1.0f/12.0f, -0.6588/12.0f/0.5957f, 0.8900/12.0f/0.5226f,
             };
             float fr = fy*yiq2rgb[0] + fi*yiq2rgb[1] + fq*yiq2rgb[2];
             float fg = fy*yiq2rgb[3] + fi*yiq2rgb[4] + fq*yiq2rgb[5];
@@ -545,9 +542,7 @@ struct CGA
 
         if (column == 0) //new line
         {
-            compositecolor.Clear();
             scan_line += (scan_line>=261?-261:1);
-            render();
 
             ++line_inside_character;
             if (line_inside_character > registers[MAX_SCAN_LINE])
@@ -589,6 +584,7 @@ struct CGA
 
         if (!old_vrt && vertical_retrace)
         {
+            render();
             ++totalvsync;
         }
 
@@ -637,7 +633,7 @@ struct CGA
                         if (!resolution)
                             p1 = palette[0], p2 = palette[0];
                         else
-                            p1 = 0x11, p2 = 0x11;
+                            p1 = 0, p2 = 0;
                     }
 
                     screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
@@ -685,13 +681,11 @@ struct CGA
                         if (!resolution)
                             p1 = palette[0], p2 = palette[0];
                         else
-                            p1 = 0x11, p2 = 0x11;
+                            p1 = 0, p2 = 0;
                     }
 
-                    compositecolor.Set((i)&0x03, p1);
-                    screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get();
-                    compositecolor.Set((i+1)&0x03, p2);
-                    screen.pixels[scan_line*screen.X + scan_column + i+1] = compositecolor.Get();
+                    screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get((i)&0x03, p1);
+                    screen.pixels[scan_line*screen.X + scan_column + i+1] = compositecolor.Get((i+1)&0x03, p2);
                     gfx_byte <<= 2;
                 }
             }
@@ -713,8 +707,7 @@ struct CGA
                     if (vertical_retrace || horizontal_retrace)
                         color = palette[0];
 
-                    compositecolor.Set(x_off&0x03, color);
-                    screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get();
+                    screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get(x_off&0x03, color);
                 }
             }
         }
