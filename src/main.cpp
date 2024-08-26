@@ -187,9 +187,11 @@ struct YM3812
     }
 } ym3812;
 
+const u32 GAMEPORT_CYCLE = 64;
+
 struct Gameport
 {
-    u8 reg{0xFF};
+    u8 reg{0xF0};
     /*
     bit 7: button 4 off
     bit 6: button 3 off
@@ -202,14 +204,15 @@ struct Gameport
     bit 0: #1 axis x state
     */
 
-    i16 axes[4] = {};
-    u16 counters[4] = {};
+    i16 axes[400] = {};
+    u32 counters[400] = {};
 
-    u16 axis_to_counter(i16 axis_value)
+    u32 axis_to_counter(i16 axis_value)
     {
         //u32 resistor = u32((u64(axis_value+32768)*100000ULL)>>16); //ohms
-        u32 cycles = u32((u64(axis_value+32768)*246ULL)>>16) + 6; //ohms
-        return u16(cycles);
+        u32 cycles = u32((i32(axis_value)+32768)>>2) + 384; //cycles
+        //cout << std::dec << axis_value << " -> " << cycles/(14.318180) << "us" << std::hex << endl;
+        return u32(cycles);
     }
 
     void set_button_state(u8 button, bool is_on)
@@ -217,33 +220,27 @@ struct Gameport
         reg = (reg&~(0x10<<button)) | (is_on?0:(0x10<<button));
     }
 
-    void write(u8 port, u8 data) //port from 0 to 1! inclusive.
+    void write(u8 port, u8 data) //port from 0 to 0! inclusive.
     {
-        reg = (reg&0xF0);
-
+        reg |= 0x0F;
         for(int axis=0; axis<4; ++axis)
-        {
-            counters[0] = axis_to_counter(axes[axis]);
-        }
+            counters[axis] = axis_to_counter(axes[axis]);
     }
 
-    u8 read(u8 port) //port from 0 to 1! inclusive.
+    u8 read(u8 port) //port from 0 to 0! inclusive.
     {
         return reg;
     }
 
-    void cycle()
+    void cycle() //called at 14318180/GAMEPORT_CYCLE Hz
     {
         reg &= 0xF0;
-        counters[0] -= counters[0]?1:0;
-        counters[1] -= counters[1]?1:0;
-        counters[2] -= counters[2]?1:0;
-        counters[3] -= counters[3]?1:0;
 
-        reg |= (counters[0]==0)?1:0;
-        reg |= (counters[1]==0)?2:0;
-        reg |= (counters[2]==0)?4:0;
-        reg |= (counters[3]==0)?8:0;
+        for (int i = 0; i < 4; ++i)
+        {
+            counters[i] -= (counters[i]>=GAMEPORT_CYCLE ? GAMEPORT_CYCLE : 0);
+            reg |= (counters[i]>=GAMEPORT_CYCLE ? (1 << i): 0);
+        }
     }
 } gameport;
 
@@ -4837,6 +4834,18 @@ std::vector<std::string> list_all_files(const fs::path& directory)
     return files;
 }
 
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (button == GLFW_MOUSE_BUTTON_1)
+        gameport.set_button_state(0, action == GLFW_PRESS);
+    if (button == GLFW_MOUSE_BUTTON_2)
+        gameport.set_button_state(1, action == GLFW_PRESS);
+    if (button == GLFW_MOUSE_BUTTON_3)
+        gameport.set_button_state(2, action == GLFW_PRESS);
+    if (button == GLFW_MOUSE_BUTTON_4)
+        gameport.set_button_state(3, action == GLFW_PRESS);
+}
+
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (action != GLFW_PRESS && action != GLFW_RELEASE)
@@ -5281,6 +5290,121 @@ void readConfigFile(const std::string& filename)
     }
 }
 
+enum struct JOYSTICK
+{
+    NONE,
+    JOYSTICK,
+    GAMEPAD
+};
+
+enum struct InputEventSTATE
+{
+    UP,
+    DOWN,
+    N
+};
+
+void gamepadbuttonfun(int joy_id, int key_id, InputEventSTATE action)
+{
+    if (key_id >= 0 && key_id <= 3)
+    {
+        gameport.set_button_state(key_id, action == InputEventSTATE::DOWN);
+    }
+}
+void gamepadaxisfun([[maybe_unused]] int joy_id, int axis_id, int amount)
+{
+    if (axis_id >= 0 && axis_id <= 3)
+    {
+        gameport.axes[axis_id] = amount;
+    }
+    //InputEvent ie;
+    //ie.type = InputEvent::TYPE::GAMEPAD_AXISMOVE;
+    //ie.data = axis_id;
+    //ie.data2 = amount;
+    //GetEngine().input.inputqueue.push(ie);
+}
+
+const u32 JOYSTICKS_SIZE = 16;
+JOYSTICK joysticks[JOYSTICKS_SIZE] = {};
+const float DEADZONE = 0.04f;
+int gp_buttonstate[GLFW_GAMEPAD_BUTTON_LAST+1] = {};
+int gp_axisstate[GLFW_GAMEPAD_AXIS_LAST+1] = {};
+int n_joysticks = 0;
+
+void joystickfun(int jid, int event)
+{
+    if (event == GLFW_CONNECTED)
+    {
+        if (glfwJoystickIsGamepad(jid))
+        {
+            joysticks[jid] = JOYSTICK::GAMEPAD;
+            std::string gamepadname;
+            //avoid assigning possible nullptr
+            if (auto name = glfwGetGamepadName(jid); name!=nullptr)
+                gamepadname = name;
+            cout << "Gamepad found! Name: " << gamepadname << endl;
+        }
+        else
+            joysticks[jid] = JOYSTICK::JOYSTICK;
+    }
+    else if (event == GLFW_DISCONNECTED)
+    {
+        joysticks[jid] = JOYSTICK::NONE;
+        // The joystick was disconnected
+
+        //Xr::SetToZero(gp_buttonstate);
+        //Xr::SetToZero(gp_axisstate);
+        /*if (GetEngine().appstate.state == "INGAME"_sm)
+            GetEngine().appstate.state = "INGAME_PAUSE"_sm;
+        if (GetEngine().appstate.gamepad_id == jid)
+            GetEngine().appstate.gamepad_id = -1;*/
+    }
+
+    n_joysticks = 0;
+    for(int jid_counter=GLFW_JOYSTICK_1; jid_counter<GLFW_JOYSTICK_LAST; ++jid_counter)
+    {
+        if (glfwJoystickPresent(jid_counter))
+        {
+            ++n_joysticks;
+        }
+    }
+}
+void updatejoysticks()
+{
+    for(int j_id=0; j_id<JOYSTICKS_SIZE; ++j_id)
+    {
+         if (joysticks[j_id] != JOYSTICK::GAMEPAD)
+            continue;
+        GLFWgamepadstate state;
+        if (!glfwGetGamepadState(j_id, &state))
+            continue;
+        for(int b_id=0; b_id<=GLFW_GAMEPAD_BUTTON_LAST; ++b_id)
+        {
+            int b_new = state.buttons[b_id];
+            if (gp_buttonstate[b_id] != b_new)
+            {
+                gp_buttonstate[b_id] = b_new;
+                gamepadbuttonfun(j_id, b_id, b_new?InputEventSTATE::DOWN:InputEventSTATE::UP);
+            }
+        }
+
+        for(int a_id=0; a_id<=GLFW_GAMEPAD_AXIS_LAST; ++a_id)
+        {
+            int a_new = int(state.axes[a_id]*32767.0f);
+            if (abs(a_new) > int(DEADZONE*32767.0f))
+            {
+                gp_axisstate[a_id] = a_new;
+                gamepadaxisfun(j_id, a_id, a_new);
+            }
+            else
+            {
+                gp_axisstate[a_id] = 0;
+                gamepadaxisfun(j_id, a_id, 0);
+            }
+        }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     //glfwInit();
@@ -5302,6 +5426,15 @@ int main(int argc, char* argv[])
     std::cout << std::uppercase << std::hex;
 
     glfwSetKeyCallback(screen.window, key_callback);
+    glfwSetMouseButtonCallback(screen.window, mouse_button_callback);
+    for(int jid=GLFW_JOYSTICK_1; jid<GLFW_JOYSTICK_LAST; ++jid)
+    {
+        if (glfwJoystickPresent(jid))
+        {
+            joystickfun(jid, GLFW_CONNECTED);
+        }
+    }
+    glfwSetJoystickCallback(joystickfun);
     cpu.reset();
 
     double previousTime=0.0;
@@ -5347,20 +5480,20 @@ int main(int argc, char* argv[])
                 ym3812.cycle_timers();
             }
 
-        }
-        //realtime stuff
-        if (turbo)
-        {
-            if (clockgen_fast%8 == 0)
-                cga.cycle();
-            if (clockgen_fast%12 == 0)
-                pit.cycle();
-            if (clockgen_fast%298 == 0) //ca. 48kHz. handles sound output in general
-                beeper.cycle();
-            if (clockgen_fast%288 == 0)
-                ym3812.cycle();
-            if (clockgen_fast%64 == 0)
-                gameport.cycle();
+            //realtime stuff
+            if (lockstep) //implies turbo==true
+            {
+                if (clockgen_fast%8 == 0)
+                    cga.cycle();
+                if (clockgen_fast%12 == 0)
+                    pit.cycle();
+                if (clockgen_fast%298 == 0) //ca. 48kHz. handles sound output in general
+                    beeper.cycle();
+                if (clockgen_fast%288 == 0)
+                    ym3812.cycle();
+                if (clockgen_fast%GAMEPORT_CYCLE == 0)
+                    gameport.cycle();
+            }
         }
 
         //do realtime stuff
@@ -5404,27 +5537,29 @@ int main(int argc, char* argv[])
                     }
                 }
                 //realtime stuff
-                if (!turbo)
+                if (clockgen_real%8 == 0)
+                    cga.cycle();
+                if (clockgen_real%12 == 0)
+                    pit.cycle();
+                if (clockgen_real%298 == 0) //ca. 48kHz. handles sound output in general
+                    beeper.cycle();
+                if (clockgen_real%288 == 0)
                 {
-                    if (clockgen_real%8 == 0)
-                        cga.cycle();
-                    if (clockgen_real%12 == 0)
-                        pit.cycle();
-                    if (clockgen_real%298 == 0) //ca. 48kHz. handles sound output in general
-                        beeper.cycle();
-                    if (clockgen_real%288 == 0)
-                    {
-                        ym3812.cycle();
-                        ym3812.cycle_timers();
-                    }
-                    if (clockgen_real%64 == 0)
-                        gameport.cycle();
+                    ym3812.cycle();
+                    ym3812.cycle_timers();
                 }
+                if (clockgen_real%GAMEPORT_CYCLE == 0)
+                    gameport.cycle();
             }
             previousTime += double(cycles_done)/14318180.0;
         }
         if ((loop_counter&0xFFFF) == 0)
         {
+            if ((loop_counter&0x3FFFF) == 0)
+            {
+                glfwPollEvents();
+                updatejoysticks();
+            }
             if (!lockstep || turbo)
             {
                 previousTime = glfwGetTime();
