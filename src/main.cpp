@@ -2989,6 +2989,10 @@ struct IO
         {
             gameport.write(port-0x201, data&0xFF);
         }
+        else if (port >= 0x260 && port <= 0x263)
+        {
+            ltems.write(port-0x260, data&0xFF);
+        }
         else
         {
             //if constexpr(DEBUG_LEVEL > 0)
@@ -3035,6 +3039,10 @@ struct IO
         else if (port == 0x201)
         {
             data = gameport.read(port-0x201);
+        }
+        else if (port >= 0x260 && port <= 0x263)
+        {
+            data = ltems.read(port-0x260);
         }
         else
         {
