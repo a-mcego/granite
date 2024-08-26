@@ -289,8 +289,7 @@ void Opl2::update_ADSR()
 int OP::update(int fm, Opl2& opl2)
 {
 	int sample=0;
-	unsigned int tempstate = (sinestate+fm);
-	tempstate &= (PERIOD_SIZE-1);
+	unsigned int tempstate = (sinestate+fm)&(PERIOD_SIZE-1);
 
 	sample = sine[wavetype][tempstate>>SINE_BLOCK]
 	*TOTLVL[volume]/ADSR_MAX
@@ -298,8 +297,7 @@ int OP::update(int fm, Opl2& opl2)
 		*LKS[lks][freq]/ADSR_MAX;
 	if (ampmod)
 		sample = sample*AMPMOD[opl2.ampmod_depth][opl2.ampmod_state]/ADSR_MAX;
-	sinestate += freq_harmonic;
-	sinestate &= (PERIOD_SIZE-1);
+	sinestate = (sinestate+freq_harmonic)&(PERIOD_SIZE-1);
 	wanha2 = wanha1;
 	wanha1 = sample;
 	return sample;
