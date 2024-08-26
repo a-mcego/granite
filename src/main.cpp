@@ -3032,6 +3032,14 @@ struct CPU8088
 {
     u16 registers[16] = {};
 
+    enum struct TYPE //what instruction set?
+    {
+        i086,
+        i186,
+
+        N
+    } type{TYPE::i086};
+
     u8 segment_override{};
     u8 string_prefix{};
     u8 lock{};
@@ -3398,6 +3406,7 @@ struct CPU8088
         if (flag(F_INTERRUPT) || forced)
         {
             halt = false;
+            cycles_used += 10;
 
             ++interrupt_table[n];
 
@@ -3415,6 +3424,19 @@ struct CPU8088
                 pic.cpu_ack_irq(n-8);
             }
         }
+    }
+
+    void invalid_instruction()
+    {
+        cout << "Invalid instruciton." << endl;
+        cycles_used += 60;
+        interrupt(6, true);
+    }
+    void outside_bound()
+    {
+        cout << "Bounds violation." << endl;
+        cycles_used += 60;
+        interrupt(5, true);
     }
 
     void irq(u8 n)
@@ -3474,7 +3496,220 @@ struct CPU8088
                 std::cout << "prefix read. #" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
         }
 
-        if (false);
+        bool executed=false;
+
+        if (type == TYPE::i186)
+        {
+            if (false);
+            else if (instruction == 0x0F)
+            {
+                executed = true;
+                invalid_instruction();
+            }
+            else if ((instruction&0xF0) == 0x60)
+            {
+                executed = true;
+                if (instruction == 0x60)
+                {
+                    //0x60 pusha //pushes all 8 regs
+                    u16 temp = registers[SP];
+                    push(registers[AX]);
+                    push(registers[CX]);
+                    push(registers[DX]);
+                    push(registers[BX]);
+                    push(temp);
+                    push(registers[BP]);
+                    push(registers[SI]);
+                    push(registers[DI]);
+                    cycles_used += 30; //TODO: correct value
+                }
+                else if (instruction == 0x61)
+                {
+                    //0x61 popa //pops all 8 regs
+                    registers[DI] = pop();
+                    registers[SI] = pop();
+                    registers[BP] = pop();
+                    pop(); //ignore SP
+                    registers[BX] = pop();
+                    registers[DX] = pop();
+                    registers[CX] = pop();
+                    registers[AX] = pop();
+                    cycles_used += 30; //TODO: correct value
+                }
+                else if (instruction == 0x62)
+                {
+                    //0x62 BOUND modrm
+                    u8 modrm = read_inst<u8>();
+                    u16& rm = decode_modrm_u16(modrm);
+                    u16& r = get_r16((modrm>>3)&0x07);
+                    u16 lower_bound = mem._16(registers[DS], rm);
+                    u16 upper_bound = mem._16(registers[DS], rm + 2);
+                    if (r < lower_bound || r > upper_bound)
+                    {
+                        outside_bound();
+                        cycles_used += 60; //TODO: correct value
+                    }
+                    cycles_used += 20; //TODO: correct value
+                }
+                else if (instruction == 0x68)
+                {
+                    //0x68 push immed byte, sign extension!
+                    i8 imm = read_inst<u8>();
+                    push(i16(imm));
+                }
+                else if (instruction == 0x69)
+                {
+                    //0x69 mul modrm, immed byte
+                    u8 modrm = read_inst<u8>();
+                    u8& rm = decode_modrm_u8(modrm);
+                    u8 op2 = read_inst<u8>();
+                    i16 result = i16(i8(rm))*i16(i8(op2));
+
+                    set_flag(F_SIGN,result&0x8000);
+                    set_flag(F_PARITY,byte_parity[u16(result)>>8]);
+                    set_flag(F_OVERFLOW,result>=0x80 || result < -0x80);
+                    set_flag(F_CARRY,result>=0x80 || result < -0x80);
+                    set_flag(F_AUX_CARRY,false);
+                    set_flag(F_ZERO,(result&0xFFFF)==0);
+                    registers[AX] = u16(result);
+                    cycles_used += (modrm_is_register?80:86); //TODO: make this more accurate, it's actually 80-98, 86-104
+                }
+                else if (instruction == 0x6A)
+                {
+                    //0x6A push immed word
+                    u16 imm = read_inst<u16>();
+                    push(imm);
+                }
+                else if (instruction == 0x6B)
+                {
+                    //0x6B mul modrm, immed word
+                    u8 modrm = read_inst<u8>();
+                    u16& rm = decode_modrm_u16(modrm);
+                    u16 op2 = read_inst<u16>();
+                    i32 result = i32(i16(rm))*i32(i16(op2));
+                    set_flag(F_SIGN,result&0x80000000);
+                    set_flag(F_PARITY,byte_parity[(result>>16)&0xFF]);
+                    set_flag(F_OVERFLOW,result>=0x8000 || result < -0x8000);
+                    set_flag(F_CARRY,result>=0x8000 || result < -0x8000);
+                    set_flag(F_AUX_CARRY,false);
+                    set_flag(F_ZERO,(result)==0);
+
+                    registers[AX] = result&0xFFFF;
+                    registers[DX] = result >> 16;
+                    cycles_used += (modrm_is_register?128:134); //TODO: make this more accurate, it's actually 128-154, 134-160
+                }
+                else if (instruction == 0x6C)
+                {
+                    //0x6C [REP] ins, byte from DX port
+                    //TODO: implement
+                    cout << "@1";
+                }
+                else if (instruction == 0x6D)
+                {
+                    //0x6D [REP] ins, word from DX port
+                    //TODO: implement
+                    cout << "@2";
+                }
+                else if (instruction == 0x6E)
+                {
+                    //0x6E [REP] outs, byte to DX port
+                    //TODO: implement
+                    cout << "@3";
+                }
+                else if (instruction == 0x6F)
+                {
+                    //0x6F [REP] outs, word to DX port
+                    //TODO: implement
+                    cout << "@4";
+                }
+                else
+                {
+                    invalid_instruction();
+                }
+            }
+            else if (instruction == 0xC0)
+            {
+                executed = true;
+                //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
+                u8 modrm = read_inst<u8>();
+                u8& rm = decode_modrm_u8(modrm);
+                u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
+
+                u8 inst_type = (modrm >> 3) & 0x07;
+                cycles_used += (modrm_is_register ? 15 : 23); // Assuming 15 cycles for register and 23 for memory
+
+                for (u32 i = 0; i < amount; ++i)
+                {
+                    u8 original = rm;
+                    u8 result = 0;
+
+                    if (inst_type == 6)
+                    {
+                        cout << "¤";
+                        break;
+                    }
+                    // ROL ROR RCL RCR SHL SHR SAL SAR
+                    else if ((inst_type & 1) == 0) // ROL RCL SHL SAL
+                    {
+                        result = (original << 1) | ((inst_type & 0x04) ? 0 : ((inst_type & 0x02) ? flag(F_CARRY) : original >> 7));
+                    }
+                    else if (inst_type == 1 || inst_type == 3) // ROR RCR
+                    {
+                        result = (original >> 1) | ((inst_type & 0x02) ? flag(F_CARRY) << 7 : original << 7);
+                    }
+                    else if (inst_type == 5 || inst_type == 7) // SHR SAR
+                    {
+                        result = (original >> 1) | ((inst_type & 0x02) ? original & 0x80 : 0);
+                    }
+                    set_flag(F_CARRY, original & ((inst_type & 1) ? 0x01 : 0x80));
+                    u8 flag_value = (inst_type & 1) ? result : original;
+                    set_flag(F_OVERFLOW, (bool(flag_value & 0x80) != bool(flag_value & 0x40)));
+                    if (inst_type & 0x04)
+                    {
+                        set_flag(F_SIGN, result & 0x80);
+                        set_flag(F_ZERO, result == 0);
+                        set_flag(F_AUX_CARRY, (inst_type == 4 ? result & 0x10 : false));
+                        set_flag(F_PARITY, byte_parity[result & 0xFF]);
+                    }
+                    rm = result;
+                }
+            }
+            else if (instruction == 0xC8)
+            {
+                executed = true;
+                //0xC8 ENTER data16, imm8
+                u16 frame_size = read_inst<u16>();
+                u8 nesting_level = read_inst<u8>();
+
+                push(registers[BP]);
+                u16 frame_temp = registers[SP];
+                if (nesting_level > 0)
+                {
+                    for (u8 i = 1; i < nesting_level; ++i)
+                    {
+                        registers[BP] -= 2;
+                        push(mem._16(registers[SS], registers[BP]));
+                    }
+                    push(frame_temp);
+                }
+                registers[BP] = frame_temp;
+                registers[SP] -= frame_size;
+                cycles_used += 20 + 4 * nesting_level; // Assuming 20 cycles base + 4 cycles per nesting level
+            }
+            else if (instruction == 0xC9)
+            {
+                executed = true;
+                //0xC9 LEAVE
+                registers[SP] = registers[BP];
+                registers[BP] = pop();
+                cycles_used += 8; // Assuming 8 cycles for LEAVE
+            }
+        }
+
+        if (executed)
+        {
+            cout << "E";
+        }
         else if (instruction < 0x40 && (instruction&0x07) < 6)
         {
             u8 instr_choice = (instruction&0x38)>>3;
@@ -3651,10 +3886,6 @@ struct CPU8088
             registers[instruction&0x07] = pop();
             cycles_used += 12;
         }
-        //else if ((instruction&0xF0) == 0x60) // on 8086 these are synonymous to 0x7*
-        //{
-        //    cout << "*" << u32(instruction);
-        //}
         else if ((instruction&0xE0) == 0x60) //various short jumps
         {
             if ((instruction&0xF0) == 0x60)
@@ -4085,7 +4316,7 @@ struct CPU8088
             u8& rm = decode_modrm_u8(modrm);
 
             u8 inst_type = (modrm>>3)&0x07;
-            u8 amount = (single_shift)?1:(registers[CX]&0xFF);
+            u8 amount = (single_shift)?1:(registers[CX]&(type==TYPE::i086?0xFF:0x1F));
 
             if ((instruction&0x02) == 0)
             {
@@ -4139,7 +4370,7 @@ struct CPU8088
             u16& rm = decode_modrm_u16(modrm);
 
             u8 inst_type = (modrm>>3)&0x07;
-            u8 amount = (single_shift)?1:(registers[CX]&0xFF);
+            u8 amount = (single_shift)?1:(registers[CX]&(type==TYPE::i086?0xFF:0x1F));
 
             if ((instruction&0x02) == 0)
             {
@@ -4214,6 +4445,8 @@ struct CPU8088
         else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
         {
             u8 imm = read_inst<u8>();
+            if (type == TYPE::i186)
+                imm = 10; //for NEC V20
             u16 orig16 = registers[AX];
             u16 temp16 = (registers[AX]&0xFF) + (registers[AX]>>8)*imm;
             registers[AX] = (temp16&0xFF);
