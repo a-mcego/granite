@@ -66,7 +66,7 @@ const u32 DEBUG_LEVEL = 0;
 
 const u32 PRINT_START = 0;
 u64 cycles{};
-u32 readonly_start = 0xC0000;
+u32 readonly_start = 0xF0000;
 
 const char* r8_names[8] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
 const char* r16_names[8] = {"AX","CX","DX","BX","SP","BP","SI","DI"};
@@ -728,7 +728,31 @@ struct CGA
 
 struct LTEMS
 {
+    u8 memory[4*1024*1024+1] = {};
 
+    u32 pages[4] = {};
+
+    void write(u8 port, u8 data) // port from 0 to 3 inclusive
+    {
+        pages[port] = u32(data)*0x4000U;
+    }
+    u8 read(u8 port) // no port is readable
+    {
+        return 0;
+    }
+
+    u8& _8(u16 index)
+    {
+        u16 page = (index>>14);
+        u16 address = (index&0x3FFFU);
+        return memory[pages[page]+address];
+    }
+    u16& _16(u16 index)
+    {
+        u16 page = (index>>14);
+        u16 address = (index&0x3FFFU);
+        return *(u16*)(void*)(memory+(pages[page]+address));
+    }
 } ltems;
 
 struct MemoryManager
@@ -760,6 +784,8 @@ struct MemoryManager
             return readonly_bytes[readonly_byte];
         }
 
+        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xE0000)
+            return ltems._8(total_address&0xFFFF);
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
             return cga.memory8(total_address&0x7FFF);
        return memory_bytes[total_address];
@@ -777,6 +803,8 @@ struct MemoryManager
             readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+total_address);
             return readonly_words[readonly_word];
         }
+        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xE0000)
+            return ltems._16(total_address&0xFFFF);
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
             return cga.memory16(total_address&0x7FFF);
         return *(u16*)(void*)(memory_bytes+total_address);
@@ -5208,7 +5236,7 @@ void configline(std::string line)
                 cout << flags_failed[i] << (i%4==3?"  ":" ");
             cout << endl;
         }
-        readonly_start = 0xC0000;
+        readonly_start = 0xF0000;
     }
     else if (command == "end_tests")
     {
