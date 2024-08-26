@@ -18,8 +18,8 @@ struct SCREEN
         glBindTexture(GL_TEXTURE_2D, textures[0]);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, X, Y, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
         glDrawArrays(GL_TRIANGLES, 0, 3);
-        glfwSwapBuffers(window);
         glfwPollEvents();
+        glfwSwapBuffers(window);
     }
     void remake_buffers()
     {
