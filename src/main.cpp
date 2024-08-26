@@ -1054,6 +1054,8 @@ struct CHIP8259 //PIC
                     ocw[2] = data;
                     if (data & 0x20) // End of Interrupt (EOI)
                     {
+                        if ((data&0x07) != 0)
+                            cout << "EOI isr " << u32(data & 0x07) << endl;
                         isr &= ~(1 << (data & 0x07));
                     }
                 }
@@ -1104,7 +1106,7 @@ struct CHIP8259 //PIC
         // Check for any pending interrupts
         for (int i = 0; i < 8; ++i)
         {
-            if (!masked(i) && pending(i))
+            if (!masked(i) && pending(i) && !serviced(i))
             {
                 if (startprinting)
                     cout << "IRQ: SERVICE " << u32(i) << endl;
@@ -1122,13 +1124,23 @@ struct CHIP8259 //PIC
     {
         return (irr&(1<<irq));
     }
+    bool serviced(u8 irq)
+    {
+        return (isr&(1<<irq));
+    }
 
-    void request_interrupt(u8 irq)
+    bool request_interrupt(u8 irq)
     {
         if (!is_initialized || irq >= 8)
-            return;
+            return false;
+
+        if (irr&(1<<irq))
+            return false;
+        if (isr&(1<<irq))
+            return false;
 
         irr |= (1<<irq);
+        return true;
     }
 } pic;
 
@@ -1198,7 +1210,6 @@ struct CHIP8255 //keyboard etc
                 else
                 {
                     u8 ret = current_scancode;
-                    current_scancode = 0;
                     return ret;
                 }
             }
@@ -1242,13 +1253,21 @@ struct CHIP8255 //keyboard etc
 
     void write(u8 port, u8 data) //port from 0 to 3! inclusive.
     {
-        if (port == 1 && (data&0x40) && (!(regs[port]&0x40)))
+        if (port == 1)
         {
-            cout << "Setting keyboard self test." << endl;
-            if (keyboard_self_test == 0)
+            if ((data&0x40) && (!(regs[port]&0x40)))
             {
-                keyboard_self_test = KEYBOARD_SELF_TEST_LENGTH;
-                is_initialized = false;
+                cout << "Setting keyboard self test." << endl;
+                if (keyboard_self_test == 0)
+                {
+                    keyboard_self_test = KEYBOARD_SELF_TEST_LENGTH;
+                    is_initialized = false;
+                }
+            }
+            if (data&0x80)
+            {
+                current_scancode = 0;
+                pic.cpu_ack_irq(1);
             }
         }
         regs[port] = data;
@@ -1271,12 +1290,15 @@ struct CHIP8255 //keyboard etc
 
         if (!scancode_queue.empty())
         {
-            if (kbd_wait == 0)
+            if (kbd_wait == 0 && current_scancode == 0)
             {
                 current_scancode = scancode_queue.front();
-                scancode_queue.pop_front();
-                pic.request_interrupt(1);
-                kbd_wait = 1024;
+                bool result = pic.request_interrupt(1);
+                if (result)
+                {
+                    scancode_queue.pop_front();
+                }
+                kbd_wait = 2048;
             }
             else
             {
