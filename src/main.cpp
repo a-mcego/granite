@@ -3124,6 +3124,7 @@ struct CPU8088
 
     void reset()
     {
+        halt = false;
         clear_prefix();
         for(u32 i=0; i<16; ++i)
             registers[i] = 0x0000;
@@ -4090,6 +4091,7 @@ struct CPU8088
             push(registers[IP]);
             registers[CS] = segment;
             registers[IP] = pointer;
+            cycles_used += 28;
         }
         else if (instruction == 0x9B) // WAIT/FWAIT
         {
