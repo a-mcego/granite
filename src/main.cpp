@@ -1675,7 +1675,7 @@ struct CHIP8253 //PIT
         if (c.access_mode == 0)
             return 0;
 
-        cout << __PRETTY_FUNCTION__ << " WTF. reading port: " << u32(port) << endl;
+        cout << "PIT WTF. reading port: " << u32(port) << endl;
         cout << u32(c.access_mode) << endl;
         std::abort();
     }
