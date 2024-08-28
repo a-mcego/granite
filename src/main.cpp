@@ -3506,8 +3506,8 @@ struct CPU8088
 
         if (registers[CS] == 0 && registers[IP] == 0)
         {
-            cout << "Trying to run code at CS:IP 0:0" << endl;
-            std::abort();
+            cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
+            reset();
         }
         is_inside_multi_part_instruction = false;
         u8 instruction = read_inst<u8>();
