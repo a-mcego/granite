@@ -570,9 +570,6 @@ struct CGA
                 current_modeselect = mode_select;
             }
         }
-        u8 is_graphics_mode = (current_modeselect>>1)&0x01;
-
-
         bool old_vrt = vertical_retrace;
 
         vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
@@ -582,6 +579,8 @@ struct CGA
             scan_line = 1;
         }
 
+        bool vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+8);
+
         if (!old_vrt && vertical_retrace)
         {
             render();
@@ -590,6 +589,9 @@ struct CGA
 
         horizontal_retrace = (column >= 640);
 
+        bool retrace = (vertical_retrace|horizontal_retrace);
+
+        u8 is_graphics_mode = (current_modeselect>>1)&0x01;
         u8 textmode_40_80 = (current_modeselect>>0)&0x01;
         u16 hsync_mult = 16;
 
@@ -628,13 +630,15 @@ struct CGA
                     u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
                     u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
 
-                    if (vertical_retrace || horizontal_retrace)
+                    if (retrace)
                     {
                         if (!resolution)
                             p1 = palette[0], p2 = palette[0];
                         else
                             p1 = 0, p2 = 0;
                     }
+                    if (vsync)
+                        p1 = 0, p2 = 0;
 
                     screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
                     screen.pixels[scan_line*screen.X + scan_column + i+1] = getpalette(p2);
@@ -656,8 +660,10 @@ struct CGA
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (vertical_retrace || horizontal_retrace)
+                    if (retrace)
                         color = palette[0];
+                    if (vsync)
+                        color = 0;
 
                     screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
                 }
@@ -676,13 +682,15 @@ struct CGA
                     u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
                     u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
 
-                    if (vertical_retrace || horizontal_retrace)
+                    if (retrace)
                     {
                         if (!resolution)
                             p1 = palette[0], p2 = palette[0];
                         else
                             p1 = 0, p2 = 0;
                     }
+                    if (vsync)
+                        p1 = 0, p2 = 0;
 
                     screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get((i)&0x03, p1);
                     screen.pixels[scan_line*screen.X + scan_column + i+1] = compositecolor.Get((i+1)&0x03, p2);
@@ -704,8 +712,10 @@ struct CGA
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (vertical_retrace || horizontal_retrace)
+                    if (retrace)
                         color = palette[0];
+                    if (vsync)
+                        color = 0;
 
                     screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get(x_off&0x03, color);
                 }
