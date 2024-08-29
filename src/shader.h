@@ -8,8 +8,11 @@ void main()
 }
 )glsl";
 
-const float SCREEN_X = 1280.0;
-const float SCREEN_Y = 720.0;
+//const float SCREEN_X = 1280.0;
+//const float SCREEN_Y = 720.0;
+
+const float SCREEN_X = 912.0*1.5;
+const float SCREEN_Y = 262.0*3.0;
 
 const char* fragmentSource = R"glsl(#version 430
 out vec4 color;
