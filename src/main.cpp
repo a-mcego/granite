@@ -408,6 +408,7 @@ struct CGA
 
     u8 horizontal_retrace{};
     u8 vertical_retrace{};
+    bool retrace{};
     u16 current_startaddress{};
     u8 current_modeselect{};
     u8 vcc{};
@@ -423,6 +424,7 @@ struct CGA
         {
             screen.render();
             last_render = now;
+            memset((void*)screen.pixels,0,912*264*4);
         }
     }
 
@@ -446,7 +448,7 @@ struct CGA
         else if (port == 0x0A)
         {
             //bit 0 = we are in vert. or horiz. retrace
-            readdata |= horizontal_retrace|vertical_retrace;
+            readdata |= retrace;
             //bit 1 = light pen triggered (vs 0 = armed)
             //bit 2 = light pen switch open (vs 0 = closed)
             //bit 3 = vertical sync pulse!
@@ -551,10 +553,6 @@ struct CGA
 
         column += 8;
         column = (column>=(registers[H_TOTAL]+1)*hsync_mult?0:column);
-        if (scan_column == 0)
-        {
-            scan_line += (scan_line>=261?-261:1);
-        }
 
         scan_column += 8;
         scan_column = (scan_column>=912?0:scan_column);
@@ -588,17 +586,8 @@ struct CGA
             }
         }
 
-        vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
-
         bool old_vsync = vsync;
         vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+8);
-
-        if (!old_vsync && vsync)
-        {
-            render();
-            ++totalvsync;
-            scan_line = 0;
-        }
 
         u16 hsync_start = (registers[H_SYNC_POS])*hsync_mult;
         u16 hsync_end = (registers[H_SYNC_POS]+registers[H_SYNC_WIDTH])*hsync_mult;
@@ -611,15 +600,28 @@ struct CGA
         {
             scan_column = 0;
         }
+        if (scan_column == 0)
+        {
+            scan_line += (scan_line>=261?-261:1);
+        }
+        if (!old_vsync && vsync)
+        {
+            render();
+            ++totalvsync;
+            scan_line = 0;
+        }
+
+
+        vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
 
         horizontal_retrace = (column >= (registers[H_DISPLAYED])*hsync_mult);// | hsync;
         //horizontal_retrace = (column >= 640);
 
-        bool retrace = (vertical_retrace|horizontal_retrace);
 
         //cout << scan_line << ": "; print_regs();
         u8 no_colorburst = (current_modeselect>>2)&0x01;
         u8 resolution = (current_modeselect>>4)&0x01;
+        bool output_enabled = (current_modeselect&0x08);
 
         const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
         const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
@@ -629,9 +631,21 @@ struct CGA
             cout << "Scanline too high!" << scan_line << endl;
         if (scan_column >= screen.X)
             cout << "Scancolumn too high! " << scan_column << endl;*/
+        retrace = (vertical_retrace|horizontal_retrace);
+        bool draw_bg = retrace|!output_enabled;
 
-
-        if (output == OUTPUT::RGB)
+        /*if (!output_enabled)
+        {
+            screen.pixels[scan_line*screen.X + scan_column + 0] = 0xFF000000;
+            screen.pixels[scan_line*screen.X + scan_column + 1] = 0xFF000000;
+            screen.pixels[scan_line*screen.X + scan_column + 2] = 0xFF000000;
+            screen.pixels[scan_line*screen.X + scan_column + 3] = 0xFF000000;
+            screen.pixels[scan_line*screen.X + scan_column + 4] = 0xFF000000;
+            screen.pixels[scan_line*screen.X + scan_column + 5] = 0xFF000000;
+            screen.pixels[scan_line*screen.X + scan_column + 6] = 0xFF000000;
+            screen.pixels[scan_line*screen.X + scan_column + 7] = 0xFF000000;
+        }
+        else*/ if (output == OUTPUT::RGB)
         {
             if (is_graphics_mode && !textmode_40_80)
             {
@@ -644,7 +658,7 @@ struct CGA
                     u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
                     u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
 
-                    if (retrace)
+                    if (draw_bg)
                     {
                         if (!resolution)
                             p1 = palette[0], p2 = palette[0];
@@ -674,7 +688,7 @@ struct CGA
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (retrace || is_graphics_mode)
+                    if (draw_bg || is_graphics_mode)
                         color = palette[0];
                     if (vsync|hsync)
                         color = 0;
@@ -696,7 +710,7 @@ struct CGA
                     u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
                     u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
 
-                    if (retrace)
+                    if (draw_bg)
                     {
                         if (!resolution)
                             p1 = palette[0], p2 = palette[0];
@@ -726,7 +740,7 @@ struct CGA
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (retrace || is_graphics_mode)
+                    if (draw_bg || is_graphics_mode)
                         color = palette[0];
                     if (vsync|hsync)
                         color = 0;
@@ -1609,6 +1623,7 @@ struct CHIP8253 //PIT
         u8 operating_mode{}; //0-5 inclusive
         u8 access_mode{}; //0-3 inclusive
         u16 reload{};
+        u16 reload_loader{};
         u16 current{};
         bool stopped{};
         u8 output{};
@@ -1762,7 +1777,9 @@ struct CHIP8253 //PIT
                 c.reload = data;
                 c.stopped = false;
                 if constexpr (DEBUG_LEVEL > 0)
-                    cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << endl;
+                {
+                    cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << endl;                c.write_wait_for_second_byte = false;
+                }
             }
             else if (c.access_mode == 2) //hibyte only
             {
@@ -1775,13 +1792,14 @@ struct CHIP8253 //PIT
             {
                 if (c.write_wait_for_second_byte)
                 {
-                    c.reload |= (data<<8);
+                    c.reload_loader = (c.reload_loader| (data<<8));
                     c.stopped = false;
+                    c.reload = c.reload_loader;
                 }
                 else
                 {
-                    c.reload = data;
-                    c.stopped = true;
+                    c.reload_loader = data;
+                    c.stopped = false;
                 }
                 if constexpr (DEBUG_LEVEL > 0)
                     cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << " & " << c.current << endl;
@@ -3468,7 +3486,7 @@ struct CPU8088
         if (flag(F_INTERRUPT) || forced)
         {
             halt = false;
-            cycles_used += 10;
+            cycles_used += 80;
 
             ++interrupt_table[n];
 
@@ -4339,7 +4357,7 @@ struct CPU8088
             if constexpr (DEBUG_LEVEL > 0)
                 cout << "Calling interrupt 3... AX=" << registers[AX] << endl;
             interrupt(3, true);
-            cycles_used += 72;
+            //cycles_used += 72;
         }
         else if (instruction == 0xCD) // INT imm8
         {
@@ -4347,7 +4365,7 @@ struct CPU8088
             if constexpr (DEBUG_LEVEL > 0)
                 cout << "Calling interrupt... " << u32(int_num) << " AX=" << registers[AX] << endl;
             interrupt(int_num, true);
-            cycles_used += 71;
+            //cycles_used += 71;
         }
         else if (instruction == 0xCE) // INTO
         {
@@ -4356,7 +4374,7 @@ struct CPU8088
                 if constexpr (DEBUG_LEVEL > 0)
                     cout << "Calling int 4... AX=" << registers[AX] << endl;
                 interrupt(4, true);
-                cycles_used += 69;
+                //cycles_used += 69;
             }
             cycles_used += 4;
         }
