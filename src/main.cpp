@@ -532,18 +532,35 @@ struct CGA
     u32 scan_column{};
     u32 line_inside_character{};
     u32 vsyncadjust{};
-    bool hsync{};
+    bool hsync{}, vsync{};
     void cycle()
     {
+        //H_TOTAL,
+        //H_DISPLAYED,
+        //H_SYNC_POS,
+        //H_SYNC_WIDTH,
+
+        u8 textmode_40_80 = (current_modeselect>>0)&0x01;
+        u8 is_graphics_mode = ((current_modeselect>>1)&0x01);
+        u16 hsync_mult = 16;
+
+        if (textmode_40_80)
+        {
+            hsync_mult = 8;
+        }
+
         column += 8;
-        column = (column>=912?0:column);
+        column = (column>=(registers[H_TOTAL]+1)*hsync_mult?0:column);
+        if (scan_column == 0)
+        {
+            scan_line += (scan_line>=261?-261:1);
+        }
+
         scan_column += 8;
         scan_column = (scan_column>=912?0:scan_column);
 
         if (column == 0) //new line
         {
-            scan_line += (scan_line>=261?-261:1);
-
             ++line_inside_character;
             if (line_inside_character > registers[MAX_SCAN_LINE])
             {
@@ -570,35 +587,19 @@ struct CGA
                 current_modeselect = mode_select;
             }
         }
-        bool old_vrt = vertical_retrace;
 
         vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
 
-        if (column == 0 && logical_line == registers[V_SYNC_POS])
-        {
-            scan_line = 1;
-        }
+        bool old_vsync = vsync;
+        vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+8);
 
-        bool vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+8);
-
-        if (!old_vrt && vertical_retrace)
+        if (!old_vsync && vsync)
         {
             render();
             ++totalvsync;
+            scan_line = 0;
         }
 
-        horizontal_retrace = (column >= 640);
-
-        bool retrace = (vertical_retrace|horizontal_retrace);
-
-        u8 is_graphics_mode = (current_modeselect>>1)&0x01;
-        u8 textmode_40_80 = (current_modeselect>>0)&0x01;
-        u16 hsync_mult = 16;
-
-        if (!is_graphics_mode && textmode_40_80)
-        {
-            hsync_mult = 8;
-        }
         u16 hsync_start = (registers[H_SYNC_POS])*hsync_mult;
         u16 hsync_end = (registers[H_SYNC_POS]+registers[H_SYNC_WIDTH])*hsync_mult;
 
@@ -606,10 +607,15 @@ struct CGA
 
         hsync = (column >= hsync_start && column <= hsync_end);
 
-        if (!old_hsync && hsync)
+        if (column == hsync_end)
         {
             scan_column = 0;
         }
+
+        horizontal_retrace = (column >= (registers[H_DISPLAYED])*hsync_mult);// | hsync;
+        //horizontal_retrace = (column >= 640);
+
+        bool retrace = (vertical_retrace|horizontal_retrace);
 
         //cout << scan_line << ": "; print_regs();
         u8 no_colorburst = (current_modeselect>>2)&0x01;
@@ -618,13 +624,21 @@ struct CGA
         const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
         const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
 
+
+        /*if (scan_line >= screen.Y)
+            cout << "Scanline too high!" << scan_line << endl;
+        if (scan_column >= screen.X)
+            cout << "Scancolumn too high! " << scan_column << endl;*/
+
+
         if (output == OUTPUT::RGB)
         {
-            if (is_graphics_mode)
+            if (is_graphics_mode && !textmode_40_80)
             {
                 int x = column>>3;
                 u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
                 u8 gfx_byte = memory8_internal(offset);
+
                 for(int i=0; i<8; i+=2)
                 {
                     u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
@@ -637,7 +651,7 @@ struct CGA
                         else
                             p1 = 0, p2 = 0;
                     }
-                    if (vsync)
+                    if (vsync|hsync)
                         p1 = 0, p2 = 0;
 
                     screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
@@ -660,9 +674,9 @@ struct CGA
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (retrace)
+                    if (retrace || is_graphics_mode)
                         color = palette[0];
-                    if (vsync)
+                    if (vsync|hsync)
                         color = 0;
 
                     screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
@@ -671,7 +685,7 @@ struct CGA
         }
         else if (output == OUTPUT::COMPOSITE)
         {
-            if (is_graphics_mode)
+            if (is_graphics_mode && !textmode_40_80)
             {
                 int x = column>>3;
                 u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
@@ -689,7 +703,7 @@ struct CGA
                         else
                             p1 = 0, p2 = 0;
                     }
-                    if (vsync)
+                    if (vsync|hsync)
                         p1 = 0, p2 = 0;
 
                     screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get((i)&0x03, p1);
@@ -712,9 +726,9 @@ struct CGA
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (retrace)
+                    if (retrace || is_graphics_mode)
                         color = palette[0];
-                    if (vsync)
+                    if (vsync|hsync)
                         color = 0;
 
                     screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get(x_off&0x03, color);
@@ -773,6 +787,7 @@ struct MemoryManager
     u16 rw_words[256] = {};
     u8 rw_word{};
 
+    bool cga_used{};
 
     u8& _8(u16 segment, u16 index)
     {
@@ -787,7 +802,10 @@ struct MemoryManager
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xE0000)
             return ltems._8(total_address&0xFFFF);
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
+        {
+            cga_used = true;
             return cga.memory8(total_address&0x7FFF);
+        }
        return memory_bytes[total_address];
     }
     u16& _16(u16 segment, u16 index)
@@ -806,7 +824,10 @@ struct MemoryManager
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xE0000)
             return ltems._16(total_address&0xFFFF);
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
+        {
+            cga_used = true;
             return cga.memory16(total_address&0x7FFF);
+        }
         return *(u16*)(void*)(memory_bytes+total_address);
     }
 
@@ -4959,6 +4980,12 @@ struct CPU8088
         }
 
         mem.update();
+        /*if (mem.cga_used) //this doesnt really work, it should be done on the exact correct cycle which we cannot currently do
+        {
+            mem.cga_used = false;
+            static const u8 waitstates[16] = {5,4,8,7,6,5,4,3,8,7,6,5,4,8,7,6};
+            cycles_used += waitstates[cycles&0x0F];
+        }*/
 
         if (cycles_used > 0)
         {
@@ -5820,11 +5847,11 @@ int main(int argc, char* argv[])
                 cout << std::dec << cpu.cpu_steps/1000000.0 << std::hex << " MHz ";
                 //cout << std::dec << totalframes << " Hz audio " << std::hex;
                 cout << std::dec << cga.totalvsync << " Hz vsync, " << std::hex;
-                cout << std::dec << pit.int0_count << " Hz int0 " << std::hex;
                 cout << std::hex << "flags=" << cpu.registers[cpu.FLAGS] << " " << std::hex;
                 cout << "halt=" << cpu.halt << " ";
 
                 cout << endl;
+
                 harddisk.disks[0].flush();
                 harddisk.disks[1].flush();
                 cpu.cpu_steps = 0;
@@ -5832,7 +5859,7 @@ int main(int argc, char* argv[])
                 cga.totalvsync = 0;
                 pit.int0_count = 0;
 
-                for(int i=0; i<256; ++i)
+                /*for(int i=0; i<256; ++i)
                 {
                     if (cpu.interrupt_table[i] != 0)
                     {
@@ -5840,7 +5867,7 @@ int main(int argc, char* argv[])
                         cpu.interrupt_table[i] = 0;
                     }
                 }
-                cout << endl;
+                cout << endl;*/
             }
         }
 
