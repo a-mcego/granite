@@ -537,11 +537,6 @@ struct CGA
     bool hsync{}, vsync{};
     void cycle()
     {
-        //H_TOTAL,
-        //H_DISPLAYED,
-        //H_SYNC_POS,
-        //H_SYNC_WIDTH,
-
         u8 textmode_40_80 = (current_modeselect>>0)&0x01;
         u8 is_graphics_mode = ((current_modeselect>>1)&0x01);
         u16 hsync_mult = 16;
@@ -611,14 +606,9 @@ struct CGA
             scan_line = 0;
         }
 
-
         vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
+        horizontal_retrace = (column >= (registers[H_DISPLAYED])*hsync_mult);
 
-        horizontal_retrace = (column >= (registers[H_DISPLAYED])*hsync_mult);// | hsync;
-        //horizontal_retrace = (column >= 640);
-
-
-        //cout << scan_line << ": "; print_regs();
         u8 no_colorburst = (current_modeselect>>2)&0x01;
         u8 resolution = (current_modeselect>>4)&0x01;
         bool output_enabled = (current_modeselect&0x08);
@@ -626,26 +616,10 @@ struct CGA
         const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
         const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
 
-
-        /*if (scan_line >= screen.Y)
-            cout << "Scanline too high!" << scan_line << endl;
-        if (scan_column >= screen.X)
-            cout << "Scancolumn too high! " << scan_column << endl;*/
         retrace = (vertical_retrace|horizontal_retrace);
         bool draw_bg = retrace|!output_enabled;
 
-        /*if (!output_enabled)
-        {
-            screen.pixels[scan_line*screen.X + scan_column + 0] = 0xFF000000;
-            screen.pixels[scan_line*screen.X + scan_column + 1] = 0xFF000000;
-            screen.pixels[scan_line*screen.X + scan_column + 2] = 0xFF000000;
-            screen.pixels[scan_line*screen.X + scan_column + 3] = 0xFF000000;
-            screen.pixels[scan_line*screen.X + scan_column + 4] = 0xFF000000;
-            screen.pixels[scan_line*screen.X + scan_column + 5] = 0xFF000000;
-            screen.pixels[scan_line*screen.X + scan_column + 6] = 0xFF000000;
-            screen.pixels[scan_line*screen.X + scan_column + 7] = 0xFF000000;
-        }
-        else*/ if (output == OUTPUT::RGB)
+        if (output == OUTPUT::RGB)
         {
             if (is_graphics_mode && !textmode_40_80)
             {
