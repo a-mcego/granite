@@ -410,7 +410,6 @@ struct CGA
     u8 vertical_retrace{};
     bool retrace{};
     u16 current_startaddress{};
-    u8 current_modeselect{};
     u8 vcc{};
 
     u32 totalvsync{};
@@ -537,8 +536,8 @@ struct CGA
     bool hsync{}, vsync{};
     void cycle()
     {
-        u8 textmode_40_80 = (current_modeselect>>0)&0x01;
-        u8 is_graphics_mode = ((current_modeselect>>1)&0x01);
+        u8 textmode_40_80 = (mode_select>>0)&0x01;
+        u8 is_graphics_mode = ((mode_select>>1)&0x01);
         u16 hsync_mult = 16;
 
         if (textmode_40_80)
@@ -574,15 +573,14 @@ struct CGA
                 line_inside_character = 0;
             }
 
-            if (logical_line == 0)
+            if (logical_line == 0 && line_inside_character == 0)
             {
                 current_startaddress = ((registers[START_ADDRESS_H]<<8) | registers[START_ADDRESS_L])*2;
-                current_modeselect = mode_select;
             }
         }
 
         bool old_vsync = vsync;
-        vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+8);
+        vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+2);
 
         u16 hsync_start = (registers[H_SYNC_POS])*hsync_mult;
         u16 hsync_end = (registers[H_SYNC_POS]+registers[H_SYNC_WIDTH])*hsync_mult;
@@ -591,7 +589,7 @@ struct CGA
 
         hsync = (column >= hsync_start && column <= hsync_end);
 
-        if (column == hsync_end)
+        if (old_hsync && !hsync)
         {
             scan_column = 0;
         }
@@ -609,9 +607,9 @@ struct CGA
         vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
         horizontal_retrace = (column >= (registers[H_DISPLAYED])*hsync_mult);
 
-        u8 no_colorburst = (current_modeselect>>2)&0x01;
-        u8 resolution = (current_modeselect>>4)&0x01;
-        bool output_enabled = (current_modeselect&0x08);
+        u8 no_colorburst = (mode_select>>2)&0x01;
+        u8 resolution = (mode_select>>4)&0x01;
+        bool output_enabled = (mode_select&0x08);
 
         const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
         const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
