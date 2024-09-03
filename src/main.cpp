@@ -2847,8 +2847,6 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                         {
                             cout << "Drive not ready. (no diskette?)" << endl;
                         }
-
-
                         main_status &= ~0xC0;
                     }
                     else if (current_command == 0x07) //recalibrate
@@ -3162,7 +3160,6 @@ struct IO
     }
 };
 
-u32 current_delay = 9;
 //#include "808x.h"
 #include "80286.h"
 
@@ -3301,22 +3298,27 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             }
             else if (key == GLFW_KEY_D)
             {
-                globalsettings.entertrace = true;
-                cout << "Tracer armed. Press enter to start trace." << endl;
+                globalsettings.entertrace = !globalsettings.entertrace;
+                if (globalsettings.entertrace)
+                    cout << "Tracer armed. Press enter to start trace." << endl;
+                else
+                    cout << "Tracer disarmed." << endl;
             }
             else if (key == GLFW_KEY_R) //reset
             {
-                cpu.registers[cpu.CS] = 0xFFFF;
-                cpu.registers[cpu.IP] = 0x0000;
-                cout << "Soft reset!" << endl;
-                cpu.halt = false;
+                cout << "Reset!" << endl;
+                cpu.reset();
             }
             else if (key == GLFW_KEY_G)
             {
-                cout << "Force CPU out of halt." << endl;
-                cpu.halt = false;
+                if (cpu.halt)
+                {
+                    cout << "Force CPU out of halt." << endl;
+                    cpu.halt = false;
+                }
+                else
+                    cout << "Not in halt." << endl;
             }
-
             else if (key == GLFW_KEY_F)
             {
                 cout << "Flushing disks." << endl;
@@ -3348,16 +3350,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                 else
                     cga.output = cga.OUTPUT::RGB;
                 cout << "Cga output changed to " << (cga.output==cga.OUTPUT::RGB?"RGB.":"composite.") << endl;
-            }
-            else if (key == GLFW_KEY_9)
-            {
-                current_delay -= 1;
-                cout << "Delay set to " << std::dec << current_delay << std::hex << endl;
-            }
-            else if (key == GLFW_KEY_0)
-            {
-                current_delay += 1;
-                cout << "Delay set to " << std::dec << current_delay << std::hex << endl;
             }
             else if (key == GLFW_KEY_L)
             {
@@ -3669,7 +3661,7 @@ void configline(std::string line)
                 if (mem.memory_bytes[address] != value)
                 {
                     test_passed = false;
-                    //cout << test_filename << "#" << test_id << ": Memory bytes at " << address << " not correct: " << std::hex << u32(memory_bytes[address]) << "!=" << u32(value) << std::dec << endl;
+                    //cout << test_filename << "#" << test_id << ": Memory bytes at " << address << " not correct: " << std::hex << u32(mem.memory_bytes[address]) << "!=" << u32(value) << std::dec << endl;
                 }
             }
 
