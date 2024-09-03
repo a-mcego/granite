@@ -589,7 +589,8 @@ struct CGA
 
         hsync = (column >= hsync_start && column <= hsync_end);
 
-        if (old_hsync && !hsync)
+        //if (old_hsync && !hsync && (scan_column == 0 || scan_column >= 656))
+        if (hsync && (scan_column == 0 || scan_column >= 800))
         {
             scan_column = 0;
         }
@@ -602,6 +603,7 @@ struct CGA
             render();
             ++totalvsync;
             scan_line = 0;
+            scan_column = 0;
         }
 
         vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
