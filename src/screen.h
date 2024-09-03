@@ -8,6 +8,11 @@ struct SCREEN
     u32 pixels[912*264] = {};
     u16 X{912}, Y{262};
 
+    void clear()
+    {
+        memset((void*)pixels,0,X*Y*4);
+    }
+
     GLuint textures[2] = {};
     GLuint shaderProgram{};
     GLFWwindow* window{};

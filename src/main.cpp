@@ -423,7 +423,7 @@ struct CGA
         {
             screen.render();
             last_render = now;
-            memset((void*)screen.pixels,0,912*264*4);
+            screen.clear();
         }
     }
 
