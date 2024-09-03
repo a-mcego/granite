@@ -1476,8 +1476,15 @@ struct CHIP8237 //DMA
             else
                 ++curr_addr;
 
+            bool cross_seg_boundary = (down && curr_addr==0xFFFF) || (!down && curr_addr==0x0000);
+
+            if (cross_seg_boundary)
+            {
+                cout << "DMA: seg boundary crossed. :(" << endl;
+            }
+
             ++curr_vector_offset;
-            if (curr_count == 0)
+            if (curr_count == 0 || cross_seg_boundary)
             {
                 pending = false;
                 is_complete = true;
