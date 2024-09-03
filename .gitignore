@@ -35,3 +35,4 @@
 /bin/disk
 granite.depend
 bin/config.txt
+*.img

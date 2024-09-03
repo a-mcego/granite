@@ -785,7 +785,7 @@ struct MemoryManager
             return readonly_bytes[readonly_byte];
         }
 
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xE0000)
+        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
             return ltems._8(total_address&0xFFFF);
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
         {
@@ -807,7 +807,7 @@ struct MemoryManager
             readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+total_address);
             return readonly_words[readonly_word];
         }
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xE0000)
+        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
             return ltems._16(total_address&0xFFFF);
         if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
         {
