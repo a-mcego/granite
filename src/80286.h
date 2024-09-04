@@ -7,9 +7,9 @@ struct CPU8088
 
     enum struct TYPE //what instruction set?
     {
-        i186,
+        i186, //use prefetch queue size=4 to get 188
         i286,
-        V20,
+        V30, //use prefetch queue size=4 to get V20
 
         N
     } type{TYPE::i186};
@@ -103,6 +103,24 @@ struct CPU8088
         }
 
         result = *(T*)(prefetch_queue);
+        /*if constexpr(sizeof(T)==1)
+        {
+            if (mem._8(registers[CS],registers[IP]) != u8(result))
+            {
+                cout << "prefetch byte different from memory at: " << registers[CS] << ":" << registers[IP] << endl;
+                mem.dump_memory("pf8.raw");
+            }
+        }
+        else
+        {
+            if (mem._16(registers[CS],registers[IP]) != u16(result))
+            {
+                cout << "prefetch byte different from memory at: " << registers[CS] << ":" << registers[IP] << endl;
+                mem.dump_memory("pf16.raw");
+            }
+
+        }*/
+
         prefetch_address += sizeof(T);
         registers[IP] += sizeof(T);
 
@@ -113,10 +131,6 @@ struct CPU8088
         for(u32 i=PREFETCH_QUEUE_SIZE-sizeof(T); i<PREFETCH_QUEUE_SIZE; ++i)
         {
             prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
-        }
-        if (startprinting)
-        {
-            //cout << (sizeof(T)==2?"w":"b") << u32(result) << " ";
         }
         do_prefetch_delay = !do_prefetch_delay;
         cycles_used += (do_prefetch_delay?4*sizeof(T):0);
@@ -373,12 +387,14 @@ struct CPU8088
 
     bool accepts_interrupts()
     {
-        return interrupt_true_cycles >= 2 && !inhibit_ss;
+        return interrupt_true_cycles >= 2 && !inhibit_ss && delay==0;
     }
 
     void interrupt(u8 n, bool forced=false)
     {
-        if (flag(F_INTERRUPT) || forced)
+        if (inhibit_ss)
+            return;
+        if (accepts_interrupts() || forced)
         {
             if (startprinting)
                 cout << "INTERRUPT " << u32(n) << " start!" << endl;
@@ -485,10 +501,12 @@ struct CPU8088
         if (false);
         else if (instruction == 0x0F) // pop cs :-)
         {
+            cout << "POPCS" << endl;
             invalid_instruction(original_ip); //TODO: v20, 286
         }
         else if ((instruction&0xF0) == 0x60)
         {
+            cout << "BLAH: " << u32(instruction) << endl; std::abort();
             if (instruction == 0x60)
             {
                 //0x60 pusha //pushes all 8 regs
@@ -526,7 +544,7 @@ struct CPU8088
                 u16 upper_bound = mem._16(registers[get_segment(DS)], rm + 2);
                 if (r < lower_bound || r > upper_bound)
                 {
-                    outside_bound(original_ip);
+                    outside_bound(type == TYPE::i286?original_ip:registers[IP]);
                     cycles_used += 60; //TODO: correct value
                 }
                 cycles_used += 20; //TODO: correct value
@@ -597,8 +615,6 @@ struct CPU8088
                 {
                     while (registers[CX] != 0)
                     {
-                        cout << "BLARG3" << endl;
-                        std::abort();
                         mem._8(registers[ES], registers[DI]) = IO::in(port);
                         registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
@@ -621,8 +637,6 @@ struct CPU8088
                 {
                     while (registers[CX] != 0)
                     {
-                        cout << "BLARG2" << endl;
-                        std::abort();
                         u8 low = IO::in(port);
                         u8 high = IO::in(port + 1);
                         mem._16(registers[ES], registers[DI]) = (high << 8) | low;
@@ -645,8 +659,6 @@ struct CPU8088
                 {
                     while (registers[CX] != 0)
                     {
-                        cout << "BLARG" << endl;
-                        std::abort();
                         IO::out(port, mem._8(registers[get_segment(DS)], registers[SI]));
                         registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
@@ -669,8 +681,6 @@ struct CPU8088
                 {
                     while (registers[CX] != 0)
                     {
-                        cout << "BLARG4" << endl;
-                        std::abort();
                         u16 value = mem._16(registers[get_segment(DS)], registers[SI]);
                         IO::out(port, value & 0xFF);
                         IO::out(port + 1, value >> 8);
@@ -687,6 +697,7 @@ struct CPU8088
         }
         else if (instruction == 0xC0)
         {
+            cout << "BLAH: " << u32(instruction) << endl; std::abort();
             //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
@@ -731,13 +742,13 @@ struct CPU8088
                 rm = result;
             }
         }
-        else if (instruction == 0xC8)
+        /*else if (instruction == 0xC8)
         {
             //0xC8 ENTER data16, imm8
             u16 frame_size = read_inst<u16>();
             u8 nesting_level = read_inst<u8>();
 
-            if (type != TYPE::V20)
+            if (type != TYPE::V30)
                 nesting_level &= 0x1F;
 
             push(registers[BP]);
@@ -754,9 +765,10 @@ struct CPU8088
             registers[BP] = frame_temp;
             registers[SP] -= frame_size;
             cycles_used += 20 + 4 * nesting_level; // Assuming 20 cycles base + 4 cycles per nesting level
-        }
+        }*/
         else if (instruction == 0xC9)
         {
+            cout << "BLAH: " << u32(instruction) << endl; std::abort();
             //0xC9 LEAVE
             registers[SP] = registers[BP];
             registers[BP] = pop();
@@ -810,7 +822,7 @@ struct CPU8088
                 }
             }
         }
-        else if ((instruction&0xE6) == 0x06) // push SEG
+        else if ((instruction&0xE6) == 0x06) // push/pop SEG
         {
             u8 seg_n = (instruction>>3)&0x03;
             u16& reg = get_segment_r16(seg_n);
@@ -818,7 +830,7 @@ struct CPU8088
             {
                 cycles_used += 12;
                 reg = pop();
-                if (seg_n == 2) //SS
+                if (seg_n == 2 || type != TYPE::i286) //SS
                     inhibit_ss = true;
             }
             else
@@ -852,6 +864,7 @@ struct CPU8088
         }
         else if (instruction == 0x37) // AAA
         {
+            std::abort();
             u16 old_AX = registers[AX];
             bool add_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
             if (add_ax)
@@ -928,7 +941,14 @@ struct CPU8088
         }
         else if ((instruction&0xF8) == 0x50) // push reg
         {
-            push(registers[instruction&0x07]);
+            if (type == TYPE::i186 && instruction == 0x54) //push SP
+            {
+                push(registers[instruction&0x07]-2);
+            }
+            else
+            {
+                push(registers[instruction&0x07]);
+            }
             cycles_used += 15;
         }
         else if ((instruction&0xF8) == 0x58) //pop reg
@@ -1070,11 +1090,19 @@ struct CPU8088
             u8 seg_n = (modrm>>3)&0x07;
             u16& r = get_segment_r16(seg_n);
 
-            if (seg_n == 2) //SS
-                inhibit_ss = true;
+            if(seg_n == (CS-8)) //CS
+            {
+                invalid_instruction(original_ip);
+            }
+            else
+            {
+                if (seg_n == (SS-8) || type != TYPE::i286) //SS
+                    inhibit_ss = true;
 
-            r = rm;
-            cycles_used += (modrm_is_register?2:12);
+                r = rm;
+                cycles_used += (modrm_is_register?2:12);
+            }
+
         }
         else if (instruction == 0x8F) //POP modrm
         {
@@ -1128,7 +1156,7 @@ struct CPU8088
         {
             u16 newflags = pop();
             const u16 FLAG_MASK = 0b0000'1111'1101'0101;
-            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK);
+            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) |0x0002;
             cycles_used += 12;
         }
         else if (instruction == 0x9E) //sahf
@@ -1274,19 +1302,19 @@ struct CPU8088
             get_r16(instruction&0x07) = read_inst<u16>();
             cycles_used += 4;
         }
-        else if (instruction == 0xC2) // near return w/imm
+        else if (instruction == 0xC0 || instruction == 0xC2) // near return w/imm
         {
             u16 imm = read_inst<u16>();
             registers[IP] = pop();
             registers[SP] += imm;
             cycles_used += 24;
         }
-        else if (instruction == 0xC3) // near return
+        else if (instruction == 0xC1 || instruction == 0xC3) // near return
         {
             registers[IP] = pop();
             cycles_used += 20;
         }
-        else if (instruction == 0xCA) // far return w/imm
+        else if (instruction == 0xC8 || instruction == 0xCA) // far return w/imm
         {
             u16 imm = read_inst<u16>();
             registers[IP] = pop();
@@ -1294,7 +1322,7 @@ struct CPU8088
             registers[SP] += imm;
             cycles_used += 33;
         }
-        else if (instruction == 0xCB) // far return
+        else if (instruction == 0xC9 || instruction == 0xCB) // far return
         {
             registers[IP] = pop();
             registers[CS] = pop();
@@ -1355,7 +1383,7 @@ struct CPU8088
             registers[CS] = pop();
             u16 newflags = pop();
             const u16 FLAG_MASK = 0b0000'1111'1101'0101;
-            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK);
+            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) | 0x0002;
 
             if (startprinting)
                 cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
@@ -1363,7 +1391,7 @@ struct CPU8088
         }
         else if (instruction == 0xD0 || instruction == 0xD2)
         {
-            bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
+            bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0x1F) == 1);
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
 
@@ -1383,7 +1411,7 @@ struct CPU8088
                 }
                 else
                 {
-                    cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0xFF);
+                    cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0x1F);
                 }
 
                 for(u32 i=0; i<amount; ++i)
@@ -1421,7 +1449,7 @@ struct CPU8088
         }
         else if (instruction == 0xD1 || instruction == 0xD3)
         {
-            bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
+            bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0x1F) == 1);
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
 
@@ -1440,7 +1468,7 @@ struct CPU8088
                 }
                 else
                 {
-                    cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0xFF);
+                    cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0x1F);
                 }
 
                 for(u32 i=0; i<amount; ++i)
@@ -1508,8 +1536,8 @@ struct CPU8088
         else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
         {
             u8 imm = read_inst<u8>();
-            if (type == TYPE::V20)
-                imm = 10; //for NEC V20
+            if (type == TYPE::V30)
+                imm = 10; //for NEC V20/V30
             u16 orig16 = registers[AX];
             u16 temp16 = (registers[AX]&0xFF) + (registers[AX]>>8)*imm;
             registers[AX] = (temp16&0xFF);
@@ -1530,7 +1558,7 @@ struct CPU8088
             set_flag(F_AUX_CARRY,af);
             cycles_used += 60;
         }
-        else if (instruction == 0xD6) // SALC (undocumented!)
+        else if (instruction == 0xD6) // SALC (undocumented!), doesnt exist on V20, is XLAT
         {
             get_r8(0) = flag(F_CARRY)?0xFF:0x00;
             cycles_used += 4; //TODO: make sure this is correct!
@@ -1692,6 +1720,7 @@ struct CPU8088
                 set_flag(F_CARRY,result&0xFF00);
                 set_flag(F_AUX_CARRY,false);
                 set_flag(F_ZERO,(result&0xFF00)==0);
+                //set_flag(F_ZERO,true); //V20/V30!
                 registers[AX] = result;
                 cycles_used += (modrm_is_register?70:76); //TODO: make this more accurate, it's actually 70-77, 76-83
             }
@@ -1950,10 +1979,6 @@ struct CPU8088
             std::cout << "# " << std::dec << cycles << std::hex << ", Unknown opcode: 0x" << u32(instruction) << std::endl;
             std::abort();
         }
-        if (type == TYPE::i186)
-        {
-            registers[FLAGS] |= 0xF000;
-        }
 
         clear_prefix();
 
@@ -1967,7 +1992,7 @@ struct CPU8088
             interrupt_true_cycles = 0;
         }
 
-        if (flag(F_TRAP))
+        if (flag(F_TRAP) && !inhibit_ss)
         {
             registers[IP] = original_ip;
             interrupt(1, true);
