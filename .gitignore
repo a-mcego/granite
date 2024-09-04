@@ -36,3 +36,4 @@
 granite.depend
 bin/config.txt
 *.img
+*.raw
