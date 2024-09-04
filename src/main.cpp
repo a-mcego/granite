@@ -1941,8 +1941,8 @@ struct CHIP8253 //PIT
                     else if (i==1 && globalsettings.machine == globalsettings.MACHINE_XT)
                     {
                         //cout << "INITIATE TRANSFER XT 1" << endl;
-                        dma.chans[0].initiate_transfer();
-                        dma.chans[0].start_addr += 1;
+                        //dma.chans[0].initiate_transfer();
+                        //dma.chans[0].start_addr += 1;
                     }
                 }
                 else if (c.current == u32(c.reload-1))
@@ -1982,7 +1982,7 @@ struct CHIP8253 //PIT
                     else if (i==1 && globalsettings.machine == globalsettings.MACHINE_XT)
                     {
                         cout << "INITIATE TRANSFER XT 2" << endl;
-                        dma.chans[0].initiate_transfer();
+                        //dma.chans[0].initiate_transfer();
                     }
                 }
             }
