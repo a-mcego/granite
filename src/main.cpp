@@ -3572,6 +3572,8 @@ void configline(std::string line)
         string test_filename;
         iss >> test_filename;
 
+        cout << "Testing " << test_filename << endl;
+
         vector<u8> filedata = readfile(test_filename);
         u32 ptr = 0;
 
@@ -3630,18 +3632,6 @@ void configline(std::string line)
             for(int i=0; i<14; ++i)
             {
                 u16 test_reg = testcpu.registers[i];
-
-                if (i!=testcpu.FLAGS)
-                {
-                    /*{
-                        if ((start_regs[0]&0xFF) == 0)
-                        {
-                            cout << std::hex << "AX: " << std::dec << (start_regs[0]>>8) << "," << (start_regs[0]&0xFF) << "->" << final_regs[0] << std::hex << " - ";
-                            cout << std::setw(4) << std::setfill('0') << (final_regs[i]) << "^" << (testcpu.registers[i]) << "=" << (final_regs[i]^testcpu.registers[i]) << std::dec << endl;
-                        }
-                    }*/
-                    //continue;
-                }
                 if (final_regs[i] != test_reg)
                 {
                     test_passed = false;
@@ -3653,11 +3643,10 @@ void configline(std::string line)
                         }
                     }
                     regs_failed[i] += 1;
-
-                    //if (i==0)
-                    //    cout << test_filename << "#" << test_id << ": "  << hex << (start_regs[0]) << " should provide " << (final_reg) << " but CPU said " << (test_reg) << dec << endl;
-
-                    //cout << test_filename << "#" << test_id << ": " << r_fullnames[u32(i)] << " not correct: " << std::hex << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                }
+                if (i==12 && (test_reg^final_regs[i]))
+                {
+                    cout << test_filename << "#" << test_id <<std::hex <<  ": AX=" <<final_regs[0]  << " " << r_fullnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
