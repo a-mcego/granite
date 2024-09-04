@@ -3169,8 +3169,196 @@ struct IO
     }
 };
 
-//#include "808x.h"
-#include "80286.h"
+auto divcord_byte(u16 ax, u8 m, u16 startflags)
+{
+    const u8 bitwidth{8};
+    u16 tmpa{}, tmpb{}, tmpc{}, counter{}, flags{startflags}, aluflags{startflags};
+    u16 sigma{};
+    bool alucarry{};
+
+    u8 al = (ax&0xFF);
+    u8 ah = (ax>>8);
+
+    auto setflag = [&](auto flag, bool value)
+    {
+        aluflags = (aluflags&~flag) | (value?flag:0);
+    };
+
+    auto printstate = [&](const char* point)
+    {
+        //cout << point << " a=" << tmpa << " b=" << tmpb << " c=" << tmpc << " s=" << sigma << " ctr=" << counter << " f=" << flags << " af=" << aluflags << endl;
+    };
+
+    enum OPER
+    {
+        SUBT,
+        LRCY,
+        COM1
+    };
+    enum FLAG
+    {
+        CARRY=(1<<0),
+        PARITY=(1<<2),
+        AUX_CARRY=(1<<4),
+        ZERO=(1<<6),
+        SIGN=(1<<7),
+        OVERFLOW=(1<<11)
+    };
+
+    auto alu = [&](OPER oper, u16 reg1)
+    {
+        if (oper == COM1)
+        {
+            alucarry = (reg1&0x80);
+            sigma = ~reg1;
+        }
+        else if (oper == SUBT)
+        {
+            sigma = reg1-tmpb;
+            alucarry = (reg1<tmpb);
+
+            setflag(CARRY,reg1<tmpb);
+            setflag(PARITY,byte_parity[sigma&0xFF]);
+            setflag(AUX_CARRY, (reg1 ^ tmpb ^ sigma) & 0x10);
+            setflag(ZERO,sigma==0);
+            setflag(SIGN,sigma&0x80);
+            setflag(OVERFLOW,((reg1 ^ tmpb) & (reg1 ^ sigma))&0x80);
+        }
+        else if (oper == LRCY)
+        {
+            sigma = reg1 << 1;
+            sigma |= (alucarry?1:0);
+            alucarry = (reg1&0x80);
+        }
+    };
+
+    //DIV 0
+    printstate("DIV 0");
+    tmpa = ah;
+
+    //DIV 1
+    printstate("DIV 1");
+    tmpc = al;
+    alu(LRCY, tmpa);
+
+    //DIV 2
+    printstate("DIV 2");
+    tmpb = m;
+
+    //DIV 3
+    goto CORD_0;
+
+CORD_RTN:
+
+    //DIV 4
+    printstate("DIV 4");
+    alu(COM1, tmpc);
+
+    //DIV 5
+    printstate("DIV 5");
+    tmpb = ah;
+
+    //DIV 6
+    printstate("DIV 6");
+    al = sigma;
+    flags = (flags&~CARRY) | (alucarry?CARRY:0);
+
+    //DIV 7
+    printstate("DIV 7");
+    ah = tmpa;
+    return make_tuple(ah, al, flags, false);
+
+    //CORD
+    //188
+CORD_0:
+    printstate("CORD 0");
+    alu(SUBT, tmpa);
+
+    //189
+    printstate("CORD 1");
+    flags = aluflags;
+    counter=7; //only byte for now
+
+    //18a
+    printstate("CORD 2");
+    if (!(flags&CARRY))
+    {
+        return make_tuple(u8(0),u8(0),flags,true); //simulate int0
+    }
+
+    //18b
+CORD_3:
+    printstate("CORD 3");
+    alu(LRCY, tmpc);
+
+    //18c
+    printstate("CORD 4");
+    tmpc = sigma;
+    flags = (flags&~CARRY) | (alucarry?CARRY:0);
+    alu(LRCY, tmpa);
+
+    //18d
+    printstate("CORD 5");
+    tmpa = sigma;
+    flags = (flags&~CARRY) | (alucarry?CARRY:0);
+    alu(SUBT, tmpa);
+
+    //18e
+    printstate("CORD 6");
+    if (flags&CARRY)
+        goto CORD_13;
+
+    //18f
+    printstate("CORD 7");
+    sigma; //no destination. here to indicate we're using sigma so we must update carry!
+    flags = aluflags;
+
+    //190
+    printstate("CORD 8");
+    if (!(flags&CARRY))
+        goto CORD_14;
+
+    //191
+    printstate("CORD 9");
+    if (counter-- != 0)
+        goto CORD_3;
+
+    //192
+CORD_10: //from CORD_15
+
+    printstate("CORD 10");
+    alu(LRCY, tmpc);
+
+    //193
+    printstate("CORD 11");
+    flags = (flags&~CARRY) | (alucarry?CARRY:0);
+    tmpc = sigma;
+
+    //194
+    printstate("CORD 12");
+    flags = (flags&~CARRY) | (alucarry?CARRY:0);
+    goto CORD_RTN;
+
+    //195
+CORD_13:
+    printstate("CORD 13");
+    flags = (flags&~CARRY);
+
+    //196
+CORD_14:
+    printstate("CORD 14");
+    flags = (flags&~CARRY) | (alucarry?CARRY:0);
+    tmpa = sigma;
+    if (counter-- != 0)
+        goto CORD_3;
+
+    //197
+    printstate("CORD 15");
+    goto CORD_10;
+}
+
+#include "808x.h"
+//#include "80286.h"
 
 unsigned char key_lookup[GLFW_KEY_LAST+1] = {};
 void initialize_key_lookup()
