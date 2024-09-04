@@ -1407,6 +1407,7 @@ struct CHIP8237 //DMA
 {
     struct Channel
     {
+        u16 num{}; //which channel this is
         u16 page{};
         u16 start_addr{};
         u16 transfer_count{};
@@ -1480,7 +1481,7 @@ struct CHIP8237 //DMA
 
             if (cross_seg_boundary)
             {
-                cout << "DMA: seg boundary crossed. :(" << endl;
+                cout << "DMA " << num << ": seg boundary crossed. :(" << endl;
             }
 
             ++curr_vector_offset;
@@ -1507,6 +1508,14 @@ struct CHIP8237 //DMA
             return ret;
         }
     } chans[4];
+
+    CHIP8237()
+    {
+        chans[0].num = 0;
+        chans[1].num = 1;
+        chans[2].num = 2;
+        chans[3].num = 3;
+    }
 
     void print_params(u8 channel)
     {
