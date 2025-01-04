@@ -7,12 +7,9 @@ struct CPU8088
 
     enum struct TYPE //what instruction set?
     {
-        i186, //use prefetch queue size=4 to get 188
         i286,
-        V30, //use prefetch queue size=4 to get V20
-
         N
-    } type{TYPE::i186};
+    } type{TYPE::i286};
 
     u8 segment_override{};
     u8 string_prefix{};
@@ -32,6 +29,11 @@ struct CPU8088
         ES,CS,SS,DS,              //segment registers
         FLAGS,                    //flags, duh
         IP                        //instruction pointer
+    };
+
+    static constexpr u16 registermap[14] = //i wish we didnt need this
+    {
+        AX,CX,DX,BX, SP,BP,SI,DI, ES,CS,SS,DS, FLAGS, IP
     };
 
     enum FLAG
@@ -76,7 +78,7 @@ struct CPU8088
     }
 
 
-    static const u32 PREFETCH_QUEUE_SIZE = 4;
+    static const u32 PREFETCH_QUEUE_SIZE = 6;
     u8 prefetch_queue[PREFETCH_QUEUE_SIZE] = {};
     u32 prefetch_address{};
 
@@ -506,7 +508,7 @@ struct CPU8088
         }
         else if ((instruction&0xF0) == 0x60)
         {
-            cout << "BLAH: " << u32(instruction) << endl; std::abort();
+            //cout << "BLAH: " << u32(instruction) << endl; std::abort();
             if (instruction == 0x60)
             {
                 //0x60 pusha //pushes all 8 regs
@@ -697,7 +699,7 @@ struct CPU8088
         }
         else if (instruction == 0xC0)
         {
-            cout << "BLAH: " << u32(instruction) << endl; std::abort();
+            //cout << "BLAH: " << u32(instruction) << endl; std::abort();
             //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
@@ -742,14 +744,11 @@ struct CPU8088
                 rm = result;
             }
         }
-        /*else if (instruction == 0xC8)
+        else if (instruction == 0xC8)
         {
             //0xC8 ENTER data16, imm8
             u16 frame_size = read_inst<u16>();
             u8 nesting_level = read_inst<u8>();
-
-            if (type != TYPE::V30)
-                nesting_level &= 0x1F;
 
             push(registers[BP]);
             u16 frame_temp = registers[SP];
@@ -765,7 +764,7 @@ struct CPU8088
             registers[BP] = frame_temp;
             registers[SP] -= frame_size;
             cycles_used += 20 + 4 * nesting_level; // Assuming 20 cycles base + 4 cycles per nesting level
-        }*/
+        }
         else if (instruction == 0xC9)
         {
             cout << "BLAH: " << u32(instruction) << endl; std::abort();
@@ -941,14 +940,7 @@ struct CPU8088
         }
         else if ((instruction&0xF8) == 0x50) // push reg
         {
-            if (type == TYPE::i186 && instruction == 0x54) //push SP
-            {
-                push(registers[instruction&0x07]-2);
-            }
-            else
-            {
-                push(registers[instruction&0x07]);
-            }
+            push(registers[instruction&0x07]);
             cycles_used += 15;
         }
         else if ((instruction&0xF8) == 0x58) //pop reg
@@ -1155,8 +1147,8 @@ struct CPU8088
         else if (instruction == 0x9D) //popf
         {
             u16 newflags = pop();
-            const u16 FLAG_MASK = 0b0000'1111'1101'0101;
-            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) |0x0002;
+            //const u16 FLAG_MASK = 0b0000'1111'1101'0101;
+            registers[FLAGS] = newflags;//(registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) |0x0002;
             cycles_used += 12;
         }
         else if (instruction == 0x9E) //sahf
@@ -1383,7 +1375,7 @@ struct CPU8088
             registers[CS] = pop();
             u16 newflags = pop();
             const u16 FLAG_MASK = 0b0000'1111'1101'0101;
-            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) | 0x0002;
+            registers[FLAGS] = newflags;//(registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) | 0x0002;
 
             if (startprinting)
                 cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
@@ -1536,8 +1528,6 @@ struct CPU8088
         else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
         {
             u8 imm = read_inst<u8>();
-            if (type == TYPE::V30)
-                imm = 10; //for NEC V20/V30
             u16 orig16 = registers[AX];
             u16 temp16 = (registers[AX]&0xFF) + (registers[AX]>>8)*imm;
             registers[AX] = (temp16&0xFF);

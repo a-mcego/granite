@@ -757,7 +757,7 @@ struct LTEMS
     }
 } ltems;
 
-/*struct MemoryManager
+struct MemoryManager
 {
     u8 memory_bytes[(1<<20)+1] = {};
     void dump_memory(const char* filename)
@@ -823,7 +823,7 @@ struct LTEMS
     {
 
     }
-} mem;*/
+} mem;
 
 struct MemoryManager8088
 {
@@ -899,7 +899,7 @@ struct MemoryManager8088
         }
         rw_word = 0;
     }
-} mem;
+};
 
 struct BEEPER
 {
@@ -1098,6 +1098,24 @@ struct CHIP8259 //PIC
     u8 icw[5] = {}; // Initialization Command Words
     u8 ocw[4] = {}; // Operation Command Words
     bool is_initialized = false;
+
+    void reset()
+    {
+        init_state = 0;
+        irr = 0;
+        imr = 0;
+        isr = 0;
+        icw[0] = 0;
+        icw[1] = 0;
+        icw[2] = 0;
+        icw[3] = 0;
+        icw[4] = 0;
+        ocw[0] = 0;
+        ocw[1] = 0;
+        ocw[2] = 0;
+        ocw[3] = 0;
+        is_initialized = false;
+    }
 
     u8 read(u8 port) // port from 0 to 1 inclusive
     {
@@ -1556,7 +1574,6 @@ struct CHIP8237 //DMA
             //std::abort();
             result = 0;
         }
-        cout << "DMA READ " << u32(port) << " <- " << u32(result) <<     endl;
         return result;
     }
 
@@ -1670,7 +1687,7 @@ struct CHIP8237 //DMA
         for(u64 i=0; i<4; ++i)
         {
             Channel& c = chans[i];
-            if (c.pending)
+            while (c.pending)
             {
                 c.cycle_transfer();
             }
@@ -2268,7 +2285,7 @@ struct HARDDISK
                         //cout << "HD READ offset: " << offset << endl;
                         if (address_valid)
                         {
-                            dma.print_params(3);
+                            //dma.print_params(3);
                             dma.transfer(3, &disks[current_drive].data, offset);
                             dma_in_progress = true;
                         }
@@ -3169,196 +3186,11 @@ struct IO
     }
 };
 
-auto divcord_byte(u16 ax, u8 m, u16 startflags)
-{
-    const u8 bitwidth{8};
-    u16 tmpa{}, tmpb{}, tmpc{}, counter{}, flags{startflags}, aluflags{startflags};
-    u16 sigma{};
-    bool alucarry{};
+//#include "8088mc.h"
+//#include "808x_microcoded.h"
 
-    u8 al = (ax&0xFF);
-    u8 ah = (ax>>8);
-
-    auto setflag = [&](auto flag, bool value)
-    {
-        aluflags = (aluflags&~flag) | (value?flag:0);
-    };
-
-    auto printstate = [&](const char* point)
-    {
-        //cout << point << " a=" << tmpa << " b=" << tmpb << " c=" << tmpc << " s=" << sigma << " ctr=" << counter << " f=" << flags << " af=" << aluflags << endl;
-    };
-
-    enum OPER
-    {
-        SUBT,
-        LRCY,
-        COM1
-    };
-    enum FLAG
-    {
-        CARRY=(1<<0),
-        PARITY=(1<<2),
-        AUX_CARRY=(1<<4),
-        ZERO=(1<<6),
-        SIGN=(1<<7),
-        OVERFLOW=(1<<11)
-    };
-
-    auto alu = [&](OPER oper, u16 reg1)
-    {
-        if (oper == COM1)
-        {
-            alucarry = (reg1&0x80);
-            sigma = ~reg1;
-        }
-        else if (oper == SUBT)
-        {
-            sigma = reg1-tmpb;
-            alucarry = (reg1<tmpb);
-
-            setflag(CARRY,reg1<tmpb);
-            setflag(PARITY,byte_parity[sigma&0xFF]);
-            setflag(AUX_CARRY, (reg1 ^ tmpb ^ sigma) & 0x10);
-            setflag(ZERO,sigma==0);
-            setflag(SIGN,sigma&0x80);
-            setflag(OVERFLOW,((reg1 ^ tmpb) & (reg1 ^ sigma))&0x80);
-        }
-        else if (oper == LRCY)
-        {
-            sigma = reg1 << 1;
-            sigma |= (alucarry?1:0);
-            alucarry = (reg1&0x80);
-        }
-    };
-
-    //DIV 0
-    printstate("DIV 0");
-    tmpa = ah;
-
-    //DIV 1
-    printstate("DIV 1");
-    tmpc = al;
-    alu(LRCY, tmpa);
-
-    //DIV 2
-    printstate("DIV 2");
-    tmpb = m;
-
-    //DIV 3
-    goto CORD_0;
-
-CORD_RTN:
-
-    //DIV 4
-    printstate("DIV 4");
-    alu(COM1, tmpc);
-
-    //DIV 5
-    printstate("DIV 5");
-    tmpb = ah;
-
-    //DIV 6
-    printstate("DIV 6");
-    al = sigma;
-    flags = (flags&~CARRY) | (alucarry?CARRY:0);
-
-    //DIV 7
-    printstate("DIV 7");
-    ah = tmpa;
-    return make_tuple(ah, al, flags, false);
-
-    //CORD
-    //188
-CORD_0:
-    printstate("CORD 0");
-    alu(SUBT, tmpa);
-
-    //189
-    printstate("CORD 1");
-    flags = aluflags;
-    counter=7; //only byte for now
-
-    //18a
-    printstate("CORD 2");
-    if (!(flags&CARRY))
-    {
-        return make_tuple(u8(0),u8(0),flags,true); //simulate int0
-    }
-
-    //18b
-CORD_3:
-    printstate("CORD 3");
-    alu(LRCY, tmpc);
-
-    //18c
-    printstate("CORD 4");
-    tmpc = sigma;
-    flags = (flags&~CARRY) | (alucarry?CARRY:0);
-    alu(LRCY, tmpa);
-
-    //18d
-    printstate("CORD 5");
-    tmpa = sigma;
-    flags = (flags&~CARRY) | (alucarry?CARRY:0);
-    alu(SUBT, tmpa);
-
-    //18e
-    printstate("CORD 6");
-    if (flags&CARRY)
-        goto CORD_13;
-
-    //18f
-    printstate("CORD 7");
-    sigma; //no destination. here to indicate we're using sigma so we must update carry!
-    flags = aluflags;
-
-    //190
-    printstate("CORD 8");
-    if (!(flags&CARRY))
-        goto CORD_14;
-
-    //191
-    printstate("CORD 9");
-    if (counter-- != 0)
-        goto CORD_3;
-
-    //192
-CORD_10: //from CORD_15
-
-    printstate("CORD 10");
-    alu(LRCY, tmpc);
-
-    //193
-    printstate("CORD 11");
-    flags = (flags&~CARRY) | (alucarry?CARRY:0);
-    tmpc = sigma;
-
-    //194
-    printstate("CORD 12");
-    flags = (flags&~CARRY) | (alucarry?CARRY:0);
-    goto CORD_RTN;
-
-    //195
-CORD_13:
-    printstate("CORD 13");
-    flags = (flags&~CARRY);
-
-    //196
-CORD_14:
-    printstate("CORD 14");
-    flags = (flags&~CARRY) | (alucarry?CARRY:0);
-    tmpa = sigma;
-    if (counter-- != 0)
-        goto CORD_3;
-
-    //197
-    printstate("CORD 15");
-    goto CORD_10;
-}
-
-#include "808x.h"
-//#include "80286.h"
+//#include "808x.h"
+#include "80286.h"
 
 unsigned char key_lookup[GLFW_KEY_LAST+1] = {};
 void initialize_key_lookup()
@@ -3797,7 +3629,7 @@ void configline(std::string line)
             for(int i=0; i<14; ++i)
             {
                 start_regs[i] = data16();
-                testcpu.registers[i] = start_regs[i];
+                testcpu.registers[testcpu.registermap[i]] = start_regs[i];
             }
 
             u32 initial_ram_n = data32();
@@ -3819,11 +3651,11 @@ void configline(std::string line)
             }
             for(int i=0; i<14; ++i)
             {
-                u16 test_reg = testcpu.registers[i];
+                u16 test_reg = testcpu.registers[testcpu.registermap[i]];
                 if (final_regs[i] != test_reg)
                 {
                     test_passed = false;
-                    if (i==testcpu.FLAGS)
+                    if (i==12)
                     {
                         for(int flag=0; flag<16; ++flag)
                         {
@@ -3832,9 +3664,9 @@ void configline(std::string line)
                     }
                     regs_failed[i] += 1;
                 }
-                if (i==12 && (test_reg^final_regs[i]))
+                if ((test_reg^final_regs[i]))
                 {
-                    cout << test_filename << "#" << test_id <<std::hex <<  ": AX=" <<final_regs[0]  << " " << r_fullnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                    //cout << test_filename << "#" << test_id << std::hex <<  ": " << r_fullnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
@@ -3847,7 +3679,7 @@ void configline(std::string line)
                 if (mem.memory_bytes[address] != value)
                 {
                     test_passed = false;
-                    //cout << test_filename << "#" << test_id << ": Memory bytes at " << address << " not correct: " << std::hex << u32(mem.memory_bytes[address]) << "!=" << u32(value) << std::dec << endl;
+                    //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mem.memory_bytes[address]) << "!=" << u32(value) << std::dec << endl;
                 }
             }
 
@@ -3855,6 +3687,9 @@ void configline(std::string line)
                 tests_failed += 1, ++tests_totalfailed;
             ++test_id;
             ++tests_totaldone;
+
+            //if (test_id == 1)
+            //    std::abort();
         }
 
         if (tests_failed > 0)
@@ -4029,6 +3864,17 @@ void updatejoysticks()
 
 int main(int argc, char* argv[])
 {
+#ifdef MICROCODE_8088
+    FILE* filu = fopen("rom/8088mc.bin","rb");
+    if (filu != NULL)
+    {
+        fread(mc8088, 4, 0x200, filu);
+        fclose(filu);
+        cout << "8088 microcode loaded!" << endl;
+    }
+#endif
+
+
     //glfwInit();
     initialize_key_lookup();
 

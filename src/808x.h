@@ -1395,46 +1395,11 @@ struct CPU8088
             }
             else if (op==6 || op == 7) //DIV IDIV
             {
-                if (op == 6)
-                {
-                    auto [ah,al,flags,interrupt_done] = divcord_byte(registers[AX],rm, registers[FLAGS]);
-                    if (interrupt_done)
-                    {
-                        registers[FLAGS] = flags;
-                        interrupt(0,true);
-                    }
-                    else
-                    {
-                        registers[AX] = (ah<<8)|al;
-                        registers[FLAGS] = flags;
-                        cycles_used += (modrm_is_register?80:86);
-                    }
-                }
-                else if (rm == 0)
-                {
-                    interrupt(0, true);
-                    cycles_used += 80; //FIXME: this is made up
-                }
-                else if (op == 7)
-                {
-                    i8 denominator = i8(rm);
-                    i16 result = i16(registers[AX]) / denominator;
-                    if (result <= -0x80 || result >= 0x80) // 8088/6 doesn't accept -0x80
-                    {
-                        interrupt(0, true);
-                    }
-                    else
-                    {
-                        i8 quotient = result&0xFF;
-                        if (string_prefix != 0)
-                            quotient = -quotient;
-                        i8 remainder = i16(registers[AX]) % denominator;
-                        registers[AX] = (remainder<<8)|u8(quotient);
-                        set_flag(F_PARITY,false);
-                    }
-                    cycles_used += (modrm_is_register?101:107); //TODO: 101-112, 107-118
-                }
-                //*/
+                bool interrupt_done = divcord_byte(0x160, registers,rm, 8, op&1, string_prefix);
+                if (interrupt_done)
+                    interrupt(0,true);
+                else
+                    cycles_used += (modrm_is_register?80:86);
             }
             else
             {
@@ -1502,45 +1467,11 @@ struct CPU8088
             }
             else if (op == 6 || op == 7) //DIV IDIV
             {
-                if (rm == 0)
-                {
-                    interrupt(0, true); //division by zero
-                    cycles_used += 80; //FIXME: this is made up
-                }
-                else if (op == 6)
-                {
-                    u32 numerator = (registers[DX]<<16)|registers[AX];
-                    u16 denominator = rm;
-                    u32 result = numerator / denominator;
-                    if (result >= 0x10000)
-                    {
-                        interrupt(0,true);
-                    }
-                    else
-                    {
-                        registers[AX] = result;
-                        registers[DX] = numerator % denominator;
-                    }
-                    cycles_used += (modrm_is_register?144:150); //TODO: 144-162, 150-168
-                }
-                else if (op == 7)
-                {
-                    i32 numerator = i32((registers[DX]<<16)|registers[AX]);
-                    i16 denominator = i16(rm);
-                    i32 result = numerator / denominator;
-                    if (result <= -0x8000 || result >= 0x8000)
-                    {
-                        interrupt(0,true);
-                    }
-                    else
-                    {
-                        registers[AX] = numerator / denominator;
-                        registers[DX] = numerator % denominator;
-                        if (string_prefix != 0)
-                            registers[AX] = -registers[AX];
-                    }
-                    cycles_used += (modrm_is_register?165:171); //TODO: 165-184, 171-190
-                }
+                bool interrupt_done = divcord_byte(0x168, registers,rm, 16, op&1, string_prefix);
+                if (interrupt_done)
+                    interrupt(0,true);
+                else
+                    cycles_used += (modrm_is_register?80:86);
             }
             else
             {

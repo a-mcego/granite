@@ -24,6 +24,10 @@
 			<Add option="-Wall" />
 			<Add option="-fexceptions" />
 		</Compiler>
+		<Unit filename="src/80286.h" />
+		<Unit filename="src/8088mc.h" />
+		<Unit filename="src/808x.h" />
+		<Unit filename="src/808x_microcoded.h" />
 		<Unit filename="src/KHR/khrplatform.h" />
 		<Unit filename="src/cgabios.h" />
 		<Unit filename="src/gl.cpp" />

@@ -1,0 +1,2192 @@
+#pragma once
+
+#define MICROCODE_8088
+//NON WORKING NEW VERSION
+struct CPU8088
+{
+    enum REG
+    {
+        ES,CS,SS,DS,IP, IND, OPR, Q,
+        unk8, unk9, M, unk11, SIGMA, unk13,unk14,unk15,
+        unk16,unk17,unk18,unk19, TMPA, TMPB, TMPC, FLAGS,
+        AX,CX,DX,BX, SP,BP,SI,DI,
+    };
+
+    void mc_execute(u16 start_address, u8 bitwidth, bool X0, bool f1, u8 XIvalue)
+    {
+        //cout << "-------------------------------------------" << endl;
+
+        u16 ALU_HIGH_BIT{};
+        u16 ALU_MASK{};
+
+        auto set_width = [&]()
+        {
+            ALU_HIGH_BIT = (1<<(bitwidth-1));
+            ALU_MASK = (1<<bitwidth)-1;
+        };
+
+        set_width();
+
+        u16 counter{}, aluflags{registers[FLAGS]};
+        u16& sigma = registers[SIGMA];
+
+        auto setflag = [&](auto flag, bool value)
+        {
+            aluflags = (aluflags&~flag) | (value?flag:0);
+        };
+
+        enum OPER
+        {
+            ADD = 0,
+            OR = 1, //my addition for completeness
+            ADC = 2,
+            SBB = 3, //my addition for completeness
+            AND = 4,
+            SUBT = 5,
+            XOR = 6, //my addition for completeness
+            CMP = 7, //my addition for completeness
+
+            LRCY = 10,
+            RRCY = 11,
+            PASS = 16, //equality/nop?
+            XI = 17, //reads the op from somewhere else?
+            INC = 24,
+            DEC = 25,
+            COM1 = 26,
+            NEG = 27,
+            INC2 = 28,
+            DEC2 = 29,
+        };
+        enum FLAG
+        {
+            CARRY=(1<<0),
+            PARITY=(1<<2),
+            AUX_CARRY=(1<<4),
+            ZERO=(1<<6),
+            SIGN=(1<<7),
+            TRAP=(1<<8),
+            INTERRUPTFLAG=(1<<9),
+            OVERFLOW=(1<<11)
+        };
+
+        auto execute = [&](u16 line) -> void
+        {
+            const char* const regnames[32] =
+            {
+                "RA(es)", //0
+                "RC(cs)",
+                "RS(ss)",
+                "RD(ds)",
+                "PC",
+                "IND",
+                "OPR",
+                "Q(read), none(write)",
+                "X(ah)", //8
+                "[5]",
+                "M",
+                "R",
+                "SIGMA(read), tmpaL(write)",//12
+                "ONES(read), tmpbL(write)",
+                "CR(read), tmpaH(write)",
+                "ZERO(read), tmpbH(write)",
+                "A(al)", //16
+                "",
+                "[a]",
+                "",
+                "tmpa", //20
+                "tmpb", //21
+                "tmpc", //22
+                "F(flags)",
+                "XA(ax)", //24
+                "BC(cx)",
+                "DE(dx)",
+                "HL(bx)",
+                "SP(sp)",
+                "MP(bp)",
+                "IJ(si)",
+                "IK(di)",
+            };
+
+            enum LOCATIONS
+            {
+                FARCALL = 0x06b,
+                FARCALL2 = 0x06c,
+                NEARCALL = 0x077,
+                FARRET = 0x0c2,
+                RELJMP = 0x0d2,
+                RPTS = 0x112,
+                RPTI = 0x118,
+                AAEND = 0x179,
+                CORX = 0x17f,
+                CORD = 0x188,
+                INT1 = 0x198,
+                INT2 = 0x199,
+                IRQ = 0x19a,
+                INTR = 0x19d,
+                INT0 = 0x1a7,
+                PREIDIV = 0x1b4,
+                NEGATE = 0x1b6,
+                PREIMUL = 0x1c0,
+                POSTIDIV = 0x1c4,
+                IMULCOF = 0x1cd,
+                MULCOF = 0x1d2,
+                EALOAD = 0x1e1,
+                EADONE = 0x1e3,
+                RESET = 0x1e4,
+            };
+
+            const u16 lj_table[16] =
+            {
+                FARCALL, NEARCALL, RELJMP, EALOAD /*actually EAOFFSET???*/,
+                EADONE /*actually EAFINISH???*/, FARCALL2, INTR, INT0,
+                RPTI, AAEND, 0, 0,
+                0, 0, 0, 0,
+            };
+            const u16 lc_table[16] =
+            {
+                FARRET, RPTS, CORX, CORD,
+                PREIMUL, NEGATE, IMULCOF, MULCOF,
+                PREIDIV, POSTIDIV, 0, 0,
+                0, 0, 0, 0,
+            };
+
+            auto decode_target_index = [](u16 input)
+            {
+                u8 b0 = (input&0x01)?1:0;
+                u8 b1 = (input&0x02)?1:0;
+                u8 b2 = (input&0x04)?1:0;
+                u8 b3 = (input&0x08)?1:0;
+                u8 b4 = (input&0x10)?1:0;
+
+                return (b1<<4) | (b0<<3) | (b2<<2) | (b3<<1) | (b4<<0);
+            };
+
+            auto decode_source_index = [](u16 input)
+            {
+                u8 b0 = (input&0x01)?1:0;
+                u8 b1 = (input&0x02)?1:0;
+                u8 b2 = (input&0x04)?1:0;
+                u8 b3 = (input&0x08)?1:0;
+                u8 b4 = (input&0x10)?1:0;
+
+                return (b3<<4) | (b4<<3) | (b1<<2) | (b0<<1) | (b2<<0);
+            };
+
+            u16 current_sub = line;
+            u16 current_ip = 0;
+
+            u16 ret_sub{}, ret_ip{};
+
+            auto read = [&](u16 index)
+            {
+                if (false);
+                else if (index == 7)
+                    return u16(read_inst<u8>());
+                else if (index == 8)
+                    return u16(registers[AX]>>8);
+                else if (index == 10)
+                {
+                    if (bitwidth==8)
+                        return u16(*regM8);
+                    return *regM16;
+                }
+                else if (index == 13)
+                    return u16(0xFFFFU&ALU_MASK);
+                else if (index == 14) //CR
+                    return current_ip;
+                else if (index == 15)
+                    return u16(0x0000U);
+                else if (index == 16)
+                    return u16(registers[AX]&0xFF);
+                else if ((index >= 0 && index <= 6) || (index >= 20 && index <= 31) || (index == 12))
+                    return registers[index];
+                else
+                {
+                    cout << std::dec << "Reading index " << index << "(" << regnames[index]<< ") not implemented." << endl;
+                    std::abort();
+                }
+            };
+
+            auto write = [&](u16 index, u16 data)
+            {
+                if (false);
+                else if (index == 7); //no write! reading this is Q tho.
+                else if (index == 8)
+                    registers[AX] = (data<<8)|(registers[AX]&0xFF);
+                else if (index == 10) //M
+                {
+                    if (bitwidth==8)
+                        *regM8 = data&0xFF;
+                    else
+                        *regM16 = data;
+                }
+                else if (index >= 12 && index <= 15)
+                {
+                    u16& tmp = registers[TMPA+(index&1)];
+
+                    if (index&2)
+                        tmp = (tmp&0xFF)|((data&0xFF)<<8);
+                    else
+                        tmp = (tmp&0xFF00)|(data&0xFF);
+                }
+                else if (index == 16)
+                    registers[AX] = (data&0xFF)|(registers[AX]&0xFF00);
+                else if (index <= 6 || index >= 20 && index <= 31)
+                    registers[index] = data;
+                else
+                {
+                    cout << std::dec << "Writing index " << index << "(" << regnames[index]<< ") not implemented." << endl;
+                    std::abort();
+                }
+            };
+
+            u16 alu_op{}, alu_param{}, alu_NXT{};
+
+            auto run_alu = [&]()
+            {
+                const u16& reg1 = registers[TMPA+alu_param];
+                //cout << "ALU operation! " << alu_op << ", param=" << alu_param << ", next?=" << alu_NXT << endl;
+                if (alu_op == XI)
+                {
+                    alu_op = XIvalue;
+                }
+                if(false);
+                else if (alu_op == INC)
+                {
+                    sigma = (reg1+1)&ALU_MASK;
+                    setflag(OVERFLOW,sigma==ALU_HIGH_BIT);
+                    setflag(AUX_CARRY,(sigma&0x0F) == 0x00);
+                    setflag(ZERO,sigma==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                }
+                else if (alu_op == INC2) //flags?
+                {
+                    sigma = (reg1+2)&ALU_MASK;
+                }
+                else if (alu_op == DEC)
+                {
+                    sigma = (reg1-1)&ALU_MASK;
+                    setflag(OVERFLOW,reg1==ALU_HIGH_BIT);
+                    setflag(AUX_CARRY,(sigma&0x0F) == 0x0F);
+                    setflag(ZERO,sigma==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                }
+                else if (alu_op == PASS)
+                {
+                    sigma = reg1;
+                    setflag(CARRY, (sigma&ALU_MASK)<(reg1&ALU_MASK));
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                    setflag(AUX_CARRY, (reg1 ^ sigma) & 0x10);
+                    setflag(ZERO,sigma==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(OVERFLOW,((reg1 ^ sigma) & (sigma))&ALU_HIGH_BIT);
+                }
+                else if (alu_op == DEC2) //flags?
+                {
+                    sigma = (reg1-2)&ALU_MASK;
+                }
+                else if (alu_op == COM1)
+                {
+                    sigma = (~reg1)&ALU_MASK;
+                    setflag(CARRY, reg1&ALU_HIGH_BIT);
+                }
+                else if (alu_op == NEG)
+                {
+                    sigma = ((~reg1)+1)&ALU_MASK;
+                    setflag(CARRY, reg1!=0);
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                    setflag(ZERO, reg1==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(AUX_CARRY, (reg1 ^ 1 ^ sigma) & 0x10);
+                    setflag(OVERFLOW,((~reg1 ^ sigma) & (1 ^ sigma))&ALU_HIGH_BIT);
+                }
+                else if (alu_op == AND)
+                {
+                    sigma = (reg1&registers[TMPB])&ALU_MASK;
+
+                    setflag(CARRY, false);
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                    setflag(AUX_CARRY, false);
+                    setflag(ZERO,sigma==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(OVERFLOW,((reg1 ^ sigma) & (registers[TMPB] ^ sigma))&ALU_HIGH_BIT);
+                }
+                else if (alu_op == ADD)
+                {
+                    sigma = ((reg1&ALU_MASK)+(registers[TMPB]&ALU_MASK))&ALU_MASK;
+
+                    //cout << "ADD: " << reg1 << "-" << registers[TMPB] << "=" << sigma << endl;
+                    setflag(CARRY, (sigma&ALU_MASK)<(reg1&ALU_MASK));
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                    setflag(AUX_CARRY, (reg1 ^ registers[TMPB] ^ sigma) & 0x10);
+                    setflag(ZERO,sigma==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(OVERFLOW,((reg1 ^ sigma) & (registers[TMPB] ^ sigma))&ALU_HIGH_BIT);
+                }
+                else if (alu_op == ADC)
+                {
+                    u32 totalsigma = (reg1&ALU_MASK)+(registers[TMPB]&ALU_MASK)+(aluflags&CARRY?1:0);
+                    sigma = totalsigma&ALU_MASK;
+
+                    //cout << "ADC: " << reg1 << "-" << registers[TMPB] << "=" << sigma << endl;
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                    setflag(AUX_CARRY, (reg1&0xF)+(registers[TMPB]&0xF)+flag(F_CARRY) >= 0x10);
+                    setflag(ZERO,sigma==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(OVERFLOW,((reg1 ^ sigma) & (registers[TMPB] ^ sigma))&ALU_HIGH_BIT);
+
+                    //set_flag(F_CARRY, ((p1+p2+flag(F_CARRY))>>(sizeof(T)*8)) > 0);
+                    setflag(CARRY, (totalsigma>>bitwidth)>0);
+                    //setflag(CARRY, (sigma&ALU_MASK)<(reg1&ALU_MASK));
+                }
+                else if (alu_op == SUBT)
+                {
+                    //cout << std::hex << "SUBT: " << reg1 << "-" << registers[TMPB] << "=" << sigma << endl;
+                    sigma = ((reg1&ALU_MASK)-(registers[TMPB]&ALU_MASK))&ALU_MASK;
+                    if (current_sub+current_ip != 0x196) //UGLY HACK! but this makes div work when the divisor highest bit is set.
+                    {
+                        setflag(CARRY, u16(reg1&ALU_MASK)<u16(registers[TMPB]&ALU_MASK));
+                        setflag(PARITY,byte_parity[sigma&0xFF]);
+                        setflag(AUX_CARRY, (reg1 ^ registers[TMPB] ^ sigma) & 0x10);
+                        setflag(ZERO,sigma==0);
+                        setflag(SIGN,sigma&ALU_HIGH_BIT);
+                        setflag(OVERFLOW,((reg1 ^ registers[TMPB]) & (reg1 ^ sigma))&ALU_HIGH_BIT);
+                    }
+                }
+                else if (alu_op == LRCY)
+                {
+                    sigma = (reg1 << 1)&ALU_MASK;
+                    sigma |= ((aluflags&CARRY)?1:0);
+                    //cout << "Doing LRCY with: " << std::hex << reg1 << ", sigma=" << sigma << " flags=" << registers[FLAGS] << " aluflags=" << aluflags << endl;
+                    setflag(CARRY,reg1&ALU_HIGH_BIT);
+                    //setflag(OVERFLOW, bool(sigma&ALU_HIGH_BIT) != bool(sigma&(ALU_HIGH_BIT>>1)));
+                }
+                else if (alu_op == RRCY)
+                {
+                    sigma = (reg1 >> 1)&ALU_MASK;
+                    sigma |= ((aluflags&CARRY)?ALU_HIGH_BIT:0);
+                    //cout << "Doing RRCY with: " << std::hex << reg1 << ", sigma=" << sigma << " flags=" << registers[FLAGS] << " aluflags=" << aluflags << endl;
+                    setflag(CARRY,reg1&1);
+                    //setflag(OVERFLOW, bool(sigma&1) != bool(sigma&2));
+                }
+                else
+                {
+                    cout << "Unknown alu op number " << std::dec << u32(alu_op) << endl;
+                    std::abort();
+                }
+                sigma &= ALU_MASK;
+            };
+
+            while(true)
+            {
+                u16 current_opcode = current_sub+current_ip;
+                //cout << std::hex << current_opcode << " " << registers[TMPA] << " " <f< registers[TMPB] << " " << registers[TMPC] << endl;
+                if (current_opcode == INT0) //special case?
+                {
+                    bitwidth = 16;
+                    set_width();
+                }
+                u32 instr = mc8088[current_opcode];
+/*
+#define preg(x) cout << #x << std::hex << "=" << registers[x] << " ";
+                preg(TMPA);
+                preg(TMPB);
+                preg(TMPC);
+                preg(SP);
+                preg(SIGMA);
+                preg(IND);
+                preg(FLAGS)
+#undef preg
+				cout << " alucarry=" << ((aluflags&CARRY)?1:0)  << " carry=" << ((registers[FLAGS]&CARRY)?1:0);
+                cout << endl;
+
+                cout << "EXECUTING " << std::hex << current_sub+current_ip << ". " << endl;*/
+
+                u16 target_id = decode_target_index((instr>>16)&0x1F);
+                u16 source_id = decode_source_index((instr>>11)&0x1F);
+                bool update_flags = (instr>>10)&0x01;
+                if (source_id == 12)
+                {
+                    //cout << "ALU run: " << std::hex << current_opcode << endl;
+                    run_alu();
+                }
+                if (update_flags)
+                {
+                    registers[FLAGS] = aluflags;
+                }
+                u16 operation = instr&0x3ff;
+                bool next_opcode{};
+
+                current_ip = (current_ip+1)&0x0F;
+
+                //cout << "move " << regnames[source_id] << "->" << regnames[target_id] << endl;
+
+                write(target_id, read(source_id));
+
+                //cout << std::hex << current_sub+current_ip << ": " << regnames[source_id] << " -> " << regnames[target_id] << endl;//" " << (update_flags?'F':'_') << ", op=" << std::hex << operation << endl;
+
+                u16 optype{};
+                u16 opdata{};
+
+                if (operation&0x200) //is 4,5,6,7
+                    optype = (operation>>7)&0x07, opdata=(operation&0x7F);
+                else
+                    optype = (operation>>8)&0x03, opdata=(operation&0xFF);
+
+                if (optype == 0) //short jump
+                {
+                    u16 condition = opdata>>4;
+                    u16 jump_target = opdata&0xF;
+
+                    bool do_jump{};
+
+                    if (false);
+                    else if (condition == 0x02) //jump if 8-bit width
+                        do_jump = (bitwidth==8);
+                    else if (condition == 0x03) //zero
+                        do_jump = (aluflags&ZERO);
+                    else if (condition == 0x04)
+                    {
+                        //cout << "counter: " << counter << endl;
+                        do_jump = (counter!=0);
+                        counter -= (do_jump?1:0);
+                    }
+                    else if(condition == 0x07)
+                        do_jump = (aluflags&CARRY);
+                    else if (condition == 0x08)
+                        do_jump = true; //unconditional jump!
+                    else if (condition == 0x0B)
+                        do_jump = X0;
+                    else if (condition == 0x0C)
+                        do_jump = !(aluflags&CARRY);
+                    else if (condition == 0x0D)
+                        do_jump = f1; //jump if "either" f1 flag is active? wtf?
+                    else
+                    {
+                        cout << std::hex << current_opcode << ": Unknown short jump condition=" << condition << endl;
+                        std::abort();
+                    }
+
+                    //cout << "JUMP cond=" << condition<< " to " << jump_target << endl;
+                    if (do_jump)
+                    {
+                        //cout << "Jump taken." << endl;
+                        current_ip = jump_target;
+                    }
+                }
+                else if (optype == 1) //ALU
+                {
+                    alu_op = (opdata>>3);
+                    alu_param = (opdata>>1)&0x03;
+                    alu_NXT = (opdata&0x01);
+                    registers[FLAGS] = (registers[FLAGS]&~CARRY) | (aluflags&CARRY);
+                    //cout << "ALU primed: " << std::hex << current_opcode << endl;
+                }
+                else if (optype == 4) //bookkeeping, misc
+                {
+                    u16 op1 = (opdata>>3)&0x0F;
+                    u16 op2 = (opdata&0x07);
+                    //cout << "Bookkeeping op " << op1 << ":" << op2 << endl;
+
+                    if (false);
+                    else if (op1 == 0)
+                    {
+                        counter = bitwidth-1;
+                    }
+                    else if (op1 == 1) //flush prefetch queue
+                    {
+                        //TODO: do this!
+                    }
+                    else if (op1 == 2) //flip f1 flag
+                    {
+                        f1 = !f1;
+                    }
+                    else if (op1 == 3) //clear interrupt, trap
+                    {
+                        aluflags &= ~INTERRUPTFLAG;
+                        registers[FLAGS] &= ~INTERRUPTFLAG;
+                        aluflags &= ~TRAP;
+                        registers[FLAGS] &= ~TRAP;
+                    }
+                    else if (op1 == 4)
+                    {
+                        aluflags &= ~CARRY;
+                        registers[FLAGS] &= ~CARRY;
+                    }
+                    else if (op1 == 6)
+                    {
+                        aluflags &= ~CARRY;
+                        aluflags &= ~OVERFLOW;
+                        registers[FLAGS] &= ~CARRY;
+                        registers[FLAGS] &= ~OVERFLOW;
+                    }
+                    else if (op1 == 7)
+                    {
+                        aluflags |= CARRY|OVERFLOW;
+                        registers[FLAGS] |= CARRY|OVERFLOW;
+                    }
+                    else if (op1 == 15); //NOP
+                    else
+                    {
+                        cout << std::hex << current_opcode << ": op1=" << op1 << " not known" << endl;
+                        std::abort();
+                    }
+
+                    if (false);
+                    else if (op2==0x00) //NEXT OPCODE! :)
+                    {
+                        next_opcode=true;
+                    }
+                    else if (op2 == 0x02)
+                    {
+                        //cout << "FIX INSTRUCTION POINTER" << endl; //TODO: implement this 4reals
+                    }
+                    else if (op2 == 0x03)
+                    {
+                        //cout << "SUSPEND FETCHING." << endl; //TODO: implement this 4reals
+                    }
+                    else if (op2==0x04)
+                    {
+                        //return!
+                        current_sub = ret_sub;
+                        current_ip = ret_ip;
+                    }
+                    else if (op2==0x05)
+                    {
+                        //don't write back ea, start processing next opcode
+                    }
+                    else if (op2==0x07); //NOP
+                    else
+                    {
+                        cout << "op2=" << op2 << " not known" << endl;
+                        std::abort();
+                    }
+                }
+                else if (optype == 6) // memory read/write
+                {
+                    bool is_write = opdata&0x40;
+                    bool interrupt_ack = opdata&0x20;
+                    next_opcode = opdata&0x10;
+
+                    u16 seg_id       = (opdata>>2)&0x03; //ES, ZERO, SS, DS(overridable)
+                    u16 segment{};
+
+                    switch(seg_id)
+                    {
+                        case 0: segment = registers[ES]; break;
+                        case 1: segment = 0; break;
+                        case 2: segment = registers[SS]; break;
+                        case 3: segment = registers[get_segment(DS)]; break;
+                    }
+
+                    u16 addr_factor = (opdata&0x03); //P2, BL, M2, P0
+
+                    const char* const names[4] = {"p2", "bl", "m2", "p0"};
+
+                    const i16 add[4] = {2, 0, -2, 0};
+
+
+                    //cout << "Memory " << (is_write?"write":"read") << " " << seg_id << " " << addr_factor << ". addr=" << segment << ":" << offset_thing << endl;
+                    //cout << names[addr_factor] << endl;
+
+                    if (addr_factor == 1)
+                    {
+                        cout << "Addr factor b1 (for str instrs) not implement." << endl;
+                        std::abort();
+                    }
+                    if (is_write)
+                    {
+                        mem._16(segment, registers[IND]) = registers[OPR];
+                        mem.update();
+                    }
+                    else
+                    {
+                        registers[OPR] = mem._16(segment, registers[IND]);
+                    }
+
+                    registers[IND] += add[addr_factor];
+                    //cout << "OPR is now " << std::hex << registers[OPR] << ", new IND " << registers[IND] << endl;
+                }
+                else if (optype == 5 || optype == 7) // long jump/call
+                {
+                    //conds:
+                    //0=UNC, 1=????, 2=NZ, 3=X0, 4=NCY, 5=F1, 6=INT, 7=XC
+
+                    u16 cond = (opdata>>4)&0x07;
+                    u16 target_address = (optype==5?lj_table:lc_table)[opdata&0x0F];
+                    //cout << std::hex << "Long " << (optype==5?"jump":"call") << ", cond=" << cond << ", target_address=" << target_address << endl;
+
+                    bool do_jump{};
+
+                    if (false);
+                    else if (cond == 0)
+                        do_jump = true;
+                    else if (cond == 3)
+                        do_jump = X0;
+                    else if (cond == 4)
+                        do_jump = !(aluflags&CARRY);
+                    else if (cond == 5)
+                        do_jump = f1;
+                    else
+                    {
+                        std::cout << "cond=" << cond << " not implemented." << endl;
+                        std::abort();
+                    }
+
+                    if (do_jump)
+                    {
+                        if (optype == 7)
+                        {
+                            ret_sub = current_sub;
+                            ret_ip = current_ip;
+                        }
+                        current_sub = target_address-mc8088_localaddr[target_address];
+                        current_ip = mc8088_localaddr[target_address];
+                    }
+                }
+                if (next_opcode)
+                {
+                    return;
+                }
+            }
+        };
+
+        execute(start_address);
+    }
+
+    u16 registers[32] = {};
+    u8* regM8{nullptr};
+    u16* regM16{nullptr};
+
+    u8 segment_override{};
+    u8 string_prefix{};
+    u8 lock{};
+    u32 delay{}; //HACK: to make the cpu slow down a bit so it passes POST lol.
+    u32 cpu_steps{};
+
+    enum SP_VALUES
+    {
+        SP_REPNZ = 1,
+        SP_REPZ = 2 //also REP
+    };
+
+    static constexpr u16 registermap[14] = //i wish we didnt need this
+    {
+        AX,CX,DX,BX, SP,BP,SI,DI, ES,CS,SS,DS, FLAGS, IP
+    };
+
+    enum FLAG
+    {
+        F_CARRY=0,
+        F_PARITY=2,
+        F_AUX_CARRY=4,
+        F_ZERO=6,
+        F_SIGN=7,
+        F_TRAP=8,
+        F_INTERRUPT=9,
+        F_DIRECTIONAL=10,
+        F_OVERFLOW=11
+    };
+
+    void print_flags()
+    {
+#define pflag(x) std::cout << #x << ": " << bool(registers[FLAGS]&u32(1<<x)) << std::endl;
+        pflag(F_CARRY)
+        pflag(F_PARITY)
+        pflag(F_AUX_CARRY)
+        pflag(F_ZERO)
+        pflag(F_SIGN)
+        pflag(F_OVERFLOW)
+#undef pflag
+    }
+
+    void set_flag(FLAG f_n, bool value)   { registers[FLAGS] = (registers[FLAGS]&~(1<<f_n))|(value?1<<f_n:0); }
+
+    bool flag(FLAG f_n)
+    {
+        return registers[FLAGS]&(1<<f_n);
+    }
+
+    void reset()
+    {
+        halt = false;
+        clear_prefix();
+        for(u32 i=0; i<32; ++i)
+            registers[i] = 0x0000;
+        registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
+        registers[unk13] = ~registers[unk13];
+
+        pic.reset();
+    }
+
+
+    static const u32 PREFETCH_QUEUE_SIZE = 4;
+    u8 prefetch_queue[PREFETCH_QUEUE_SIZE] = {};
+    u32 prefetch_address{0xFFFFFFFF};
+
+    bool do_prefetch_delay{};
+    template<typename T>
+    T read_inst() requires integral<T>
+    {
+        if constexpr(PREFETCH_QUEUE_SIZE == 0)
+        {
+            u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
+            T data = *(T*)(mem.memory_bytes+position);
+            registers[IP] += sizeof(T);
+            return data;
+        }
+        T result{};
+        u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
+        if (prefetch_address != position)
+        {
+            prefetch_address = position;
+            for(u32 i=0; i<PREFETCH_QUEUE_SIZE; ++i)
+            {
+                prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
+            }
+        }
+
+        result = *(T*)(prefetch_queue);
+        prefetch_address += sizeof(T);
+        registers[IP] += sizeof(T);
+
+        for(u32 i=0; i<PREFETCH_QUEUE_SIZE-sizeof(T); ++i)
+        {
+            prefetch_queue[i] = prefetch_queue[i+sizeof(T)];
+        }
+        for(u32 i=PREFETCH_QUEUE_SIZE-sizeof(T); i<PREFETCH_QUEUE_SIZE; ++i)
+        {
+            prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
+        }
+        if (startprinting)
+        {
+            //cout << (sizeof(T)==2?"w":"b") << u32(result) << " ";
+        }
+        do_prefetch_delay = !do_prefetch_delay;
+        cycles_used += (do_prefetch_delay?4*sizeof(T):0);
+        return result;
+    }
+
+    template<typename T>
+    void commonflags(T a, T b, T result) requires std::same_as<T,u8> || std::same_as<T,u16>
+    {
+        set_flag(F_ZERO, result == 0);
+        set_flag(F_SIGN, result >> (sizeof(T)*8-1));
+        set_flag(F_PARITY, byte_parity[result & 0xFF]);
+        set_flag(F_AUX_CARRY, ((a ^ b ^ result) & 0x10) != 0);
+    }
+    template<typename T>
+    void cmp_flags(T a, T b, T result) requires std::same_as<T,u8> || std::same_as<T,u16>
+    {
+        commonflags(a,b,result);
+        set_flag(F_OVERFLOW, ((a ^ b) & (a ^ result)) >> (sizeof(T)*8-1));
+        set_flag(F_CARRY, a < b);
+    }
+    template<typename T>
+    void test_flags(T result) requires std::same_as<T,u8> || std::same_as<T,u16>
+    {
+        commonflags(T(0),T(0),result);
+        set_flag(F_OVERFLOW, false);
+        //AUX_CARRY left undefined - so we set it in commonflags
+        set_flag(F_AUX_CARRY, false); //set it false here to pass 0x0A test
+        set_flag(F_CARRY, false);
+    }
+    template<typename T>
+    void add_flags(T a, T b, T result) requires std::same_as<T,u8> || std::same_as<T,u16>
+    {
+        commonflags(a,b,result);
+        set_flag(F_OVERFLOW, ((a ^ result) & (b ^ result)) >> (sizeof(T)*8-1));
+        set_flag(F_CARRY, result < a);
+    }
+
+    const u8 effective_address_cycles[32] =
+    {
+         7, 8, 8, 7, 5, 5, 6, 5,
+        11,12,12,11, 9, 9, 9, 9,
+        11,12,12,11, 9, 9, 9, 9,
+         0, 0, 0, 0, 0, 0, 0, 0, //reg
+    };
+    bool modrm_is_register{};
+    void decode_modrm(u8 mod, u8 rm, u16& segment, u16& offset)
+    {
+        offset = 0;
+        segment = DS;
+
+		if (mod == 0x1)
+        {
+			offset = i16(read_inst<i8>());
+        }
+		else if (mod == 0x2)
+        {
+			offset = read_inst<u16>();
+        }
+
+        cycles_used += effective_address_cycles[(mod<<3)+rm];
+
+		if (mod == 0x00 && rm == 0x06)
+        {
+			offset += read_inst<u16>();
+        }
+		else
+		{
+			if (rm < 0x06)
+            {
+				offset += registers[SI+(rm&0x01)]; //DI is after SI
+            }
+			if (((rm+1)&0x07) <= 2)
+            {
+				offset += registers[BX];
+            }
+			if ((rm&0x02) && rm != 7)
+            {
+				offset += registers[BP], segment = SS;
+            }
+		}
+		cycles_used = ((offset&0x01)<<2); //4 cycles for odd accesses
+        segment = registers[get_segment(segment)];
+    }
+
+    u8& decode_modrm_u8(u8 modrm)
+    {
+        u8 mod = (modrm >> 6) & 0x03;
+        u8 rm = modrm & 0x07;
+        modrm_is_register = (mod==0x03);
+		if (mod == 0x03)
+        {
+            regM8 = &get_r8(rm);
+			return *regM8;
+        }
+        u16 offset{}, segment{};
+        decode_modrm(mod,rm,segment,offset);
+        regM8 = &mem._8(segment, offset);
+        return *regM8;
+    }
+
+    u16& decode_modrm_u16(u8 modrm)
+    {
+        u8 mod = (modrm >> 6) & 0x03;
+        u8 rm = modrm & 0x07;
+        modrm_is_register = (mod==0x03);
+		if (mod == 0x03)
+        {
+            regM16 = &get_r16(rm);
+			return *regM16;
+        }
+        u16 offset{}, segment{};
+        decode_modrm(mod,rm,segment,offset);
+        regM16 = &mem._16(segment, offset);
+        return *regM16;
+    }
+
+    u32 effective_address(u8 modrm)
+    {
+        u8 mod = (modrm >> 6) & 0x03;
+        u8 rm = modrm & 0x07;
+        modrm_is_register = (mod==0x03);
+		if (mod == 0x03)
+        {
+            cout << "Loading effective address of a register? are you gone mad?" << endl;
+            std::abort();
+        }
+        u16 offset{}, segment{};
+        decode_modrm(mod,rm,segment,offset);
+        return offset | (segment << 16);
+    }
+
+
+    u8* reg8() { return (u8*)(void*)(registers); }
+
+    u16& get_r16(u8 value)
+    {
+        return registers[AX+(value&0x7)];
+    }
+    u8& get_r8(u8 value)
+    {
+        return reg8()[AX*2+(((value&0x3)<<1)+((value&0x4)>>2))];
+    }
+
+    u16& get_segment_r16(u8 value)
+    {
+        return registers[value&0x03];
+    }
+
+    void print_regs()
+    {
+        for(int i=0; i<8; ++i)
+            std::cout << " " << r16_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i];
+        for(int i=0; i<4; ++i)
+            std::cout << " " << seg_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i+8];
+        std::cout << " FL=" << std::setw(4) << std::setfill('0') << registers[FLAGS] << " IP=" << std::setw(4) << std::setfill('0') << registers[IP]-1;
+
+        std::cout << " S ";
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+2) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+4) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+6) << ' ';
+        std::cout << std::endl;
+    }
+
+    template<typename T>
+    T run_arith(T p1, T p2, u8 instr_choice)
+    {
+        T out{};
+
+        switch(instr_choice)
+        {
+            case 0x00: //ADD
+                out = p1+p2;
+                add_flags(p1,p2,out);
+                break;
+            case 0x02: //ADC
+                out = p1+p2+flag(F_CARRY);
+                commonflags(p1,p2,out);
+                set_flag(F_AUX_CARRY, (p1&0xF)+(p2&0xF)+flag(F_CARRY) >= 0x10);
+                set_flag(F_OVERFLOW, ((p1 ^ out) & (p2 ^ out)) >> (sizeof(T)*8-1));
+                set_flag(F_CARRY, ((p1+p2+flag(F_CARRY))>>(sizeof(T)*8)) > 0);
+                break;
+            case 0x01: //OR
+                out = p1|p2;
+                break;
+            case 0x04: //AND
+                out = p1&p2;
+                break;
+            case 0x03: //SBB
+                out = p1-(p2+flag(F_CARRY));
+                commonflags(p1,p2,out);
+                set_flag(F_AUX_CARRY, (p1&0xF)-((p2&0xF)+flag(F_CARRY)) < 0x00);
+                set_flag(F_OVERFLOW, ((p1 ^ p2) & (p1 ^ out)) >> (sizeof(T)*8-1));
+                set_flag(F_CARRY, ((p1-(p2+flag(F_CARRY)))>>(sizeof(T)*8)) < 0);
+                break;
+            case 0x05: //SUB
+            case 0x07: //CMP
+                out = p1-p2;
+                cmp_flags(p1,p2,out);
+                break;
+            case 0x06://XOR
+                out = p1^p2;
+                break;
+        }
+
+        if (instr_choice == 0x01 || instr_choice == 0x04 || instr_choice == 0x06) //or and xor
+            test_flags(out);
+
+        if (instr_choice == 0x07) //cmp
+            out = p1;
+        return out;
+    }
+
+    u8 get_segment(u8 default_segment)
+    {
+        return segment_override?(segment_override-8):default_segment;
+    }
+
+    void clear_prefix()
+    {
+        segment_override = 0;
+        string_prefix = 0;
+        lock = 0;
+    }
+    bool set_prefix(u8 instruction)
+    {
+        if ((instruction&0xE7) == 0x26) // segment override:
+        {
+            cycles_used += 2;
+            segment_override = ((instruction>>3)&0x3)|0x8;
+            return true;
+        }
+        if ((instruction&0xFE) == 0xF2)
+        {
+            cycles_used += 2;
+            string_prefix = 1+(instruction&0x01); //REPNZ REPZ
+            return true;
+        }
+        if (instruction == 0xF0 || instruction == 0xF1) // LOCK
+        {
+            lock = 1;
+            cycles_used += 2;
+            return true;
+        }
+        return false;
+    }
+
+    u32 interrupt_true_cycles{};
+    bool inhibit_ss{};
+    u32 interrupt_table[256] = {};
+
+    bool accepts_interrupts()
+    {
+        return interrupt_true_cycles >= 2 && !inhibit_ss && delay==0;
+    }
+
+    void interrupt(u8 n, bool forced=false)
+    {
+        if (inhibit_ss)
+            return;
+        if (flag(F_INTERRUPT) || forced)
+        {
+            if (startprinting)
+                cout << "INTERRUPT " << std::hex << u32(n) << "!" << endl;
+            halt = false;
+            cycles_used += 80;
+
+            ++interrupt_table[n];
+
+            push(registers[FLAGS]);
+            push(registers[CS]);
+            push(registers[IP]);
+
+            registers[IP] = mem._16(0, n*4);
+            registers[CS] = mem._16(0, n*4+2);
+            set_flag(F_INTERRUPT,false);
+            set_flag(F_TRAP,false);
+            if (!forced)
+            {
+                if constexpr(DEBUG_LEVEL > 0)
+                    cout << "IRQ: CPU ACK " << u32(n-8) << endl;
+                pic.cpu_ack_irq(n-8);
+            }
+        }
+    }
+    void irq(u8 n)
+    {
+        interrupt(n+8, false);
+    }
+
+    void push(u16 data)
+    {
+        registers[SP] -= 2;
+        mem._16(registers[SS], registers[SP]) = data;
+    }
+    u16 pop()
+    {
+        u16 data = mem._16(registers[SS], registers[SP]);
+        registers[SP] += 2;
+        return data;
+    }
+
+    bool halt{false};
+    u64 cycles_used{};
+    bool is_inside_multi_part_instruction{};
+
+    void cycle()
+    {
+        ++cycles;
+
+        if (delay)
+        {
+            --delay;
+            return;
+        }
+        inhibit_ss = false;
+        if (halt)
+        {
+            return;
+        }
+
+        if (registers[CS] == 0 && registers[IP] == 0)
+        {
+            cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
+            reset();
+        }
+        u16 original_ip = registers[IP];
+
+        is_inside_multi_part_instruction = false;
+        u8 instruction = read_inst<u8>();
+        if (startprinting)
+        {
+            std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << registers[CS]*16+registers[IP]-1;
+            print_regs();
+        }
+
+        u32 prefix_byte_n = 0;
+        while (set_prefix(instruction))
+        {
+            ++prefix_byte_n;
+            instruction = read_inst<u8>();
+            if (startprinting || DEBUG_LEVEL > 1)
+                std::cout << "prefix read. #" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+        }
+
+        if (false);
+        else if (instruction < 0x40 && (instruction&0x07) < 6)
+        {
+            u8 instr_choice = (instruction&0x38)>>3;
+            if (instruction&0x04)
+            {
+                if (instruction&0x01)//16bit
+                {
+                    u16& r = registers[AX];
+                    u16 imm = read_inst<u16>();
+                    r = run_arith(r, imm, instr_choice);
+                }
+                else //8bit
+                {
+                    u8& r = get_r8(0);
+                    u8 imm = read_inst<u8>();
+                    r = run_arith(r, imm, instr_choice);
+                }
+                cycles_used += 4;
+            }
+            else
+            {
+                u8 modrm = read_inst<u8>();
+                if (instruction&0x01)//16bit
+                {
+                    u16& rm = decode_modrm_u16(modrm);
+                    u16& r = get_r16((modrm>>3)&0x07);
+                    u16& rout = (instruction&0x02?r:rm);
+                    u16& rin = (instruction&0x02?rm:r);
+                    rout = run_arith(rout, rin, instr_choice);
+                }
+                else//8bit
+                {
+                    u8& rm = decode_modrm_u8(modrm);
+                    u8& r = get_r8((modrm>>3)&0x07);
+                    u8& rout = (instruction&0x02?r:rm);
+                    u8& rin = (instruction&0x02?rm:r);
+                    rout = run_arith(rout, rin, instr_choice);
+                }
+                if (instruction&0x02) //towards general reg
+                {
+                    cycles_used += (modrm_is_register?3:13);
+                }
+                else //towards modrm byte
+                {
+                    cycles_used += (modrm_is_register?3:24);
+                }
+            }
+        }
+        else if ((instruction&0xE6) == 0x06)
+        {
+            if (instruction == 0x0F)
+            {
+                cout << "POP CS?? ASDFGH" << endl;
+            }
+            u16& reg = get_segment_r16((instruction>>3)&0x03);
+            if (instruction&0x01)
+            {
+                cycles_used += 12;
+                reg = pop();
+            }
+            else
+            {
+                cycles_used += 14;
+                push(reg);
+                inhibit_ss = true;
+            }
+        }
+        else if (instruction == 0x27) // DAA
+        {
+            u8 old_AL = registers[AX]&0xFF;
+            bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
+
+            u8 added{};
+
+            set_flag(F_AUX_CARRY, (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY));
+            if (flag(F_AUX_CARRY))
+                added += 0x06;
+
+            set_flag(F_CARRY, old_AL > 0x99+(weird_special_case?6:0) || flag(F_CARRY));
+            if (flag(F_CARRY))
+                added += 0x60;
+
+            get_r8(0) += added;
+
+            set_flag(F_ZERO, (registers[AX]&0xFF) == 0);
+            set_flag(F_SIGN, (registers[AX] & 0x80));
+            set_flag(F_PARITY, byte_parity[registers[AX]&0xFF]);
+            set_flag(F_OVERFLOW, (old_AL ^ registers[AX]) & (added ^ registers[AX])&0x80);
+            cycles_used += 4;
+        }
+        else if (instruction == 0x37) // AAA
+        {
+            u16 old_AX = registers[AX];
+            bool add_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
+            if (add_ax)
+            {
+                get_r8(0) += 0x06; //AL
+                get_r8(4) += 0x01; //AH
+            }
+            u16 added = registers[AX]-old_AX;
+
+            set_flag(F_AUX_CARRY, add_ax);
+            set_flag(F_CARRY, add_ax);
+            set_flag(F_PARITY, byte_parity[registers[AX]&0xFF]);
+            set_flag(F_ZERO, (registers[AX]&0xFF) == 0);
+            set_flag(F_SIGN, (registers[AX] & 0x80));
+            set_flag(F_OVERFLOW, (old_AX ^ registers[AX]) & (added ^ registers[AX])&0x80);
+
+            get_r8(0) &= 0x0F;
+            cycles_used += 8;
+        }
+        else if (instruction == 0x2F) // DAS
+        {
+            u8 old_AL = registers[AX] & 0xFF;
+            bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
+
+            u8 subtracted{};
+
+            bool sub_al = ((registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY));
+            if (sub_al)
+                subtracted += 0x06;
+
+            set_flag(F_AUX_CARRY, sub_al);
+            bool sub_al2 = (old_AL > (0x99+(weird_special_case?6:0)) || flag(F_CARRY));
+            if (sub_al2)
+                subtracted += 0x60;
+
+            get_r8(0) -= subtracted;
+            set_flag(F_CARRY, sub_al2);
+            set_flag(F_ZERO, (registers[AX] & 0xFF) == 0);
+            set_flag(F_SIGN, (registers[AX] & 0x80));
+            set_flag(F_PARITY, byte_parity[registers[AX] & 0xFF]);
+            set_flag(F_OVERFLOW, ((old_AL ^ subtracted) & (old_AL ^ registers[AX]))&0x80);
+            cycles_used += 4;
+        }
+        else if (instruction == 0x3F) // AAS
+        {
+            u16 old_AX = registers[AX];
+            bool sub_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
+            if (sub_ax)
+            {
+                get_r8(4) -= 1;
+                get_r8(0) -= 6;
+            }
+            u16 subtracted = old_AX-registers[AX];
+            set_flag(F_AUX_CARRY, sub_ax);
+            set_flag(F_CARRY, sub_ax);
+            set_flag(F_ZERO, (registers[AX] & 0xFF) == 0);
+            set_flag(F_SIGN, (registers[AX] & 0x80));
+            set_flag(F_PARITY, byte_parity[registers[AX] & 0xFF]);
+            set_flag(F_OVERFLOW, (old_AX ^ subtracted) & (old_AX ^ registers[AX])&0x80);
+
+            get_r8(0) &= 0x0F;
+            cycles_used += 8;
+        }
+        else if ((instruction&0xF0) == 0x40) //INC/DEC register
+        {
+            u16 result = get_r16(instruction&0x07)+(1-((instruction&0x08)?2:0));
+            set_flag(F_SIGN, result&0x8000);
+            set_flag(F_ZERO, result==0);
+            set_flag(F_AUX_CARRY, (result&0x0F) == ((instruction&0x08)?0x0F:0x00));
+            set_flag(F_PARITY, byte_parity[result&0xFF]);
+            set_flag(F_OVERFLOW, result==0x8000-((instruction&0x08)?1:0));
+            get_r16(instruction&0x07) = result;
+            cycles_used += 3;
+        }
+        else if ((instruction&0xF8) == 0x50) // push reg
+        {
+            if (instruction == 0x54) //push SP
+            {
+                push(get_r16(instruction&0x07)-2);
+            }
+            else
+            {
+                push(get_r16(instruction&0x07));
+            }
+            cycles_used += 15;
+        }
+        else if ((instruction&0xF8) == 0x58) //pop reg
+        {
+            get_r16(instruction&0x07) = pop();
+            cycles_used += 12;
+        }
+        else if ((instruction&0xE0) == 0x60) //various short jumps, note that 0x60-6F is mapped to 0x70-7F
+        {
+            u8 type = (instruction&0x0F)>>1;
+            u16 f = (registers[FLAGS]&0xFFFD) | (flag(F_SIGN) != flag(F_OVERFLOW) ? 0x2:0x0);
+            const u16 masks[8] =
+            {
+                0x800,0x001,0x040,0x041,0x080,0x004,0x002,0x042
+            };
+            i8 offset = read_inst<i8>();
+            cycles_used += 4;
+            if (bool(f&masks[type])^(instruction&0x01))
+            {
+                registers[IP] += offset;
+                cycles_used += 12;
+            }
+        }
+        else if (instruction == 0x80 || instruction == 0x82)
+        {
+            u8 modrm = read_inst<u8>();
+            u8& rm = decode_modrm_u8(modrm);
+            u8 imm = read_inst<u8>();
+            rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            cycles_used += (modrm_is_register?4:23);
+        }
+        else if (instruction == 0x81)
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u16 imm = read_inst<u16>();
+            rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            cycles_used += (modrm_is_register?4:23);
+        }
+        else if (instruction == 0x83)
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u16 imm = i16(read_inst<i8>());
+            rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            cycles_used += (modrm_is_register?4:23);
+        }
+        else if (instruction == 0x84)
+        {
+            u8 modrm = read_inst<u8>();
+            u8& rm = decode_modrm_u8(modrm);
+            u8& r = get_r8((modrm>>3)&0x07);
+            test_flags(u8(rm&r));
+            cycles_used += (modrm_is_register?5:11);
+        }
+        else if (instruction == 0x85)
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u16& r = get_r16((modrm>>3)&0x07);
+            test_flags(u16(rm&r));
+            cycles_used += (modrm_is_register?5:11);
+        }
+        else if (instruction == 0x86)
+        {
+            u8 modrm = read_inst<u8>();
+            u8& rm = decode_modrm_u8(modrm);
+            u8& r = get_r8((modrm>>3)&0x07);
+            u8 temp = rm;
+            rm = r;
+            r = temp;
+            cycles_used += (modrm_is_register?4:25);
+        }
+        else if (instruction == 0x87)
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u16& r = get_r16((modrm>>3)&0x07);
+            u16 temp = rm;
+            rm = r;
+            r = temp;
+            cycles_used += (modrm_is_register?4:25);
+        }
+        else if ((instruction&0xFC) == 0x88) // MOV EbGb, EvGv, GbEb, GvEv
+        {
+            u8 modrm = read_inst<u8>();
+            if (instruction&0x01)//16bit
+            {
+                u16& rm = decode_modrm_u16(modrm);
+                u16& r = get_r16((modrm>>3)&0x07);
+                u16& rout = (instruction&0x02?r:rm);
+                u16& rin = (instruction&0x02?rm:r);
+                rout = rin;
+            }
+            else//8bit
+            {
+                u8& rm = decode_modrm_u8(modrm);
+                u8& r = get_r8((modrm>>3)&0x07);
+                u8& rout = (instruction&0x02?r:rm);
+                u8& rin = (instruction&0x02?rm:r);
+                rout = rin;
+            }
+
+            if (modrm_is_register)
+            {
+                cycles_used += 2;
+            }
+            else
+            {
+                if (instruction&0x02) // towards general register
+                {
+                    cycles_used += 12;
+                }
+                else //towards modrm
+                {
+                    cycles_used += 13;
+                }
+            }
+        }
+        else if (instruction == 0x8C) // MOV EwSw
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u16& r = get_segment_r16((modrm>>3)&0x07);
+            rm = r;
+            cycles_used += (modrm_is_register?2:13);
+        }
+        else if (instruction == 0x8D) // LEA Gv M
+        {
+            u8 modrm = read_inst<u8>();
+            u16& r = get_r16((modrm>>3)&0x07);
+            r = (effective_address(modrm)&0xFFFF);
+            cycles_used += 2;
+        }
+        else if (instruction == 0x8E) // MOV SwEw
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u16& r = get_segment_r16((modrm>>3)&0x07);
+            r = rm;
+            inhibit_ss = true;
+            cycles_used += (modrm_is_register?2:12);
+        }
+        else if (instruction == 0x8F) //POP modrm
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            rm = pop();
+            cycles_used += 25;
+        }
+        else if ((instruction&0xF8) == 0x90) // XCHG AX, r16 - note how 0x90 is effectively NOP :-)
+        {
+            u8 reg_id = instruction&0x7;
+            u16 tmp = get_r16(AX);
+            get_r16(AX) = get_r16(reg_id);
+            get_r16(reg_id) = tmp;
+            cycles_used += 3;
+        }
+        else if (instruction == 0x98) //CBW
+        {
+            u16 r = (registers[AX])&0xFF;
+            r |= (r&0x80)?0xFF00:0x0000;
+            registers[AX] = r;
+            cycles_used += 2;
+        }
+        else if (instruction == 0x99) //CWD
+        {
+            registers[DX] = (registers[AX]&0x8000)?0xFFFF:0x0000;
+            cycles_used += 5;
+        }
+        else if (instruction == 0x9A) //call Ap
+        {
+            u16 pointer = read_inst<u16>();
+            u16 segment = read_inst<u16>();
+            push(registers[CS]);
+            push(registers[IP]);
+            registers[CS] = segment;
+            registers[IP] = pointer;
+            cycles_used += 28;
+        }
+        else if (instruction == 0x9B) // WAIT/FWAIT
+        {
+            // waits for floating point exceptions.
+            // basically a NOP because I don't have a FPU yet
+            cycles_used += 4;
+        }
+        else if (instruction == 0x9C) //pushf
+        {
+            push(registers[FLAGS]);
+            cycles_used += 14;
+        }
+        else if (instruction == 0x9D) //popf
+        {
+            u16 newflags = pop();
+            const u16 FLAG_MASK = 0b0000'1111'1101'0101;
+            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) | 0xF002;
+            cycles_used += 12;
+        }
+        else if (instruction == 0x9E) //sahf
+        {
+            reg8()[FLAGS*2] = (get_r8(4)&0xD5) | 0x02;
+            cycles_used += 4;
+        }
+        else if (instruction == 0x9F) //lahf
+        {
+            get_r8(4) = reg8()[FLAGS*2];
+            cycles_used += 4;
+        }
+        else if (instruction >= 0xA0 && instruction <= 0xA3) //AL/X=MEM  MEM=AL/X
+        {
+            u16 source_segment = registers[get_segment(DS)];
+            u16 source_offset = read_inst<u16>();
+            switch(instruction)
+            {
+                case 0xA0: get_r8(0) = mem._8(source_segment, source_offset); break;
+                case 0xA1: registers[AX] = mem._16(source_segment, source_offset); break;
+                case 0xA2: mem._8(source_segment, source_offset) = get_r8(0); break;
+                case 0xA3: mem._16(source_segment, source_offset) = registers[AX]; break;
+            }
+            cycles_used += 14;
+        }
+        else if (instruction >= 0xA8 && instruction <= 0xA9) //TEST AL/X,imm8/16
+        {
+            if (instruction&1)
+            {
+                u16 value1 = read_inst<u16>();
+                test_flags<u16>(u16(value1&registers[AX]));
+            }
+            else
+            {
+                u8 value1 = read_inst<u8>();
+                test_flags<u8>(u8(value1&registers[AX]));
+            }
+            cycles_used += 4;
+        }
+        else if (instruction >= 0xA4 && instruction <= 0xAF) //MOVSB/W CMPSB/W --- STOSB/W LODSB/W SCASB/W
+        {
+            bool big = (instruction&0x01); //word-sized?
+            i8 size = i8(big)+1;
+            i8 direction = flag(F_DIRECTIONAL)?-size:size;
+            const u16 programs[8] = // lol microcode
+            {
+                0x0000, 0x0000, 0x4021, 0x8103,
+                0x0000, 0x4024, 0x4041, 0x8106,
+            };
+
+            const u8 cycles_single[16] =
+            {
+                 0,  0,  0,  0, 18, 26, 30, 30,
+                 0,  0, 11, 15, 16, 16, 19, 19,
+            };
+            const u8 cycles_rep_mult[16] =
+            {
+                0, 0, 0, 0,17,25,30,30,
+                0, 0,10,14,15,15,15,19,//check LOD
+            };
+
+            u16 source_segment = registers[get_segment(DS)];
+
+            u16 program = programs[(instruction>>1)&0x07];
+            if (registers[CX] != 0 || string_prefix == 0) do
+            {
+                u16 value1{}, value2{};
+                if (big)
+                {
+                    if (program&0x01)
+                        value1 = mem._16(source_segment, registers[SI]);
+                    if (program&0x02)
+                        value2 = mem._16(registers[ES], registers[DI]);
+                    if (program&0x04)
+                        value1 = registers[AX];
+                    if (program&0x10)
+                        mem._16(source_segment, registers[SI]) = value1;
+                    if (program&0x20)
+                        mem._16(registers[ES],registers[DI]) = value1;
+                    if (program&0x40)
+                        registers[AX] = value1;
+                    if (program&0x100)
+                        cmp_flags<u16>(value1,value2,u16(value1-value2));
+                }
+                else
+                {
+                    if (program&0x01)
+                        value1 = mem._8(source_segment, registers[SI]);
+                    if (program&0x02)
+                        value2 = mem._8(registers[ES], registers[DI]);
+                    if (program&0x04)
+                        value1 = get_r8(0);
+                    if (program&0x10)
+                        mem._8(source_segment, registers[SI]) = value1;
+                    if (program&0x20)
+                        mem._8(registers[ES],registers[DI]) = value1;
+                    if (program&0x40)
+                        get_r8(0) = value1;
+                    if (program&0x100)
+                        cmp_flags<u8>(value1,value2,u8(value1-value2));
+                }
+                if (program&0x11) //uses DS:SI
+                    registers[SI] += direction;
+                if (program&0x22) //uses ES:DI
+                    registers[DI] += direction;
+
+                if (string_prefix == 0)
+                {
+                    cycles_used += cycles_single[instruction&0x0F];
+                    break;
+                }
+                cycles_used += cycles_rep_mult[instruction&0x0F];
+                registers[CX] -= 1;
+                if ((program&0xC000)==0x8000)
+                {
+                    if (string_prefix == SP_REPNZ && flag(F_ZERO))
+                    {
+                        cycles_used += 9;
+                        break;
+                    }
+                    if (string_prefix == SP_REPZ && !flag(F_ZERO))
+                    {
+                        cycles_used += 9;
+                        break;
+                    }
+                }
+                if (registers[CX] == 0)
+                {
+                    cycles_used += 9;
+                    break;
+                }
+                registers[IP] -= 1+prefix_byte_n;
+                is_inside_multi_part_instruction = true;
+            } while(false);
+        }
+        else if ((instruction&0xF8) == 0xB0) //mov reg8, Ib
+        {
+            get_r8(instruction&0x07) = read_inst<u8>();
+            cycles_used += 4;
+        }
+        else if ((instruction&0xF8) == 0xB8) //mov reg16, Iv
+        {
+            get_r16(instruction&0x07) = read_inst<u16>();
+            cycles_used += 4;
+        }
+        else if (instruction == 0xC0 || instruction == 0xC2) // near return w/imm
+        {
+            u16 imm = read_inst<u16>();
+            registers[IP] = pop();
+            registers[SP] += imm;
+            cycles_used += 24;
+        }
+        else if (instruction == 0xC1 || instruction == 0xC3) // near return
+        {
+            registers[IP] = pop();
+            cycles_used += 20;
+        }
+        else if (instruction == 0xC8 || instruction == 0xCA) // far return w/imm
+        {
+            u16 imm = read_inst<u16>();
+            registers[IP] = pop();
+            registers[CS] = pop();
+            registers[SP] += imm;
+            cycles_used += 33;
+        }
+        else if (instruction == 0xC9 || instruction == 0xCB) // far return
+        {
+            registers[IP] = pop();
+            registers[CS] = pop();
+            cycles_used += 34;
+        }
+        else if ((instruction&0xFE) == 0xC4) // LES LDS
+        {
+            u8 modrm = read_inst<u8>();
+            //u16& rm = decode_modrm_u16(modrm);
+
+            u32 addr = effective_address(modrm);
+            u16& r = get_r16((modrm>>3)&0x07);
+            r = mem._16(addr>>16, addr&0xFFFF);
+            registers[(instruction&1)?DS:ES] = mem._16(addr>>16, (addr&0xFFFF)+2); //ES or DS, based on the opcode
+            cycles_used += 24;
+        }
+        else if (instruction == 0xC6)
+        {
+            u8 modrm = read_inst<u8>();
+            u8& rm = decode_modrm_u8(modrm);
+            rm = read_inst<u8>();
+            cycles_used += (modrm_is_register?4:14);
+        }
+        else if (instruction == 0xC7)
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            rm = read_inst<u16>();
+            cycles_used += (modrm_is_register?4:14);
+        }
+        else if (instruction == 0xCC) // INT 3
+        {
+            if (startprinting)
+                cout << "Calling interrupt 3... AX=" << registers[AX] << endl;
+            interrupt(3, true);
+            //cycles_used += 72;
+        }
+        else if (instruction == 0xCD) // INT imm8
+        {
+            u8 int_num = read_inst<u8>();
+            if (startprinting)
+                cout << "Calling interrupt... " << u32(int_num) << " AX=" << registers[AX] << endl;
+            interrupt(int_num, true);
+            //cycles_used += 71;
+        }
+        else if (instruction == 0xCE) // INTO
+        {
+            if (flag(F_OVERFLOW))
+            {
+                if (startprinting)
+                    cout << "Calling int 4... AX=" << registers[AX] << endl;
+                interrupt(4, true);
+                //cycles_used += 69;
+            }
+            cycles_used += 4;
+        }
+        else if (instruction == 0xCF) // IRET!
+        {
+            registers[IP] = pop();
+            registers[CS] = pop();
+            u16 newflags = pop();
+            const u16 FLAG_MASK = 0b0000'1111'1101'0101;
+            registers[FLAGS] = (registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) | 0xF002;
+
+            if (startprinting)
+                cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
+            cycles_used += 44;
+        }
+        else if (instruction == 0xD0 || instruction == 0xD2)
+        {
+            bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
+            u8 modrm = read_inst<u8>();
+            u8& rm = decode_modrm_u8(modrm);
+
+            u8 inst_type = (modrm>>3)&0x07;
+            u8 amount = (single_shift)?1:(registers[CX]&0xFF);
+
+            if ((instruction&0x02) == 0)
+            {
+                cycles_used += (modrm_is_register?23:2);
+            }
+            else
+            {
+                cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0xFF);
+            }
+
+            for(u32 i=0; i<amount; ++i)
+            {
+                //F_OVERFLOW, F_SIGN, F_ZERO, F_AUX_CARRY, F_PARITY, F_CARRY
+                u8 original=rm;
+                u8 result=0;
+                if (inst_type == 6)
+                {
+                    rm = 0xFF;
+                    set_flag(F_CARRY, false);
+                    set_flag(F_OVERFLOW, false);
+                    set_flag(F_SIGN, true);
+                    set_flag(F_ZERO, false);
+                    set_flag(F_AUX_CARRY, false);
+                    set_flag(F_PARITY, byte_parity[0xFF]);
+                    break;
+                }
+                //ROL ROR RCL RCR SHL SHR SAL SAR
+                else if ((inst_type&1) == 0) //ROL RCL SHL SAL
+                {
+                    result = (original << 1) | ((inst_type&0x04)?0:((inst_type&0x02) ? flag(F_CARRY) : original>>7));
+                }
+                else if (inst_type == 1 || inst_type == 3) //ROR RCR
+                {
+                    result = (original >> 1) | ((inst_type&0x02) ? flag(F_CARRY)<<7 : original<<7);
+                }
+                else if (inst_type == 5 || inst_type == 7) //SHR SAR
+                {
+                    result = (original >> 1) | ((inst_type&0x02) ? original&0x80 : 0);
+                }
+                set_flag(F_CARRY, original&((inst_type&1)?0x01:0x80));
+                u8 flag_value = (inst_type&1)?result:original;
+                set_flag(F_OVERFLOW, (bool(flag_value&0x80) != bool(flag_value&0x40)));
+                if (inst_type&0x04)
+                {
+                    set_flag(F_SIGN, result&0x80);
+                    set_flag(F_ZERO, result==0);
+                    set_flag(F_AUX_CARRY, (inst_type==4?result&0x10:false));
+                    set_flag(F_PARITY, byte_parity[result&0xFF]);
+                }
+                rm = result;
+            }
+        }
+        else if (instruction == 0xD1 || instruction == 0xD3)
+        {
+            bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+
+            u8 inst_type = (modrm>>3)&0x07;
+            u8 amount = (single_shift)?1:(registers[CX]&0xFF);
+
+            if ((instruction&0x02) == 0)
+            {
+                cycles_used += (modrm_is_register?23:2);
+            }
+            else
+            {
+                cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0xFF);
+            }
+
+            for(u32 i=0; i<amount; ++i)
+            {
+                //F_OVERFLOW, F_SIGN, F_ZERO, F_AUX_CARRY, F_PARITY, F_CARRY
+                u16 original=rm;
+                u16 result=0;
+                if (inst_type == 6)
+                {
+                    rm = 0xFFFF;
+                    set_flag(F_CARRY, false);
+                    set_flag(F_OVERFLOW, false);
+                    set_flag(F_SIGN, true);
+                    set_flag(F_ZERO, false);
+                    set_flag(F_AUX_CARRY, false);
+                    set_flag(F_PARITY, byte_parity[0xFF]);
+                    break;
+                }
+                //ROL ROR RCL RCR SHL SHR SAL SAR
+                else if ((inst_type&1) == 0) //ROL RCL SHL SAL
+                {
+                    result = (original << 1) | ((inst_type&0x04)?0:((inst_type&0x02) ? flag(F_CARRY) : original>>15));
+                }
+                else if (inst_type == 1 || inst_type == 3) //ROR RCR
+                {
+                    result = (original >> 1) | ((inst_type&0x02) ? flag(F_CARRY)<<15 : original<<15);
+                }
+                else if (inst_type == 5 || inst_type == 7) //SHR SAR
+                {
+                    result = (original >> 1) | ((inst_type&0x02) ? original&0x8000 : 0);
+                }
+                set_flag(F_CARRY, original&((inst_type&1)?0x01:0x8000));
+                u16 flag_value = (inst_type&1)?result:original;
+                set_flag(F_OVERFLOW, (bool(flag_value&0x8000) != bool(flag_value&0x4000)));
+                if (inst_type&0x04)
+                {
+                    set_flag(F_SIGN, result&0x8000);
+                    set_flag(F_ZERO, result==0);
+                    set_flag(F_AUX_CARRY, (inst_type==4?result&0x10:false));
+                    set_flag(F_PARITY, byte_parity[result&0xFF]);
+                }
+                rm = result;
+            }
+        }
+        else if (instruction == 0xD4) // AAM
+        {
+            u8 imm = read_inst<u8>();
+            if (imm != 0)
+            {
+                u8 tempAL = (registers[AX]&0xFF);
+                u8 tempAH = tempAL/imm;
+                tempAL = tempAL%imm;
+                registers[AX] = (tempAH<<8)|tempAL;
+
+                set_flag(F_SIGN, tempAL&0x80);
+                set_flag(F_ZERO, tempAL==0);
+                set_flag(F_PARITY, byte_parity[tempAL]);
+                set_flag(F_OVERFLOW,false);
+                set_flag(F_AUX_CARRY,false);
+                set_flag(F_CARRY,false);
+            }
+            else
+            {
+                set_flag(F_SIGN, false);
+                set_flag(F_ZERO, true);
+                set_flag(F_PARITY, true);
+                set_flag(F_OVERFLOW,false);
+                set_flag(F_AUX_CARRY,false);
+                set_flag(F_CARRY,false);
+                interrupt(0, true);
+            }
+            cycles_used += 83;
+        }
+        else if (instruction == 0xD5)
+        {
+            u8 imm = read_inst<u8>();
+            u16 orig16 = registers[AX];
+            u16 temp16 = (registers[AX]&0xFF) + (registers[AX]>>8)*imm;
+            registers[AX] = (temp16&0xFF);
+
+            set_flag(F_SIGN,temp16&0x80);
+            set_flag(F_PARITY, byte_parity[temp16&0xFF]);
+
+            u8 a = orig16;
+            u8 b = (orig16>>8)*imm;
+            u8 result = a+b;
+
+            set_flag(F_ZERO, result==0);
+
+            set_flag(F_CARRY,result < a); //this is now correct
+
+            bool of = ((a ^ result) & (b ^ result)) & 0x80;
+            bool af = ((a ^ b ^ result) & 0x10);
+            set_flag(F_OVERFLOW,of);
+            set_flag(F_AUX_CARRY,af);
+            cycles_used += 60;
+        }
+        else if (instruction == 0xD6) // SALC (undocumented!)
+        {
+            get_r8(0) = flag(F_CARRY)?0xFF:0x00;
+            cycles_used += 4; //TODO: make sure this is correct!
+        }
+        else if (instruction == 0xD7) // XLAT
+        {
+            u8 result = mem._8(registers[get_segment(DS)],registers[BX]+(registers[AX]&0xFF));
+            get_r8(0) = result;
+            cycles_used += 11;
+        }
+        else if (instruction >= 0xD8 && instruction <= 0xDF)
+        {
+            //cout << "Trying to run floating point instruction! :(" << endl;
+            u8 modrm = read_inst<u8>(); //read modrm data anyway to sync up
+            decode_modrm_u8(modrm);
+            //FLOATING POINT INSTRUCTIONS! 8087! we don't have this. yet?
+            cycles_used += 4; //TODO: check that this is right!
+        }
+        else if ((instruction & 0xFC) == 0xE0) // LOOPNZ LOOPZ LOOP JCXZ
+        {
+            i8 offset = read_inst<i8>();
+            registers[CX] -= ((instruction&0x03)!=3);
+            if ((registers[CX] != 0) == ((instruction&0x03) != 3) && (instruction&0x02 ? true:(flag(F_ZERO) == (instruction&0x01))))
+            {
+                registers[IP] = i16(registers[IP]) + offset;
+                cycles_used += 12 + ((instruction&3)?0:2);
+            }
+            //not taken:  5  6  5  6
+            //taken:     19 18 17 18 (delta: 14 12 12 12)
+            cycles_used += 5 + (instruction&1);
+        }
+        else if (instruction == 0xE4) // IN
+        {
+            get_r8(0) = IO::in(read_inst<u8>());
+            cycles_used += 14;
+        }
+        else if (instruction == 0xE5) // IN
+        {
+            u8 port = read_inst<u8>();
+            u8 low = IO::in(port);
+            u8 high = IO::in(port+1);
+            registers[AX] = (high<<8)|low;
+            cycles_used += 14;
+        }
+        else if (instruction == 0xE6) // OUT
+        {
+            IO::out(read_inst<u8>(), registers[AX]&0xFF);
+            cycles_used += 14;
+        }
+        else if (instruction == 0xE7) // OUT
+        {
+            u8 port = read_inst<u8>();
+            IO::out(port, registers[AX]&0xFF);
+            IO::out(port+1, registers[AX]>>8);
+            cycles_used += 14;
+        }
+        else if (instruction == 0xE8)
+        {
+            i16 ip_offset = read_inst<i16>();
+            push(registers[IP]);
+            registers[IP] = i16(registers[IP])+ip_offset;
+            cycles_used += 23; //TODO: check that this is the correct one
+        }
+        else if (instruction == 0xE9)
+        {
+            i16 ip_offset = read_inst<i16>();
+            registers[IP] = i16(registers[IP])+ip_offset;
+            cycles_used += 15;
+        }
+        else if (instruction == 0xEA) //far jump
+        {
+            u16 new_ip = read_inst<u16>();
+            u16 new_cs = read_inst<u16>();
+
+            registers[IP] = new_ip;
+            registers[CS] = new_cs;
+            cycles_used += 15;
+        }
+        else if (instruction == 0xEB)
+        {
+            i8 ip_offset = read_inst<i8>();
+            registers[IP] = i16(registers[IP])+ip_offset;
+            cycles_used += 15;
+        }
+        else if (instruction == 0xEC) // IN
+        {
+            get_r8(0) = IO::in(registers[DX]);
+            cycles_used += 12;
+        }
+        else if (instruction == 0xED) // IN
+        {
+            u16 port = registers[DX];
+            u8 low = IO::in(port);
+            u8 high = IO::in(port+1);
+            registers[AX] = (high<<8)|low;
+            cycles_used += 12;
+        }
+        else if (instruction == 0xEE) // OUT
+        {
+            IO::out(registers[DX], registers[AX]&0xFF);
+            cycles_used += 12;
+        }
+        else if (instruction == 0xEF) // OUT
+        {
+            IO::out(registers[DX], registers[AX]&0xFF);
+            IO::out(registers[DX]+1, registers[AX]>>8);
+            cycles_used += 12;
+        }
+        else if (instruction == 0xF4) // HALT / HLT
+        {
+            halt = true;
+            cycles_used += 2;
+        }
+        else if (instruction == 0xF5) // cmc
+        {
+            set_flag(F_CARRY, !flag(F_CARRY));
+            cycles_used += 2;
+        }
+        else if(instruction == 0xF6) //byte param
+        {
+            u8 modrm = read_inst<u8>();
+            decode_modrm_u8(modrm);
+            u8 op = ((modrm>>3)&0x07);
+
+            //cout << "DIV: " << std::dec << get_r16(AX)<< "/" << u32(*regM8) << std::hex << endl;
+            //cout << "DIV: 0x" << std::hex << get_r16(AX)<< "/0x" << u32(*regM8) << std::hex << endl;
+
+            const u16 start_addr[8] =
+            {
+                0x098, 0x098, 0x04c, 0x050, 0x150, 0x150, 0x160, 0x160,
+            };
+            mc_execute(start_addr[op], 8, op&1, string_prefix, 0x18+op);
+        }
+        else if(instruction == 0xF7) //word param
+        {
+            u8 modrm = read_inst<u8>();
+            decode_modrm_u16(modrm);
+            u8 op = ((modrm>>3)&0x07);
+
+            const u16 start_addr[8] =
+            {
+                0x098, 0x098, 0x04c, 0x050, 0x158, 0x158, 0x168, 0x168,
+            };
+            mc_execute(start_addr[op], 16, op&1, string_prefix, 0x18+op);
+        }
+        else if ((instruction&0xFE) == 0xF8) //CLC STC carry flag bit 0
+        {
+            set_flag(F_CARRY, instruction&0x01);
+            cycles_used += 2;
+        }
+        else if ((instruction&0xFE) == 0xFA) //CLI STI interrupt flag bit 9
+        {
+            set_flag(F_INTERRUPT, instruction&0x01);
+            cycles_used += 2;
+        }
+        else if ((instruction&0xFE) == 0xFC) //CLD STD direction flag bit 10
+        {
+            set_flag(F_DIRECTIONAL, instruction&0x01);
+            cycles_used += 2;
+        }
+        else if (instruction == 0xFE)
+        {
+            u8 modrm = read_inst<u8>();
+            u8& reg = decode_modrm_u8(modrm);
+            u8 op = (modrm>>3)&0x07;
+            u8 result = reg+1-(op<<1);
+            if (op >= 2)
+            {
+                cout << "*" << u32(instruction) << "-" << u32(modrm);
+                //std::cout << "Invalid opcode combo: 0x" << u32(instruction) << " 0x" << u32(modrm) << std::endl;
+                //std::abort();
+                cycles_used += 4; //TODO: fix the amount???
+            }
+            else
+            {
+                set_flag(F_OVERFLOW,result==0x80-op);
+                set_flag(F_AUX_CARRY,(result&0x0F) == ((op&0x01)?0x0F:0x00));
+                set_flag(F_ZERO,result==0);
+                set_flag(F_SIGN,result&0x80);
+                set_flag(F_PARITY,byte_parity[result&0xFF]);
+                //no carry!
+                reg = result;
+                cycles_used = (modrm_is_register?3:23);
+            }
+        }
+        else if (instruction == 0xFF)
+        {
+            u8 modrm = read_inst<u8>();
+            u8 op = (modrm>>3)&0x07;
+            if (op == 0 || op == 1)
+            {
+                u16& reg = decode_modrm_u16(modrm);
+                u16 result = reg+1-(op<<1);
+                set_flag(F_OVERFLOW,result==(0x8000-op));
+                set_flag(F_AUX_CARRY,(result&0x0F) == ((op&0x01)?0x0F:0x00));
+                set_flag(F_ZERO,result==0);
+                set_flag(F_SIGN,result&0x8000);
+                set_flag(F_PARITY,byte_parity[result&0xFF]);
+                reg = result;
+                cycles_used = (modrm_is_register?3:23);
+            }
+            else if (op == 2) //call near
+            {
+                u16& reg = decode_modrm_u16(modrm);
+                u16 address = reg;
+                push(registers[IP]);
+                registers[IP] = address; //have to do this because reg could be SP :')
+                cycles_used += (modrm_is_register?20:29);
+            }
+            else if (op == 3) //call far
+            {
+                u32 addr = effective_address(modrm);
+                u16 address = mem._16(addr>>16, addr&0xFFFF);
+                u16 segment = mem._16(addr>>16, (addr&0xFFFF)+2);
+                push(registers[CS]);
+                push(registers[IP]);
+                registers[CS] = segment;
+                registers[IP] = address;
+                cycles_used += (modrm_is_register?20:53);
+            }
+            else if (op == 4) //jmp near
+            {
+                u16& reg = decode_modrm_u16(modrm);
+                registers[IP] = reg;
+                cycles_used += (modrm_is_register?11:18);
+            }
+            else if (op == 5) //jmp far
+            {
+                u32 addr = effective_address(modrm);
+                u16 address = mem._16(addr>>16, addr&0xFFFF);
+                u16 segment = mem._16(addr>>16, (addr&0xFFFF)+2);
+                registers[CS] = segment;
+                registers[IP] = address;
+                cycles_used += (modrm_is_register?11:24);
+            }
+            else if (op == 6 || op == 7)
+            {
+                u16& reg = decode_modrm_u16(modrm);
+                if ((modrm&0b11000111) == 0b11000100) //reg is SP
+                {
+                    push(reg-2);
+                }
+                else
+                {
+                    push(reg);
+                }
+                cycles_used += (modrm_is_register?15:24);
+            }
+            else
+            {
+                std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+                std::cout << "Unimplemented opcode combo: 0x" << u32(instruction) << " 0x" << u32(modrm) << std::endl;
+                std::abort();
+            }
+        }
+        else
+        {
+            std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+            std::cout << "# " << std::dec << cycles << std::hex << ", Unknown opcode: 0x" << u32(instruction) << std::endl;
+            std::abort();
+        }
+
+        clear_prefix();
+
+        if (flag(F_INTERRUPT))
+        {
+            if (interrupt_true_cycles < 2)
+                ++interrupt_true_cycles;
+        }
+        else
+        {
+            interrupt_true_cycles = 0;
+        }
+
+        mem.update();
+
+        if (flag(F_TRAP) && !inhibit_ss)
+        {
+            interrupt(1, true);
+        }
+
+        if (cycles_used > 0)
+        {
+            if (lockstep)
+                delay += cycles_used-1;
+            else
+            {
+                cpu_steps += cycles_used -1;
+            }
+            cycles_used = 0;
+        }
+        else
+        {
+            //cout << "Instruction without timing: " << u32(instruction) << endl;
+            //std::abort();
+        }
+    }
+} cpu;
+
+
