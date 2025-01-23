@@ -44,7 +44,7 @@ struct SCREEN
     {
         auto result = glfwInit();
         cout << "GLFWINIT result: " << result << endl;
-        window = glfwCreateWindow(SCREEN_X, SCREEN_Y, "Granite", nullptr, nullptr);
+        window = glfwCreateWindow(SCREEN_X, SCREEN_Y, "Granite - simply the best way to emulate a PC", nullptr, nullptr);
         glfwMakeContextCurrent(window);
         gladLoadGL((GLADloadfunc)glfwGetProcAddress);
 

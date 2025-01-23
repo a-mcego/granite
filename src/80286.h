@@ -1,6 +1,5 @@
 #pragma once
 
-
 struct CPU8088
 {
     u16 registers[16] = {};
@@ -11,7 +10,6 @@ struct CPU8088
         N
     } type{TYPE::i286};
 
-    u8 segment_override{};
     u8 string_prefix{};
     u8 lock{};
     u32 delay{}; //HACK: to make the cpu slow down a bit so it passes POST lol.
@@ -26,15 +24,101 @@ struct CPU8088
     enum REG
     {
         AX,CX,DX,BX, SP,BP,SI,DI, //normal registers
-        ES,CS,SS,DS,              //segment registers
         FLAGS,                    //flags, duh
         IP                        //instruction pointer
     };
 
+    enum struct SEG
+    {
+        ES,CS,SS,DS,              //segment registers
+        NO_OVERRIDE, //marker
+    };
+    SEG segment_override{SEG::NO_OVERRIDE};
+
     static constexpr u16 registermap[14] = //i wish we didnt need this
     {
-        AX,CX,DX,BX, SP,BP,SI,DI, ES,CS,SS,DS, FLAGS, IP
+        AX,CX,DX,BX, SP,BP,SI,DI, FLAGS, IP
     };
+
+    u16 msw{};
+
+    u16 cpl{};
+
+    struct Descriptor
+    {
+        u16 data{};
+        u16 limit{};
+        u32 base{}; //up to 0x00FFFFFF, really 24 bits.
+        u8 flags{};
+
+        u8 dpl()
+        {
+            return (flags>>5)&0x03;
+        }
+    };
+    struct DescriptorTable
+    {
+        u32 base{};
+        u16 n_entries{};
+    };
+    DescriptorTable gdtr{}, ldtr{}, idtr{}; //global, local and interrupt tables!
+    Descriptor descriptor_cache[4]; //cache, one for each segment
+
+
+    void load_segment(SEG segment_number, u16 segment_data)
+    {
+        if (msw&1) // protected mode
+        {
+            // Extract fields from segment_data
+            u16 index = segment_data >> 3;        // Bits 15-3
+            bool is_ldt = segment_data & 0x4;     // Bit 2 (TI)
+            u8 rpl = segment_data & 0x3;          // Bits 1-0
+
+            // Choose GDT or LDT
+            DescriptorTable& table = is_ldt ? ldtr : gdtr;
+
+            // Check if index is within table limits
+            if(index >= table.n_entries)
+            {
+                // Should generate exception
+                std::cout << "äää" << std::endl;
+                //throw std::runtime_error("Segment index out of bounds");
+            }
+
+            // Calculate descriptor address in physical memory
+            u32 descriptor_addr = table.base + (index * 8);
+
+            // Read 8 bytes from physical memory
+            u16 word1 = mem.direct16(descriptor_addr);
+            u16 word2 = mem.direct16(descriptor_addr+2);
+            u16 word3 = mem.direct16(descriptor_addr+4);
+
+            // Fill descriptor fields
+            descriptor_cache[(int)segment_number].base = ((word3 & 0xFF) << 16) | word2;
+            descriptor_cache[(int)segment_number].limit = word1;
+            descriptor_cache[(int)segment_number].flags = (word3 >> 8) & 0xFF;
+            descriptor_cache[(int)segment_number].data = segment_data;
+            const char* names[4] = {"ES", "CS", "SS", "DS"};
+            //std::cout << names[(int)segment_number] << ": Protected base=" << descriptor_cache[(int)segment_number].base << std::endl;
+        }
+        else // real mode
+        {
+            descriptor_cache[(int)segment_number].base = (segment_data<<4);
+            descriptor_cache[(int)segment_number].limit = 0xFFFF;
+            descriptor_cache[(int)segment_number].flags = 0;
+            descriptor_cache[(int)segment_number].data = segment_data;
+
+            const char* names[4] = {"ES", "CS", "SS", "DS"};
+            //std::cout << names[(int)segment_number] << ": R" << descriptor_cache[(int)segment_number].base << std::endl;
+        }
+    }
+
+    u32 get_offset(SEG segment_name)
+    {
+        auto& cache = descriptor_cache[(int)segment_name];
+        u32 base = cache.base;
+        return base;
+    }
 
     enum FLAG
     {
@@ -70,15 +154,24 @@ struct CPU8088
 
     void reset()
     {
+        std::cout << "CPU reset 80286" << std::endl;
         halt = false;
         clear_prefix();
         for(u32 i=0; i<16; ++i)
             registers[i] = 0x0000;
-        registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
+
+        registers[IP] = 0xFFF0;
+        msw = 0;
+        cpl = 0;
+
+        load_segment(SEG::ES, 0x0000);
+        load_segment(SEG::CS, 0xF000);
+        load_segment(SEG::SS, 0x0000);
+        load_segment(SEG::DS, 0x0000);
+
     }
 
-
-    static const u32 PREFETCH_QUEUE_SIZE = 6;
+    static const u32 PREFETCH_QUEUE_SIZE = 8;
     u8 prefetch_queue[PREFETCH_QUEUE_SIZE] = {};
     u32 prefetch_address{};
 
@@ -86,43 +179,37 @@ struct CPU8088
     template<typename T>
     T read_inst() requires integral<T>
     {
-        if constexpr(PREFETCH_QUEUE_SIZE == 0)
+        /*T result{};
+        u32 offset = get_offset(registers[CS]);
+        if constexpr(sizeof(T)==1)
         {
-            u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
-            T data = *(T*)(mem.memory_bytes+position);
-            registers[IP] += sizeof(T);
-            return data;
+            result = mem.direct8(offset+registers[IP]);
         }
-        T result{};
-        u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
+        else if constexpr(sizeof(T) == 2)
+        {
+            result = mem.direct16(offset+registers[IP]);
+        }
+        registers[IP] += sizeof(T);
+        return result;*/
+
+
+        u32 offset = get_offset(SEG::CS);
+
+        u32 position = offset+registers[IP];
+        //std::cout << "offset=" << offset << ", position=" << position << std::endl;
         if (prefetch_address != position)
         {
+            //std::cout << "------------------------" << position << std::endl;
             prefetch_address = position;
             for(u32 i=0; i<PREFETCH_QUEUE_SIZE; ++i)
             {
-                prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
+                prefetch_queue[i] = mem.direct8(position+i);
             }
         }
 
-        result = *(T*)(prefetch_queue);
-        /*if constexpr(sizeof(T)==1)
-        {
-            if (mem._8(registers[CS],registers[IP]) != u8(result))
-            {
-                cout << "prefetch byte different from memory at: " << registers[CS] << ":" << registers[IP] << endl;
-                mem.dump_memory("pf8.raw");
-            }
-        }
-        else
-        {
-            if (mem._16(registers[CS],registers[IP]) != u16(result))
-            {
-                cout << "prefetch byte different from memory at: " << registers[CS] << ":" << registers[IP] << endl;
-                mem.dump_memory("pf16.raw");
-            }
+        //std::cout << std::hex << position << " is pos" << std::endl;
 
-        }*/
-
+        T result = *(T*)(prefetch_queue);
         prefetch_address += sizeof(T);
         registers[IP] += sizeof(T);
 
@@ -132,10 +219,8 @@ struct CPU8088
         }
         for(u32 i=PREFETCH_QUEUE_SIZE-sizeof(T); i<PREFETCH_QUEUE_SIZE; ++i)
         {
-            prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
+            prefetch_queue[i] = mem.direct8(position+sizeof(T)+i);
         }
-        do_prefetch_delay = !do_prefetch_delay;
-        cycles_used += (do_prefetch_delay?4*sizeof(T):0);
         return result;
     }
 
@@ -179,10 +264,10 @@ struct CPU8088
          0, 0, 0, 0, 0, 0, 0, 0, //reg
     };
     bool modrm_is_register{};
-    void decode_modrm(u8 mod, u8 rm, u16& segment, u16& offset)
+    void decode_modrm(u8 mod, u8 rm, u32& segment, u16& offset)
     {
         offset = 0;
-        segment = DS;
+        SEG segname = SEG::DS;
 
 		if (mod == 0x1)
         {
@@ -211,11 +296,26 @@ struct CPU8088
             }
 			if ((rm&0x02) && rm != 7)
             {
-				offset += registers[BP], segment = SS;
+				offset += registers[BP], segname = SEG::SS;
             }
 		}
 		cycles_used = ((offset&0x01)<<2); //4 cycles for odd accesses
-        segment = registers[get_segment(segment)];
+        segment = get_offset(get_segment(segname));//registers[get_segment(segment)];
+    }
+
+    u32 decode_modrm_fulladdr(u8 modrm)
+    {
+        u8 mod = (modrm >> 6) & 0x03;
+        u8 rm = modrm & 0x07;
+        modrm_is_register = (mod==0x03);
+		if (mod == 0x03)
+        {
+			return get_r8(rm);
+        }
+        u16 offset{};
+        u32 segment{};
+        decode_modrm(mod,rm,segment,offset);
+        return segment+offset;
     }
 
     u8& decode_modrm_u8(u8 modrm)
@@ -227,11 +327,12 @@ struct CPU8088
         {
 			return get_r8(rm);
         }
-        u16 offset{}, segment{};
+        u16 offset{};
+        u32 segment{};
         decode_modrm(mod,rm,segment,offset);
-        if constexpr (DEBUG_LEVEL > 1)
-            cout << "MEM8! " << segment << ":" << offset << " has " << u32(mem._8(segment, offset)) << " prm=" << u32(mod) << "," << u32(rm) << endl;
-        return mem._8(segment, offset);
+        //if constexpr (DEBUG_LEVEL > 1)
+        //    cout << "MEM8! " << segment << ":" << offset << " has " << u32(mem._8(segment, offset)) << " prm=" << u32(mod) << "," << u32(rm) << endl;
+        return mem.direct8(segment+offset);
     }
 
     u16& decode_modrm_u16(u8 modrm)
@@ -243,11 +344,10 @@ struct CPU8088
         {
 			return get_r16(rm);
         }
-        u16 offset{}, segment{};
+        u16 offset{};
+        u32 segment{};
         decode_modrm(mod,rm,segment,offset);
-        if constexpr (DEBUG_LEVEL > 1)
-            cout << "MEM16! " << segment << ":" << offset << " has " << mem._16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
-        return mem._16(segment, offset);
+        return mem.direct16(segment+offset);
     }
 
     u16 effective_address(u8 modrm)
@@ -260,10 +360,11 @@ struct CPU8088
             cout << "Loading effective address of a register? are you gone mad?" << endl;
             std::abort();
         }
-        u16 offset{}, segment{};
+        u16 offset{};
+        u32 segment{};
         decode_modrm(mod,rm,segment,offset);
-        if constexpr (DEBUG_LEVEL > 1)
-            cout << "LEA! " << segment << ":" << offset << " has " << mem._16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
+        //if constexpr (DEBUG_LEVEL > 1)
+        //    cout << "LEA! " << segment << ":" << offset << " has " << mem._16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
         return offset;
     }
 
@@ -279,24 +380,24 @@ struct CPU8088
         return reg8()[((value&0x3)<<1)+((value&0x4)>>2)];
     }
 
-    u16& get_segment_r16(u8 value)
+    /*u16& get_segment_r16(u8 value)
     {
         return registers[(value&0x03)+8]; //&0x03 for 8086 compatibility
-    }
+    }*/
 
     void print_regs()
     {
         for(int i=0; i<8; ++i)
             std::cout << " " << r16_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i];
-        for(int i=0; i<4; ++i)
-            std::cout << " " << seg_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i+8];
+        //for(int i=0; i<4; ++i)
+        //    std::cout << " " << seg_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i+8];
         std::cout << " FL=" << std::setw(4) << std::setfill('0') << registers[FLAGS] << " IP=" << std::setw(4) << std::setfill('0') << registers[IP]-1;
 
-        std::cout << " S ";
+        /*std::cout << " S ";
         std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]) << ' ';
         std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+2) << ' ';
         std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+4) << ' ';
-        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+6) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+6) << ' ';*/
         std::cout << std::endl;
     }
 
@@ -349,14 +450,14 @@ struct CPU8088
         return out;
     }
 
-    u8 get_segment(u8 default_segment)
+    SEG get_segment(SEG default_segment)
     {
-        return segment_override?segment_override:default_segment;
+        return segment_override!=SEG::NO_OVERRIDE?segment_override:default_segment;
     }
 
     void clear_prefix()
     {
-        segment_override = 0;
+        segment_override = SEG::NO_OVERRIDE;
         string_prefix = 0;
         lock = 0;
     }
@@ -365,7 +466,7 @@ struct CPU8088
         if ((instruction&0xE7) == 0x26) // segment override:
         {
             cycles_used += 2;
-            segment_override = ((instruction>>3)&0x3)|0x8;
+            segment_override = SEG((instruction>>3)&0x3);
             return true;
         }
         if ((instruction&0xFE) == 0xF2)
@@ -406,11 +507,16 @@ struct CPU8088
             ++interrupt_table[n];
 
             push(registers[FLAGS]);
-            push(registers[CS]);
+            push(descriptor_cache[(int)SEG::CS].data);
             push(registers[IP]);
 
-            registers[IP] = mem._16(0, n*4);
-            registers[CS] = mem._16(0, n*4+2);
+            u32 idtr_base = 0;
+            if (msw&1)
+            {
+                idtr_base = idtr.base;
+            }
+            registers[IP] = mem.direct16(idtr_base + n*4); //TODO: check n in protected mode
+            load_segment(SEG::CS, mem.direct16(idtr_base + n*4+2));
             set_flag(F_INTERRUPT,false);
             set_flag(F_TRAP, false);
             if (!forced)
@@ -439,6 +545,11 @@ struct CPU8088
         registers[IP] = original_ip;
         interrupt(5, true);
     }
+    void protection_fault(u16 original_ip)
+    {
+        registers[IP] = original_ip;
+        interrupt(13, true);
+    }
 
     void irq(u8 n)
     {
@@ -448,11 +559,11 @@ struct CPU8088
     void push(u16 data)
     {
         registers[SP] -= 2;
-        mem._16(registers[SS], registers[SP]) = data;
+        mem.direct16(get_offset(SEG::SS) + registers[SP]) = data;
     }
     u16 pop()
     {
-        u16 data = mem._16(registers[SS], registers[SP]);
+        u16 data = mem.direct16(get_offset(SEG::SS) + registers[SP]);
         registers[SP] += 2;
         return data;
     }
@@ -477,7 +588,12 @@ struct CPU8088
 
         inhibit_ss = false;
 
-        if (registers[CS] == 0 && registers[IP] == 0)
+        if (get_offset(SEG::CS)+registers[IP] == 0xFADC4)
+        {
+            std::cout << "JAAAAAA " << registers[AX] << std::endl;
+        }
+
+        if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
         {
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
@@ -488,7 +604,7 @@ struct CPU8088
         u8 instruction = read_inst<u8>();
         if (startprinting)
         {
-            std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << registers[CS]*16+registers[IP]-1;
+            std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << get_offset(SEG::CS)+registers[IP]-1;
             print_regs();
         }
 
@@ -498,13 +614,65 @@ struct CPU8088
             ++prefix_byte_n;
             instruction = read_inst<u8>();
             if (startprinting || DEBUG_LEVEL > 1)
-                std::cout << "prefix read. #" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+                std::cout << "prefix read. #" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS+IP = " << get_offset(SEG::CS) << ":" << registers[IP]-1 << " = " << get_offset(SEG::CS)+registers[IP]-1 << std::endl;
         }
         if (false);
         else if (instruction == 0x0F) // pop cs :-)
         {
-            cout << "POPCS" << endl;
-            invalid_instruction(original_ip); //TODO: v20, 286
+            std::cout << "wtf." << std::endl;
+            u8 secondbyte = read_inst<u8>();
+            u8 modrm = read_inst<u8>();
+            u8 op = u32(modrm>>3)%0x08;
+
+            if (secondbyte == 0x01 && op == 0x02) // LGDT
+            {
+                //TODO: check cpl
+                u32 addr = decode_modrm_fulladdr(modrm);
+                gdtr.n_entries = mem.direct16(addr);
+                gdtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
+
+                std::cout << "Loaded gdtr with n_entries=0x" << std::hex << gdtr.n_entries << " and base=0x" << gdtr.base << std::endl;
+                //startprinting = true;
+            }
+            else if (secondbyte == 0x01 && op == 0x03) // LIDT
+            {
+                //TODO: check cpl
+                u32 addr = decode_modrm_fulladdr(modrm);
+                idtr.n_entries = mem.direct16(addr);
+                idtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
+
+                std::cout << "Loaded idtr with n_entries=0x" << std::hex << idtr.n_entries << " and base=0x" << idtr.base << std::endl;
+            }
+            else if (secondbyte == 0x01 && op == 0x06) // LMSW
+            {
+                msw = (msw & 0xFFF1) | (decode_modrm_u16(modrm) & 0x000F);
+                std::cout << "New msw: " << msw << std::endl;
+
+                /*std::cout << std::dec << gdtr.n_entries << " global entries." << std::endl;
+                std::cout << std::hex;
+                for(int i=0; i<gdtr.n_entries; ++i)
+                {
+                    std::cout << u16(mem.direct8(gdtr.base + i*8)) << " ";
+                    std::cout << u16(mem.direct8(gdtr.base + i*8 +1)) << "       ";
+                    std::cout << u16(mem.direct8(gdtr.base + i*8 +2)) << " ";
+                    std::cout << u16(mem.direct8(gdtr.base + i*8 +3)) << " ";
+                    std::cout << u16(mem.direct8(gdtr.base + i*8 +4)) << "       ";
+                    std::cout << u16(mem.direct8(gdtr.base + i*8 +5)) << " ";
+                    std::cout << std::endl;
+                }*/
+            }
+            else if (secondbyte == 0x01 && op == 0x04) // SMSW
+            {
+                decode_modrm_u16(modrm) = msw;
+            }
+            else
+            {
+                std::cout << "popcs - " << u32(secondbyte) << " op=" << u32(modrm>>3)%0x08 << std::endl;
+                std::cout << "with address: " << effective_address(modrm) << std::endl;
+                std::abort();
+            }
+            cycles_used += 10; //TODO: right values
+            //invalid_instruction(original_ip); //TODO: v20, 286
         }
         else if ((instruction&0xF0) == 0x60)
         {
@@ -536,32 +704,26 @@ struct CPU8088
                 registers[AX] = pop();
                 cycles_used += 30; //TODO: correct value
             }
-            else if (instruction == 0x62)
+            else if (instruction == 0x62) // BOUND
             {
-                //0x62 BOUND modrm
                 u8 modrm = read_inst<u8>();
                 u16& rm = decode_modrm_u16(modrm);
                 u16& r = get_r16((modrm>>3)&0x07);
-                u16 lower_bound = mem._16(registers[get_segment(DS)], rm);
-                u16 upper_bound = mem._16(registers[get_segment(DS)], rm + 2);
+                u16 lower_bound = mem.direct16(get_offset(get_segment(SEG::DS)) + rm);
+                u16 upper_bound = mem.direct16(get_offset(get_segment(SEG::DS)) + rm + 2);
                 if (r < lower_bound || r > upper_bound)
                 {
-                    outside_bound(type == TYPE::i286?original_ip:registers[IP]);
+                    outside_bound(original_ip);
                     cycles_used += 60; //TODO: correct value
                 }
                 cycles_used += 20; //TODO: correct value
             }
-            //FOR NEC v20: implement:
-            //0x63: reads modrm, does nothing
-            //0x64: repnc
-            //0x65: repc
-            //0x66-0x67: weird nec specific FPU stuff, afaik was never implemented properly anyway
-            //
             else if (instruction == 0x68)
             {
                 //0x68 push immed word
                 u16 imm = read_inst<u16>();
                 push(imm);
+                cycles_used += 4;
             }
             else if (instruction == 0x69)
             {
@@ -586,6 +748,7 @@ struct CPU8088
                 //0x6A push immed byte, sign extension!
                 i8 imm = read_inst<u8>();
                 push(i16(imm));
+                cycles_used += 4;
             }
             else if (instruction == 0x6B)
             {
@@ -609,7 +772,7 @@ struct CPU8088
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    mem._8(registers[ES], registers[DI]) = IO::in(port);
+                    mem.direct8(get_offset(SEG::ES) + registers[DI]) = IO::in(port);
                     registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                     cycles_used += 14;
                 }
@@ -617,7 +780,7 @@ struct CPU8088
                 {
                     while (registers[CX] != 0)
                     {
-                        mem._8(registers[ES], registers[DI]) = IO::in(port);
+                        mem.direct8(get_offset(SEG::ES) + registers[DI]) = IO::in(port);
                         registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
                         cycles_used += 14;
@@ -631,7 +794,7 @@ struct CPU8088
                 {
                     u8 low = IO::in(port);
                     u8 high = IO::in(port + 1);
-                    mem._16(registers[ES], registers[DI]) = (high << 8) | low;
+                    mem.direct16(get_offset(SEG::ES) + registers[DI]) = (high << 8) | low;
                     registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                     cycles_used += 14;
                 }
@@ -641,7 +804,7 @@ struct CPU8088
                     {
                         u8 low = IO::in(port);
                         u8 high = IO::in(port + 1);
-                        mem._16(registers[ES], registers[DI]) = (high << 8) | low;
+                        mem.direct16(get_offset(SEG::ES) + registers[DI]) = (high << 8) | low;
                         registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
                         cycles_used += 14;
@@ -653,7 +816,7 @@ struct CPU8088
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    IO::out(port, mem._8(registers[get_segment(DS)], registers[SI]));
+                    IO::out(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                     registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                     cycles_used += 14;
                 }
@@ -661,7 +824,7 @@ struct CPU8088
                 {
                     while (registers[CX] != 0)
                     {
-                        IO::out(port, mem._8(registers[get_segment(DS)], registers[SI]));
+                        IO::out(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                         registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
                         cycles_used += 14;
@@ -673,7 +836,7 @@ struct CPU8088
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    u16 value = mem._16(registers[get_segment(DS)], registers[SI]);
+                    u16 value = mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]);
                     IO::out(port, value & 0xFF);
                     IO::out(port + 1, value >> 8);
                     registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
@@ -683,7 +846,7 @@ struct CPU8088
                 {
                     while (registers[CX] != 0)
                     {
-                        u16 value = mem._16(registers[get_segment(DS)], registers[SI]);
+                        u16 value = mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]);
                         IO::out(port, value & 0xFF);
                         IO::out(port + 1, value >> 8);
                         registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
@@ -744,6 +907,53 @@ struct CPU8088
                 rm = result;
             }
         }
+        else if (instruction == 0xC1)
+        {
+            //cout << "BLAH: " << u32(instruction) << endl; std::abort();
+            //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
+
+            u8 inst_type = (modrm >> 3) & 0x07;
+            cycles_used += (modrm_is_register ? 15 : 23); // Assuming 15 cycles for register and 23 for memory
+
+            for (u32 i = 0; i < amount; ++i)
+            {
+                u16 original = rm;
+                u16 result = 0;
+
+                if (inst_type == 6)
+                {
+                    invalid_instruction(original_ip);
+                    break;
+                }
+                // ROL ROR RCL RCR SHL SHR SAL SAR
+                else if ((inst_type & 1) == 0) // ROL RCL SHL SAL
+                {
+                    result = (original << 1) | ((inst_type & 0x04) ? 0 : ((inst_type & 0x02) ? flag(F_CARRY) : original >> 15));
+                }
+                else if (inst_type == 1 || inst_type == 3) // ROR RCR
+                {
+                    result = (original >> 1) | ((inst_type & 0x02) ? flag(F_CARRY) << 15 : original << 15);
+                }
+                else if (inst_type == 5 || inst_type == 7) // SHR SAR
+                {
+                    result = (original >> 1) | ((inst_type & 0x02) ? original & 0x8000 : 0);
+                }
+                set_flag(F_CARRY, original & ((inst_type & 1) ? 0x01 : 0x8000));
+                u8 flag_value = (inst_type & 1) ? result : original;
+                set_flag(F_OVERFLOW, (bool(flag_value & 0x8000) != bool(flag_value & 0x4000)));
+                if (inst_type & 0x04)
+                {
+                    set_flag(F_SIGN, result & 0x8000);
+                    set_flag(F_ZERO, result == 0);
+                    set_flag(F_AUX_CARRY, (inst_type == 4 ? result & 0x10 : false));
+                    set_flag(F_PARITY, byte_parity[result & 0xFF]);
+                }
+                rm = result;
+            }
+        }
         else if (instruction == 0xC8)
         {
             //0xC8 ENTER data16, imm8
@@ -757,7 +967,7 @@ struct CPU8088
                 for (u8 i = 1; i < nesting_level; ++i)
                 {
                     registers[BP] -= 2;
-                    push(mem._16(registers[SS], registers[BP]));
+                    push(mem.direct16(get_offset(SEG::SS) + registers[BP]));
                 }
                 push(frame_temp);
             }
@@ -824,18 +1034,15 @@ struct CPU8088
         else if ((instruction&0xE6) == 0x06) // push/pop SEG
         {
             u8 seg_n = (instruction>>3)&0x03;
-            u16& reg = get_segment_r16(seg_n);
             if (instruction&0x01)
             {
                 cycles_used += 12;
-                reg = pop();
-                if (seg_n == 2 || type != TYPE::i286) //SS
-                    inhibit_ss = true;
+                load_segment(SEG(seg_n), pop());
             }
             else
             {
                 cycles_used += 14;
-                push(reg);
+                push(descriptor_cache[seg_n].data);
             }
         }
         else if (instruction == 0x27) // DAA
@@ -1064,9 +1271,63 @@ struct CPU8088
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
-            u16& r = get_segment_r16((modrm>>3)&0x07);
-            rm = r;
+            if (((modrm>>3)&0x07) < 4)
+            {
+                rm = descriptor_cache[(modrm>>3)&0x07].data;
+            }
+            else
+            {
+                invalid_instruction(original_ip);
+            }
             cycles_used += (modrm_is_register?2:13);
+        }
+        else if (instruction == 0x8E) // MOV SwEw
+        {
+            u8 modrm = read_inst<u8>();
+            u16& rm = decode_modrm_u16(modrm);
+            u8 seg_n = (modrm>>3)&0x07;
+
+            if(seg_n >= 4) //not valid segment registers, we only have four.
+            {
+                invalid_instruction(original_ip);
+            }
+            else if (msw&1) //protected mode
+            {
+                if (seg_n == 1) //CS
+                {
+                    protection_fault(original_ip);
+                }
+                else
+                {
+                    u16 selector = rm;
+
+                    // Get descriptor
+                    u16 index = selector >> 3;
+                    if (index * 8 >= gdtr.n_entries)
+                    {
+                        protection_fault(original_ip);
+                    }
+                    else
+                    {
+                        load_segment(SEG(seg_n), selector);
+                        Descriptor& desc = descriptor_cache[seg_n];
+
+                        // Check descriptor privileges
+                        if (desc.dpl() < cpl || desc.dpl() < (selector & 3))
+                        {
+                            protection_fault(original_ip);
+                        }
+                    }
+
+                }
+
+            }
+            else
+            {
+                load_segment(SEG(seg_n), rm);
+            }
+            cycles_used += (modrm_is_register?2:12);
+
         }
         else if (instruction == 0x8D) // LEA Gv M
         {
@@ -1074,27 +1335,6 @@ struct CPU8088
             u16& r = get_r16((modrm>>3)&0x07);
             r = effective_address(modrm);
             cycles_used += 2;
-        }
-        else if (instruction == 0x8E) // MOV SwEw
-        {
-            u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            u8 seg_n = (modrm>>3)&0x07;
-            u16& r = get_segment_r16(seg_n);
-
-            if(seg_n == (CS-8)) //CS
-            {
-                invalid_instruction(original_ip);
-            }
-            else
-            {
-                if (seg_n == (SS-8) || type != TYPE::i286) //SS
-                    inhibit_ss = true;
-
-                r = rm;
-                cycles_used += (modrm_is_register?2:12);
-            }
-
         }
         else if (instruction == 0x8F) //POP modrm
         {
@@ -1127,9 +1367,9 @@ struct CPU8088
         {
             u16 pointer = read_inst<u16>();
             u16 segment = read_inst<u16>();
-            push(registers[CS]);
+            push(descriptor_cache[(int)SEG::CS].data);
             push(registers[IP]);
-            registers[CS] = segment;
+            load_segment(SEG::CS, segment);
             registers[IP] = pointer;
             cycles_used += 28;
         }
@@ -1163,14 +1403,14 @@ struct CPU8088
         }
         else if (instruction >= 0xA0 && instruction <= 0xA3) //AL/X=MEM  MEM=AL/X
         {
-            u16 source_segment = registers[get_segment(DS)];
+            u16 source_segment = get_offset(get_segment(SEG::DS));
             u16 source_offset = read_inst<u16>();
             switch(instruction)
             {
-                case 0xA0: get_r8(0) = mem._8(source_segment, source_offset); break;
-                case 0xA1: registers[AX] = mem._16(source_segment, source_offset); break;
-                case 0xA2: mem._8(source_segment, source_offset) = get_r8(0); break;
-                case 0xA3: mem._16(source_segment, source_offset) = registers[AX]; break;
+                case 0xA0: get_r8(0) = mem.direct8(source_segment + source_offset); break;
+                case 0xA1: registers[AX] = mem.direct16(source_segment + source_offset); break;
+                case 0xA2: mem.direct8(source_segment + source_offset) = get_r8(0); break;
+                case 0xA3: mem.direct16(source_segment + source_offset) = registers[AX]; break;
             }
             cycles_used += 14;
         }
@@ -1210,7 +1450,7 @@ struct CPU8088
                 0, 0,10,14,15,15,15,19,//check LOD
             };
 
-            u16 source_segment = registers[get_segment(DS)];
+            //u16 source_segment = registers[get_segment(DS)];
 
             u16 program = programs[(instruction>>1)&0x07];
             if (registers[CX] != 0 || string_prefix == 0) do
@@ -1219,15 +1459,15 @@ struct CPU8088
                 if (big)
                 {
                     if (program&0x01)
-                        value1 = mem._16(source_segment, registers[SI]);
+                        value1 = mem.direct16(get_offset(get_segment(SEG::DS)) +registers[SI]);
                     if (program&0x02)
-                        value2 = mem._16(registers[ES], registers[DI]);
+                        value2 = mem.direct16(get_offset(SEG::ES) +registers[DI]);
                     if (program&0x04)
                         value1 = registers[AX];
                     if (program&0x10)
-                        mem._16(source_segment, registers[SI]) = value1;
+                        mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]) = value1;
                     if (program&0x20)
-                        mem._16(registers[ES],registers[DI]) = value1;
+                        mem.direct16(get_offset(SEG::ES) + registers[DI]) = value1;
                     if (program&0x40)
                         registers[AX] = value1;
                     if (program&0x100)
@@ -1236,15 +1476,15 @@ struct CPU8088
                 else
                 {
                     if (program&0x01)
-                        value1 = mem._8(source_segment, registers[SI]);
+                        value1 = mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]);
                     if (program&0x02)
-                        value2 = mem._8(registers[ES], registers[DI]);
+                        value2 = mem.direct8(get_offset(SEG::ES) + registers[DI]);
                     if (program&0x04)
                         value1 = get_r8(0);
                     if (program&0x10)
-                        mem._8(source_segment, registers[SI]) = value1;
+                        mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]) = value1;
                     if (program&0x20)
-                        mem._8(registers[ES],registers[DI]) = value1;
+                        mem.direct8(get_offset(SEG::ES) + registers[DI]) = value1;
                     if (program&0x40)
                         get_r8(0) = value1;
                     if (program&0x100)
@@ -1294,30 +1534,30 @@ struct CPU8088
             get_r16(instruction&0x07) = read_inst<u16>();
             cycles_used += 4;
         }
-        else if (instruction == 0xC0 || instruction == 0xC2) // near return w/imm
+        else if (instruction == 0xC2) // near return w/imm
         {
             u16 imm = read_inst<u16>();
             registers[IP] = pop();
             registers[SP] += imm;
             cycles_used += 24;
         }
-        else if (instruction == 0xC1 || instruction == 0xC3) // near return
+        else if (instruction == 0xC3) // near return
         {
             registers[IP] = pop();
             cycles_used += 20;
         }
-        else if (instruction == 0xC8 || instruction == 0xCA) // far return w/imm
+        else if (instruction == 0xCA) // far return w/imm
         {
             u16 imm = read_inst<u16>();
             registers[IP] = pop();
-            registers[CS] = pop();
+            load_segment(SEG::CS, pop());
             registers[SP] += imm;
             cycles_used += 33;
         }
-        else if (instruction == 0xC9 || instruction == 0xCB) // far return
+        else if (instruction == 0xCB) // far return
         {
             registers[IP] = pop();
-            registers[CS] = pop();
+            load_segment(SEG::CS, pop());
             cycles_used += 34;
         }
         else if ((instruction&0xFE) == 0xC4) // LES LDS
@@ -1326,7 +1566,7 @@ struct CPU8088
             u16& rm = decode_modrm_u16(modrm);
             u16& r = get_r16((modrm>>3)&0x07);
             r = rm;
-            registers[(instruction&1)?DS:ES] = *((&rm)+1); //ES or DS, based on the opcode
+            load_segment((instruction&1)?SEG::DS:SEG::ES, *((&rm)+1)); //ES or DS, based on the opcode
             cycles_used += 24;
         }
         else if (instruction == 0xC6)
@@ -1372,13 +1612,13 @@ struct CPU8088
         else if (instruction == 0xCF) // IRET!
         {
             registers[IP] = pop();
-            registers[CS] = pop();
+            load_segment(SEG::CS, pop());
             u16 newflags = pop();
             const u16 FLAG_MASK = 0b0000'1111'1101'0101;
             registers[FLAGS] = newflags;//(registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) | 0x0002;
 
-            if (startprinting)
-                cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
+            //if (startprinting)
+            //    cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
             cycles_used += 44;
         }
         else if (instruction == 0xD0 || instruction == 0xD2)
@@ -1555,7 +1795,7 @@ struct CPU8088
         }
         else if (instruction == 0xD7) // XLAT
         {
-            u8 result = mem._8(registers[get_segment(DS)],registers[BX]+(registers[AX]&0xFF));
+            u8 result = mem.direct8(get_offset(get_segment(SEG::DS))+registers[BX]+(registers[AX]&0xFF));
             get_r8(0) = result;
             cycles_used += 11;
         }
@@ -1625,7 +1865,7 @@ struct CPU8088
             u16 new_cs = read_inst<u16>();
 
             registers[IP] = new_ip;
-            registers[CS] = new_cs;
+            load_segment(SEG::CS, new_cs);
             cycles_used += 15;
         }
         else if (instruction == 0xEB)
@@ -1737,6 +1977,8 @@ struct CPU8088
                 }
                 else if (op == 6)
                 {
+                    std::cout << "DIVISIO PIQ 1" << std::endl;
+
                     u8 denominator = rm;
                     u16 result = registers[AX]/denominator;
                     if (result >= 0x100)
@@ -1757,6 +1999,8 @@ struct CPU8088
                 }
                 else if (op == 7)
                 {
+                    std::cout << "DIVISIO PIQ 2" << std::endl;
+
                     i8 denominator = i8(rm);
                     i16 result = i16(registers[AX]) / denominator;
                     if (result < -0x80 || result >= 0x80) //186+ accept -0x80
@@ -1839,6 +2083,7 @@ struct CPU8088
                 }
                 else if (op == 6)
                 {
+                    std::cout << "DIVISIO" << std::endl;
                     u32 numerator = (registers[DX]<<16)|registers[AX];
                     u16 denominator = rm;
                     u32 result = numerator / denominator;
@@ -1936,9 +2181,9 @@ struct CPU8088
             {
                 u16 segment = *((&reg)+1);
                 u16 address = reg;
-                push(registers[CS]);
+                push(descriptor_cache[(int)SEG::CS].data);
                 push(registers[IP]);
-                registers[CS] = segment;
+                load_segment(SEG::CS, segment);
                 registers[IP] = address;
                 cycles_used += (modrm_is_register?20:53);
             }
@@ -1950,7 +2195,7 @@ struct CPU8088
             else if (op == 5) //jmp far
             {
                 registers[IP] = reg;
-                registers[CS] = *((&reg)+1);
+                load_segment(SEG::CS, *((&reg)+1));
                 cycles_used += (modrm_is_register?11:24);
             }
             else if (op == 6)
@@ -1965,7 +2210,7 @@ struct CPU8088
         }
         else
         {
-            std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+            //std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
             std::cout << "# " << std::dec << cycles << std::hex << ", Unknown opcode: 0x" << u32(instruction) << std::endl;
             std::abort();
         }

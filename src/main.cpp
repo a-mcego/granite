@@ -56,6 +56,7 @@ struct GlobalSettings
     {
         MACHINE_PC,
         MACHINE_XT,
+        MACHINE_AT,
 
         MACHINE_COUNT
     } machine=MACHINE_PC;
@@ -63,7 +64,7 @@ struct GlobalSettings
 
 const u32 DEBUG_LEVEL = 0;
 
-
+u8 global_port0x61{};
 const u32 PRINT_START = 0;
 u64 cycles{};
 u32 readonly_start = 0xF0000;
@@ -453,12 +454,13 @@ struct CGA
             //bit 3 = vertical sync pulse!
             readdata |= (vertical_retrace<<3);
         }
-
+        //std::cout << "r" << u32(port) << " d" << u32(readdata) << " " << std::endl;
         return readdata;
     }
 
     void write(u8 port, u8 data) //port from 0 to 15! inclusive.
     {
+        //std::cout << "w" << u32(port) << " d" << u32(data) << " " << std::endl;
         if (port == 0x04)
         {
             current_register = data;
@@ -757,338 +759,6 @@ struct LTEMS
     }
 } ltems;
 
-struct MemoryManager
-{
-    u8 memory_bytes[(1<<20)+1] = {};
-    void dump_memory(const char* filename)
-    {
-        FILE* filu = fopen(filename, "wb");
-        fwrite(memory_bytes, 0x100000, 1, filu);
-        fclose(filu);
-    }
-
-    u16 readonly_words[256] = {};
-    u8 readonly_word{};
-    u8 readonly_bytes[256] = {};
-    u8 readonly_byte{};
-
-    u16 rw_words[256] = {};
-    u8 rw_word{};
-
-    bool cga_used{};
-
-    u8& _8(u16 segment, u16 index)
-    {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++readonly_byte;
-            readonly_bytes[readonly_byte] = memory_bytes[total_address];
-            return readonly_bytes[readonly_byte];
-        }
-
-        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
-            return ltems._8(total_address&0xFFFF);
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory8(total_address&0x7FFF);
-        }
-       return memory_bytes[total_address];
-    }
-    u16& _16(u16 segment, u16 index)
-    {
-        if (index == 0xFFFF)
-        {
-            //cout << segment << ":FFFF goes BRRRRRRRRRRRRRRRRRRRRRRRRR" << endl;
-        }
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++readonly_word;
-            readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+total_address);
-            return readonly_words[readonly_word];
-        }
-        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
-            return ltems._16(total_address&0xFFFF);
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory16(total_address&0x7FFF);
-        }
-        return *(u16*)(void*)(memory_bytes+total_address);
-    }
-
-    void update()
-    {
-
-    }
-} mem;
-
-struct MemoryManager8088
-{
-    u8 memory_bytes[(1<<20)+1] = {};
-    void dump_memory(const char* filename)
-    {
-        FILE* filu = fopen(filename, "wb");
-        fwrite(memory_bytes, 0x100000, 1, filu);
-        fclose(filu);
-    }
-
-    u16 readonly_words[256] = {};
-    u8 readonly_word{};
-    u8 readonly_bytes[256] = {};
-    u8 readonly_byte{};
-
-    u16 rw_words[256] = {};
-    u16 rw_segs[256] = {};
-    u16 rw_offsets[256] = {};
-    u8 rw_word{};
-
-    bool cga_used{};
-
-    u8& _8(u16 segment, u16 index)
-    {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++readonly_byte;
-            readonly_bytes[readonly_byte] = memory_bytes[total_address];
-            return readonly_bytes[readonly_byte];
-        }
-
-        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
-            return ltems._8(total_address&0xFFFF);
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory8(total_address&0x7FFF);
-        }
-        return memory_bytes[total_address];
-    }
-    u16& _16(u16 segment, u16 index)
-    {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++readonly_word;
-            readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+total_address);
-            return readonly_words[readonly_word];
-        }
-        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
-            return ltems._16(total_address&0xFFFF);
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory16(total_address&0x7FFF);
-        }
-        rw_words[rw_word] = _8(segment,index);
-        rw_words[rw_word] |= (_8(segment,index+1) << 8);
-        rw_segs[rw_word] = segment;
-        rw_offsets[rw_word] = index;
-        ++rw_word;
-        return rw_words[rw_word-1];
-    }
-
-    void update()
-    {
-        for(int i=0; i<rw_word; ++i)
-        {
-            _8(rw_segs[i], rw_offsets[i]) = (rw_words[i]&0xFF);
-            _8(rw_segs[i], rw_offsets[i]+1) = (rw_words[i]>>8);
-        }
-        rw_word = 0;
-    }
-};
-
-struct BEEPER
-{
-    i16 buffer[1<<16] = {};
-    u16 write_offset{};
-    u16 read_offset{};
-
-    //u8 timer{};
-
-    i16 sampleA{}, sampleB{}, sampleC{};
-
-    u8 pb1{}; //speaker data
-    u8 pb0{}; //timer gate
-
-    void set_output_from_pit(bool value)
-    {
-        /*if (globalsettings.sound_on)
-        {
-            static FILE* filu = nullptr;
-            if (filu == nullptr)
-                filu = fopen("d:\\out2.raw", "wb");
-            fwrite(&sampleA, 2, 1, filu);
-        }*/
-        sampleA = ((value&pb1)?60*256:0)*(pb0?-1:1);
-        sampleB = ((sampleB<<5)-sampleB+sampleA)>>5; //crude lowpass
-        sampleC = ((sampleC<<5)-sampleC+sampleB)>>5; //crude lowpass
-    }
-
-    void cycle()
-    {
-        i16 state = sampleC;
-        i32 data = state+ym3812.sample;
-        data = (data<-32768?-32768:data);
-        data = (data>32767?32767:data);
-        buffer[write_offset] = globalsettings.sound_on?i16(data):i16(0);
-        ++write_offset;
-    }
-} beeper;
-
-u64 totalframes = 0;
-
-//we need to somehow sync the "real audio timing" to the "emulator timing"
-//this takes some thinking.
-
-//METHOD 1: always take the N last frames. might lead to misses or repetition, but has stable pitch!
-void audio_method1(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-    static bool started{false};
-    if (!started)
-    {
-        started = true;
-        beeper.read_offset = beeper.write_offset-256;
-    }
-    u16 offset_end = beeper.write_offset;
-    u16 offset_start = beeper.read_offset;
-    u16 done_count = u16(offset_end-offset_start);
-    if (frameCount == 0 || done_count == 0)
-        return;
-
-    totalframes += frameCount;
-    offset_start = offset_end-frameCount;
-    i16* pi16Output = (i16*)pOutput;
-    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
-    {
-        i16 data = beeper.buffer[u16(offset_start+done_frames)];
-        *pi16Output = data;
-        ++pi16Output;
-    }
-}
-
-//METHOD 2: resample the M last frames to fit into frameCount. always uses every sample but has unstable pitch!
-void audio_method2(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-    static bool started{false};
-    if (!started)
-    {
-        started = true;
-        beeper.read_offset = beeper.write_offset-256;
-    }
-    u16 offset_end = beeper.write_offset;
-    u16 offset_start = beeper.read_offset;
-    u16 done_count = u16(offset_end-offset_start);
-    if (frameCount == 0 || done_count == 0)
-        return;
-
-    totalframes += frameCount;
-    u64 frame_counter=0;
-    i16* pi16Output = (i16*)pOutput;
-    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
-    {
-        i16 data = beeper.buffer[u16(offset_start+frame_counter/frameCount)];
-        *pi16Output = data;
-        ++pi16Output;
-        frame_counter += done_count;
-    }
-    beeper.read_offset += frame_counter/frameCount;
-}
-
-//METHOD 3: dynamic resampling. experimental!
-i16 additional_samples = 0;
-const float SAMPLERATE = 48000.0;
-float veer = (14318180.0/298.0)/SAMPLERATE;
-void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-    static bool started{false};
-    u16 offset_end = beeper.write_offset;
-    if (!started)
-    {
-        started = true;
-        beeper.read_offset = offset_end-256;
-    }
-    u16 offset_start = beeper.read_offset;
-    u16 done_count = u16(offset_end-offset_start);
-    if (frameCount == 0 || done_count == 0)
-        return;
-
-    totalframes += frameCount;
-    u64 frame_counter=0;
-
-    done_count = frameCount*veer+additional_samples;
-    i16* pi16Output = (i16*)pOutput;
-    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
-    {
-        i16 data = beeper.buffer[offset_start];
-        *pi16Output = data;
-        ++pi16Output;
-        frame_counter += done_count;
-        while(frame_counter >= frameCount)
-        {
-            ++offset_start;
-            frame_counter -= frameCount;
-            if (offset_start == offset_end)
-                goto double_break; //oh no :o
-        }
-    }
-double_break: // oh no :O
-    u16 left = (offset_end-offset_start);
-
-    if (u16(offset_end-offset_start) >= 2048)
-        offset_start = offset_end-256;
-
-    if (left > 1024)
-        additional_samples = 2;
-    else if (left > 260)
-        additional_samples = 1;
-    else if (left < 252)
-        additional_samples = -1;
-    else
-        additional_samples = 0;
-
-    beeper.read_offset = offset_start;
-}
-
-struct MiniAudio
-{
-    ma_result result;
-    ma_device_config deviceConfig;
-    ma_device device;
-
-    MiniAudio()
-    {
-        deviceConfig = ma_device_config_init(ma_device_type_playback);
-        deviceConfig.playback.format   = ma_format_s16;
-        deviceConfig.playback.channels = 1;
-        deviceConfig.sampleRate        = u32(SAMPLERATE);
-        deviceConfig.dataCallback      = audio_method3;
-
-        deviceConfig.noPreSilencedOutputBuffer = true;
-        deviceConfig.noClip = true;
-        deviceConfig.noFixedSizedCallback = true;
-
-        if (ma_device_init(NULL, &deviceConfig, &device) != MA_SUCCESS)
-        {
-            cout << "MINIAUDIO init not succesful." << endl;
-            std::abort();
-        }
-        if (ma_device_start(&device) != MA_SUCCESS)
-        {
-            cout << "MINIAUDIO device start not successful. No audio will be output." << endl;
-            ma_device_uninit(&device);
-        }
-    }
-
-    ~MiniAudio()
-    {
-        ma_device_uninit(&device);
-    }
-} miniaudio;
-
 struct CHIP8259 //PIC
 {
     u8 init_state{}; // are we initializing?
@@ -1255,9 +925,675 @@ struct CHIP8259 //PIC
         irr |= (1<<irq);
         return true;
     }
-} pic;
+} pic, pic2;
 
-struct CHIP8255 //keyboard etc
+struct CHIP8042 //AT keyboard etc
+{
+    static const u8 FLOPPY_DRIVES = 2;
+    static const u8 HAS_8087 = 0;
+    static const u8 MEMORY_BANKS = 4;
+
+    enum VIDEO_CARD_TYPES
+    {
+        V_OTHER=0x00,
+        CGA40=0x10,
+        CGA80=0x20,
+        MDA=0x30
+    } const static VIDEO_CARD_TYPE = CGA80;
+
+    //onboard DIP switches
+
+    static const u8 SW1 = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
+    static const u8 SW2 = 0b1'1'1'1'0'0'1'0;//TODO: make these into setuppable bools
+
+    static const u8 XT_SW = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
+
+    u8 regs[4] = {};
+    u8 keyboard_self_test{0}; //if > 0, is doing a self test
+    bool keyboard_self_test_done{};
+    static const u8 KEYBOARD_SELF_TEST_LENGTH = 16; //:peeposhrug: lol
+    u8 current_scancode = 0;
+    bool is_initialized{false};
+
+    deque<u8> scancode_queue;
+    u16 kbd_wait{};
+
+    u8 clear_input_bit{};
+
+    /* status byte documentation
+    Bit 7: Parity error
+    Bit 6: Timeout on kbd->ctrl
+    Bit 5: Timeout on ctrl->kbd
+    Bit 4: Keyboard lock
+    Bit 3: Command/Data
+        0: Last write to input buffer was data (port 0x60). 1: Last write to input buffer was a command (port 0x64).
+
+    Bit 2: System flag. 0 after power on reset, 1 after ctrl self-test
+
+    Bit 1: Input buffer status
+        0: empty, can be written. 1: full, don't write yet.
+
+    Bit 0: Output buffer status
+        0: empty, don't read yet. 1: full, can be read.
+    */
+    u8 status_byte{0x18};
+    u8 result{};
+    u8 ram[32] = {};
+    u8 command{};
+
+    /*
+    P1 documentation
+    bit 7 	Keyboard lock 	0: locked, 1: not locked
+    bit 6 	Display 	0: CGA, 1: MDA
+    bit 5 	Manufacturing jumper 	0: installed, 1: not installed
+            with jumper the BIOS runs an infinite diagnostic loop
+    bit 4 	RAM on motherboard 	0: 512 KB, 1: 256 KB
+    bit 3 	  	Unused in ISA, EISA, PS/2 systems
+            Can be configured for clock switching
+    bit 2 	  	Unused in ISA, EISA, PS/2 systems
+            Can be configured for clock switching
+        Keyboard power 	PS/2 MCA: 0: keyboard power normal, 1: no power
+    bit 1 	Mouse data in 	Unused in ISA
+    bit 0 	Keyboard data in 	Unused in ISA
+    */
+    u8 P1{0xA0};
+    /*
+    P2 documentation
+    bit 7 	Keyboard data 	data to keyboard
+    bit 6 	Keyboard clock
+    bit 5 	IRQ12 	0: IRQ12 not active, 1: active
+    bit 4 	IRQ1 	0: IRQ1 not active, 1: active
+    bit 3 	Mouse clock 	Unused in ISA
+    bit 2 	Mouse data 	Unused in ISA. Data to mouse
+    bit 1 	A20 	0: A20 line is forced 0, 1: A20 enabled
+    bit 0 	Reset 	0: reset CPU, 1: normal
+    */
+    u8 P2{};
+
+    bool A20()
+    {
+        return P2&2;
+    }
+    bool is_reset()
+    {
+        bool ret = P2&1;
+        P2 |= 0x01;
+        if (!ret)
+        {
+            ram[0] |= 0x04;
+        }
+        return !ret;
+    }
+
+    void press(u8 scancode)
+    {
+        if (is_initialized)
+        {
+            scancode_queue.push_back(scancode);
+        }
+    }
+
+    u8 read(u8 port) //port from 0 to 4! inclusive
+    {
+        if (port == 0)
+        {
+            if (command >= 0x00 && command <= 0x3F)
+            {
+                result = ram[command&0x1F];
+            }
+            if (command == 0xC0)
+            {
+                result = P1;
+            }
+            if (command == 0xD0)
+            {
+                result = P2;
+            }
+            if (command == 0xAB)
+            {
+                result = 0;
+            }
+            //std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
+            status_byte &= 0xFE; //clear "output byte available" bit
+            return result;
+        }
+        if (port == 1)
+        {
+            //std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(global_port0x61) << std::endl;
+            return global_port0x61;
+        }
+        if (port == 4)
+        {
+            //std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte) << std::endl;
+            return status_byte;
+        }
+
+        //what
+        cout << __PRETTY_FUNCTION__ << " weird thing?" << endl;
+        std::abort();
+    }
+
+    void write(u8 port, u8 data) //port from 0 to 4! inclusive. 0 is port 0x80, 4 is port 0x84 etc.
+    {
+        if (port != 1)
+            std::cout << std::hex << "keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
+        if (port == 0)
+        {
+            status_byte = (status_byte&0b1111'1110);
+            std::cout << "command is: " << (u32)command << std::endl;
+            if (command >= 0x40 && command <= 0x7F)
+            {
+                ram[command&0x1F] = data;
+                return;
+            }
+            if (command == 0xC1) //write P1
+            {
+                P1 = data;
+                return;
+            }
+            if (command == 0xD1) //write P2
+            {
+                P2 = data;
+                return;
+            }
+        }
+        else if (port == 1)
+        {
+            //global_port0x61 = data;
+            return;
+        }
+        else if (port == 4)
+        {
+            status_byte = status_byte | 0x08;
+            command = data;
+            status_byte |= 0x02; //input byte done - don't do more!
+            clear_input_bit = 32;
+            if (data == 0xAA)
+            {
+                result = 0x55;
+                status_byte |= 0x04; //self-test done
+                std::cout << "Keyboard self-test done!" << std::endl;
+                status_byte |= 0x01; //output byte available!
+
+                clear_input_bit = 32;
+                return;
+            }
+            else if (data >= 0x00 && data <= 0x7F) // write kbd ctrl ram
+                return;
+            else if (data == 0xC0) //read P1
+            {
+                result = 0b0000'0000;
+                status_byte |= 0x01; //output byte available!
+                return;
+            }
+            else if (data == 0xA1) //read firmware version (unimplemented)
+                return;
+            else if (data == 0xD1) //write P2
+                return;
+            else if (data == 0xFE) //RESET
+            {
+                P2 &= 0xFE;
+                return;
+            }
+            else if (command == 0xAD) //disable kbd
+            {
+                ram[0] |= 0x10; //set bit 4 -> disable kbd
+                return;
+            }
+            else if (command == 0xAE) //enable kbd
+            {
+                ram[0] &= 0xEF; //clear bit 4 -> enable kbd
+                return;
+            }
+            else if (command == 0xAB) // interface test - return 0 for success
+            {
+                return;
+            }
+        }
+        std::cout << "unknown, aborting." << std::endl;
+        std::abort();
+    }
+
+    void cycle()
+    {
+        if (clear_input_bit > 0)
+        {
+            --clear_input_bit;
+            if (clear_input_bit == 0)
+            {
+                status_byte &= 0xFD; //clear bit 1: input buffer bit
+            }
+        }
+        if (keyboard_self_test > 0)
+        {
+            --keyboard_self_test;
+            if (keyboard_self_test == 0) //finished the test :-)
+            {
+                keyboard_self_test_done = true;
+                is_initialized = true;
+                pic.request_interrupt(1);
+            }
+        }
+
+        if (!scancode_queue.empty())
+        {
+            if (kbd_wait == 0 && current_scancode == 0)
+            {
+                current_scancode = scancode_queue.front();
+                bool result = pic.request_interrupt(1);
+                if (result)
+                {
+                    scancode_queue.pop_front();
+                }
+                kbd_wait = 2048;
+            }
+            else
+            {
+                --kbd_wait;
+            }
+        }
+    }
+} kbd;
+
+const u32 MEMORY_SIZE = (1<<21);
+struct MemoryManager286
+{
+    u8 memory_bytes[MEMORY_SIZE+1] = {};
+    void dump_memory(const char* filename)
+    {
+        FILE* filu = fopen(filename, "wb");
+        fwrite(memory_bytes, 0x100000, 1, filu);
+        fclose(filu);
+    }
+
+    u16 readonly_words[256] = {};
+    u8 readonly_word{};
+    u8 readonly_bytes[256] = {};
+    u8 readonly_byte{};
+
+    u16 rw_words[256] = {};
+    u8 rw_word{};
+
+    u16 INVALID_ADDRESS_16[16];
+    u8 INVALID_ADDRESS_8[16];
+    u16& direct16(u32 address)
+    {
+        if (!kbd.A20())
+            address &= 0xFFEFFFFF;
+        if (address >= 0xB8000 && address <= 0xBFFFF)
+            return cga.memory16(address&0x7FFF);
+        if (address >= 0xE0000 && address <= 0xEFFFF)
+            return ltems._16(address&0xFFFF);
+        if (address >= 0xA0000 && address <= 0xFFFFF) //upper memory area, make read-only
+        {
+            ++readonly_word;
+            readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+address);
+            return readonly_words[readonly_word];
+        }
+        if (address >= MEMORY_SIZE)
+        {
+            INVALID_ADDRESS_16[0] = 0xFFFF;
+            return INVALID_ADDRESS_16[0];
+        }
+        return *(u16*)(void*)(memory_bytes+address);
+    }
+    u8& direct8(u32 address)
+    {
+        //std::cout << "direct8 " << std::hex << address << std::endl;
+        if (address >= 0xB8000 && address <= 0xBFFFF)
+        {
+            //std::cout << '.';
+            return cga.memory8(address&0x7FFF);
+        }
+        if (address >= 0xE0000 && address <= 0xEFFFF)
+        {
+            return ltems._8(address&0xFFFF);
+        }
+        if (address >= 0xF0000 && address <= 0xFFFFF)
+        {
+            ++readonly_byte;
+            readonly_bytes[readonly_byte] = memory_bytes[address];
+            return readonly_bytes[readonly_byte];
+        }
+        if (address >= MEMORY_SIZE)
+        {
+            INVALID_ADDRESS_8[0] = 0xFF;
+            return INVALID_ADDRESS_8[0];
+        }
+        return *(u8*)(void*)(memory_bytes+address);
+    }
+
+    void update()
+    {
+
+    }
+} mem;
+
+struct MemoryManager8088
+{
+    u8 memory_bytes[(1<<20)+1] = {};
+    void dump_memory(const char* filename)
+    {
+        FILE* filu = fopen(filename, "wb");
+        fwrite(memory_bytes, 0x100000, 1, filu);
+        fclose(filu);
+    }
+
+    u16 readonly_words[256] = {};
+    u8 readonly_word{};
+    u8 readonly_bytes[256] = {};
+    u8 readonly_byte{};
+
+    u16 rw_words[256] = {};
+    u16 rw_segs[256] = {};
+    u16 rw_offsets[256] = {};
+    u8 rw_word{};
+
+    bool cga_used{};
+
+    u8& _8(u16 segment, u16 index)
+    {
+        u32 total_address = (((segment<<4)+index)&0xFFFFF);
+        if (total_address >= readonly_start)
+        {
+            ++readonly_byte;
+            readonly_bytes[readonly_byte] = memory_bytes[total_address];
+            return readonly_bytes[readonly_byte];
+        }
+
+        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
+            return ltems._8(total_address&0xFFFF);
+        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
+        {
+            cga_used = true;
+            return cga.memory8(total_address&0x7FFF);
+        }
+        return memory_bytes[total_address];
+    }
+    u16& _16(u16 segment, u16 index)
+    {
+        u32 total_address = (((segment<<4)+index)&0xFFFFF);
+        if (total_address >= readonly_start)
+        {
+            ++readonly_word;
+            readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+total_address);
+            return readonly_words[readonly_word];
+        }
+        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
+            return ltems._16(total_address&0xFFFF);
+        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
+        {
+            cga_used = true;
+            return cga.memory16(total_address&0x7FFF);
+        }
+        rw_words[rw_word] = _8(segment,index);
+        rw_words[rw_word] |= (_8(segment,index+1) << 8);
+        rw_segs[rw_word] = segment;
+        rw_offsets[rw_word] = index;
+        ++rw_word;
+        return rw_words[rw_word-1];
+    }
+
+    void update()
+    {
+        for(int i=0; i<rw_word; ++i)
+        {
+            _8(rw_segs[i], rw_offsets[i]) = (rw_words[i]&0xFF);
+            _8(rw_segs[i], rw_offsets[i]+1) = (rw_words[i]>>8);
+        }
+        rw_word = 0;
+    }
+};
+
+struct BEEPER
+{
+    i16 buffer[1<<16] = {};
+    u16 write_offset{};
+    u16 read_offset{};
+
+    //u8 timer{};
+
+    i16 sampleA{}, sampleB{}, sampleC{};
+
+    u8 pb1{}; //speaker data
+    u8 pb0{}; //timer gate
+
+    void set_output_from_pit(bool value)
+    {
+        /*if (globalsettings.sound_on)
+        {
+            static FILE* filu = nullptr;
+            if (filu == nullptr)
+                filu = fopen("d:\\out2.raw", "wb");
+            fwrite(&sampleA, 2, 1, filu);
+        }*/
+
+
+
+        sampleA = ((value&&(global_port0x61&0x02))?60*256:0)*(pb0?-1:1); //TODO: make pc work again
+        sampleB = ((sampleB<<5)-sampleB+sampleA)>>5; //crude lowpass
+        sampleC = ((sampleC<<5)-sampleC+sampleB)>>5; //crude lowpass
+    }
+
+    void cycle()
+    {
+        i16 state = sampleC;
+        i32 data = state+ym3812.sample;
+        data = (data<-32768?-32768:data);
+        data = (data>32767?32767:data);
+        buffer[write_offset] = globalsettings.sound_on?i16(data):i16(0);
+        ++write_offset;
+    }
+} beeper;
+
+u64 totalframes = 0;
+
+//we need to somehow sync the "real audio timing" to the "emulator timing"
+//this takes some thinking.
+
+//METHOD 1: always take the N last frames. might lead to misses or repetition, but has stable pitch!
+void audio_method1(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+{
+    static bool started{false};
+    if (!started)
+    {
+        started = true;
+        beeper.read_offset = beeper.write_offset-256;
+    }
+    u16 offset_end = beeper.write_offset;
+    u16 offset_start = beeper.read_offset;
+    u16 done_count = u16(offset_end-offset_start);
+    if (frameCount == 0 || done_count == 0)
+        return;
+
+    totalframes += frameCount;
+    offset_start = offset_end-frameCount;
+    i16* pi16Output = (i16*)pOutput;
+    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
+    {
+        i16 data = beeper.buffer[u16(offset_start+done_frames)];
+        *pi16Output = data;
+        ++pi16Output;
+    }
+}
+
+//METHOD 2: resample the M last frames to fit into frameCount. always uses every sample but has unstable pitch!
+void audio_method2(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+{
+    static bool started{false};
+    if (!started)
+    {
+        started = true;
+        beeper.read_offset = beeper.write_offset-256;
+    }
+    u16 offset_end = beeper.write_offset;
+    u16 offset_start = beeper.read_offset;
+    u16 done_count = u16(offset_end-offset_start);
+    if (frameCount == 0 || done_count == 0)
+        return;
+
+    totalframes += frameCount;
+    u64 frame_counter=0;
+    i16* pi16Output = (i16*)pOutput;
+    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
+    {
+        i16 data = beeper.buffer[u16(offset_start+frame_counter/frameCount)];
+        *pi16Output = data;
+        ++pi16Output;
+        frame_counter += done_count;
+    }
+    beeper.read_offset += frame_counter/frameCount;
+}
+
+//METHOD 3: dynamic resampling. experimental!
+i16 additional_samples = 0;
+const float SAMPLERATE = 48000.0;
+float veer = (14318180.0/298.0)/SAMPLERATE;
+void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+{
+    static bool started{false};
+    u16 offset_end = beeper.write_offset;
+    if (!started)
+    {
+        started = true;
+        beeper.read_offset = offset_end-256;
+    }
+    u16 offset_start = beeper.read_offset;
+    u16 done_count = u16(offset_end-offset_start);
+    if (frameCount == 0 || done_count == 0)
+        return;
+
+    totalframes += frameCount;
+    u64 frame_counter=0;
+
+    done_count = frameCount*veer+additional_samples;
+    i16* pi16Output = (i16*)pOutput;
+    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
+    {
+        i16 data = beeper.buffer[offset_start];
+        *pi16Output = data;
+        ++pi16Output;
+        frame_counter += done_count;
+        while(frame_counter >= frameCount)
+        {
+            ++offset_start;
+            frame_counter -= frameCount;
+            if (offset_start == offset_end)
+                goto double_break; //oh no :o
+        }
+    }
+double_break: // oh no :O
+    u16 left = (offset_end-offset_start);
+
+    if (u16(offset_end-offset_start) >= 2048)
+        offset_start = offset_end-256;
+
+    if (left > 1024)
+        additional_samples = 2;
+    else if (left > 260)
+        additional_samples = 1;
+    else if (left < 252)
+        additional_samples = -1;
+    else
+        additional_samples = 0;
+
+    beeper.read_offset = offset_start;
+}
+
+struct MiniAudio
+{
+    ma_result result;
+    ma_device_config deviceConfig;
+    ma_device device;
+
+    MiniAudio()
+    {
+        deviceConfig = ma_device_config_init(ma_device_type_playback);
+        deviceConfig.playback.format   = ma_format_s16;
+        deviceConfig.playback.channels = 1;
+        deviceConfig.sampleRate        = u32(SAMPLERATE);
+        deviceConfig.dataCallback      = audio_method3;
+
+        deviceConfig.noPreSilencedOutputBuffer = true;
+        deviceConfig.noClip = true;
+        deviceConfig.noFixedSizedCallback = true;
+
+        if (ma_device_init(NULL, &deviceConfig, &device) != MA_SUCCESS)
+        {
+            cout << "MINIAUDIO init not succesful." << endl;
+            std::abort();
+        }
+        if (ma_device_start(&device) != MA_SUCCESS)
+        {
+            cout << "MINIAUDIO device start not successful. No audio will be output." << endl;
+            ma_device_uninit(&device);
+        }
+    }
+
+    ~MiniAudio()
+    {
+        ma_device_uninit(&device);
+    }
+} miniaudio;
+
+/*struct POSTCARD // postikortti :)
+{
+    u8 value{};
+    u8 read(u8 port)
+    {
+        return value;
+    }
+
+    void write(u8 port, u8 data)
+    {
+        if (data != value)
+        {
+            std::cout << "---POSTCARD--- " << u32(data) << std::endl;
+            if (data==0x12)
+                startprinting=true;
+        }
+        value = data;
+    }
+} postcard;*/
+
+struct CHIP146818 // RTC & CMOS
+{
+    u8 CMOSdata[256] = {};
+    u8 current_reg = 0x0D;
+
+    u8 read(u8 port) //port from 0 to 1! inclusive
+    {
+        u8 ret=0;
+        if (port == 1) //read
+        {
+            ret = CMOSdata[current_reg];
+            std::cout << "CMOS READ: " << u32(current_reg) << ":" << u32(ret) << std::endl;
+            //current_reg = 0x0D;
+        }
+        return ret;
+    }
+
+    void write(u8 port, u8 data) //port from 0 to 1! inclusive.
+    {
+        if (port == 0)
+        {
+            current_reg = (data&0x7F);
+        }
+        else if (port == 1)
+        {
+            CMOSdata[current_reg] = data;
+            //current_reg = 0x0D;
+            std::cout << "CMOS WRITE: " << u32(current_reg) << ":" << u32(data) << std::endl;
+        }
+    }
+
+    void cycle()
+    {
+    }
+} cmos;
+
+
+struct CHIP8255 //PC/XT keyboard etc
 {
     static const u8 FLOPPY_DRIVES = 2;
     static const u8 HAS_8087 = 0;
@@ -1419,14 +1755,43 @@ struct CHIP8255 //keyboard etc
             }
         }
     }
-} kbd;
+};
+
+struct CHIPLS612N //DMA page registers, POST card value
+{
+    u8 pages[16] = {};
+
+    u8 read(u8 port)
+    {
+        return pages[port];
+    }
+
+    void write(u8 port, u8 data)
+    {
+        if (port == 0 && data != pages[0])
+        {
+            std::cout << "---POSTCARD--- " << u32(data) << std::endl;
+            //if (data==0x15)
+            //    startprinting=true;
+        }
+        pages[port] = data;
+    }
+} dmapage;
 
 struct CHIP8237 //DMA
 {
+    u8 type{}; //0 for primary, 1 for secondary
     struct Channel
     {
         u16 num{}; //which channel this is
-        u16 page{};
+
+        u8& page()
+        {
+            static const u16 addrs[8] = {0x7, 0x3, 0x1, 0x2, 0xF, 0xB, 0x9, 0xA};
+
+            return dmapage.pages[addrs[num&0x07]];
+        }
+
         u16 start_addr{};
         u16 transfer_count{};
         vector<u8>* device_vector{nullptr};
@@ -1475,11 +1840,11 @@ struct CHIP8237 //DMA
             }
             else if (transfer_direction == DIR_TO_MEMORY)
             {
-                mem._8(page<<12,curr_addr) = (*device_vector)[curr_vector_offset];
+                mem.direct8((page()<<12)+curr_addr) = (*device_vector)[curr_vector_offset];
             }
             else if (transfer_direction == DIR_FROM_MEMORY)
             {
-                (*device_vector)[curr_vector_offset] = mem._8(page<<12,curr_addr);
+                (*device_vector)[curr_vector_offset] = mem.direct8((page()<<12)+curr_addr);
             }
             else if (transfer_direction == DIR_VERIFY)
             {
@@ -1527,12 +1892,12 @@ struct CHIP8237 //DMA
         }
     } chans[4];
 
-    CHIP8237()
+    CHIP8237(u8 type_):type(type_)
     {
-        chans[0].num = 0;
-        chans[1].num = 1;
-        chans[2].num = 2;
-        chans[3].num = 3;
+        chans[0].num = 0 + (type?4:0);
+        chans[1].num = 1 + (type?4:0);
+        chans[2].num = 2 + (type?4:0);
+        chans[3].num = 3 + (type?4:0);
     }
 
     void print_params(u8 channel)
@@ -1540,7 +1905,7 @@ struct CHIP8237 //DMA
         Channel& c = chans[channel];
         cout << std::hex;
         cout << ">DMA port " << u32(channel) << "!< ";
-        cout << "p+addr=" << c.page*65536+c.start_addr << " ";
+        cout << "p+addr=" << c.page()*65536+c.start_addr << " ";
         cout << "n=" << c.transfer_count << " ";
         cout << "mode=" << u32(c.mode) << " ";
         cout << "direction=" << u32(c.transfer_direction) << endl;
@@ -1577,24 +1942,23 @@ struct CHIP8237 //DMA
         return result;
     }
 
-    void write(u8 port, u8 data) //port from 0 to 15! inclusive, also 0x87, 0x83, 0x81, 0x82
+    void write(u8 port, u8 data) //port from 0 to 15! inclusive
     {
         if (startprinting)
             cout << "DMA WRITE " << u32(port) << " <- " << u32(data) << endl;
-        if (port == 0x87)
-            chans[0].page = data;
-        else if (port == 0x83)
-            chans[1].page = data;
-        else if (port == 0x81)
-            chans[2].page = data;
-        else if (port == 0x82)
-            chans[3].page = data;
-        else if (port >= 0x08 && port <= 0x0F)
+        if (port >= 0x08 && port <= 0x0F)
         {
             if (false);
             else if (port == 0x08) //we're only interested in bit 2 as per osdev's article. hooray indeed
             {
                 enabled = (data&0x04);
+            }
+            else if (port == 0x09)
+            {
+                //osdev says
+                //"Request Registers 0x09 and 0xD2 (Write)"
+                //"Used for memory to memory transfers and setting up priority rotation -- absolutely useless."
+                //interesting.
             }
             else if (port == 0x0A)
             {
@@ -1665,7 +2029,7 @@ struct CHIP8237 //DMA
         if (startprinting)
         {
             cout << ">DMA transfer on port " << u32(channel) << "!< ";
-            cout << "p=" << c.page << " ";
+            cout << "p=" << c.page() << " ";
             cout << "addr=" << c.start_addr << " ";
             cout << "n=" << c.transfer_count << endl;
             if (device_vector != nullptr)
@@ -1693,12 +2057,12 @@ struct CHIP8237 //DMA
             }
         }
     }
-} dma;
+} dma(0), dma2(1);
 
 
 struct CHIP8253 //PIT
 {
-    static constexpr const u32 N_CHANNELS = 3;
+    static constexpr const u32 N_CHANNELS = 4;
 
     struct Channel
     {
@@ -1741,8 +2105,7 @@ struct CHIP8253 //PIT
 
     u8 read(u8 port) //port from 0 to 3! inclusive
     {
-        if (startprinting)
-            cout << "READ PIT---- " << u32(port) << endl;
+        //std::cout << std::hex << "PIT READ: " << u32(port) << std::endl;
         if (port >= 3) //can't read port 3
         {
             return 0;
@@ -1802,7 +2165,9 @@ struct CHIP8253 //PIT
         }
 
         if (c.access_mode == 0)
+        {
             return 0;
+        }
 
         cout << "PIT WTF. reading port: " << u32(port) << endl;
         cout << u32(c.access_mode) << endl;
@@ -1811,6 +2176,7 @@ struct CHIP8253 //PIT
 
     void write(u8 port, u8 data) //port from 0 to 3! inclusive.
     {
+        //std::cout << std::hex << "PIT WRITE: " << u32(port) << ":" << u32(data) << std::endl;
         if (port == 3)
         {
             bool is_bcd = (data&0x01);
@@ -1820,7 +2186,7 @@ struct CHIP8253 //PIT
                 std::abort();
             }
             u8 channel_n = (data>>6);
-            if (channel_n == 3)
+            if (channel_n == 3 && globalsettings.machine != GlobalSettings::MACHINE_AT)
             {
                 cout << "Channel 3 non-existent on PIT! (trying to run AT code? this is an PC emulator.)" << endl;
                 std::abort();
@@ -1845,7 +2211,7 @@ struct CHIP8253 //PIT
                 c.output = false;
             }
 
-            if constexpr (DEBUG_LEVEL > 0)
+            //if constexpr (DEBUG_LEVEL > 0)
             {
                 cout << "-----PIT Channel #" << u32(channel_n) << ":" << endl;
                 c.Print();
@@ -1859,7 +2225,7 @@ struct CHIP8253 //PIT
             {
                 c.reload = data;
                 c.stopped = false;
-                if constexpr (DEBUG_LEVEL > 0)
+                //if constexpr (DEBUG_LEVEL > 0)
                 {
                     cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << endl;                c.write_wait_for_second_byte = false;
                 }
@@ -1868,7 +2234,7 @@ struct CHIP8253 //PIT
             {
                 c.reload = (data<<8);
                 c.stopped = false;
-                if constexpr (DEBUG_LEVEL > 0)
+                //if constexpr (DEBUG_LEVEL > 0)
                     cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << endl;
             }
             else if (c.access_mode == 3) //lo, unless latch is, then hi
@@ -1884,11 +2250,11 @@ struct CHIP8253 //PIT
                     c.reload_loader = data;
                     c.stopped = false;
                 }
-                if constexpr (DEBUG_LEVEL > 0)
+                //if constexpr (DEBUG_LEVEL > 0)
                     cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << " & " << c.current << endl;
                 c.write_wait_for_second_byte = !c.write_wait_for_second_byte;
             }
-            if constexpr (DEBUG_LEVEL > 0)
+            //if constexpr (DEBUG_LEVEL > 0)
                 cout << "--- operating mode " << u32(c.operating_mode) << endl;
 
             if (c.operating_mode == 0 || c.operating_mode == 1 || c.operating_mode == 2)
@@ -1906,6 +2272,12 @@ struct CHIP8253 //PIT
         for(u32 i=0; i<3; ++i)
         {
             Channel& c = channels[i];
+
+            if (i==2 && !(global_port0x61&0x01))
+            {
+                continue;
+            }
+
             if (c.operating_mode == 0)
             {
                 c.current -= 1;
@@ -2711,7 +3083,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
         else // 6 isnt used
         {
             std::cout << "Unsupported floppy port " << u32(port) << endl;
-            std::abort();
+            //std::abort();
         }
         if (FLOPPY_DEBUG)
             cout << "DATA READ = " << u32(readdata) << endl;
@@ -3009,9 +3381,8 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
         }
         else
         {
-            std::cout << "Unsupported floppy port " << u32(port) << endl;
-            std::abort();
-            registers[port] = data;
+            std::cout << "Write: Unsupported floppy port " << u32(port) << " with data: " << u32(data) << endl;
+            //registers[port] = data;
         }
         /*if (FLOPPY_DEBUG)
             cout << "\\===========================================/" << endl;*/
@@ -3071,8 +3442,8 @@ struct IO
 {
     static void out(u16 port, u16 data)
     {
-        if (startprinting)
-            cout << "Write Port 0x" << u32(port) << " ----> 0x" << u32(data) << endl;
+        //if (startprinting)
+        //cout << "Write Port 0x" << u32(port) << " ----> 0x" << u32(data) << endl;
         if (false);
         else if (port == 0xA0)
         {
@@ -3086,16 +3457,19 @@ struct IO
         {
             pic.write(port-0x20, data&0xFF);
         }
-        else if ((port >= 0x00 && port <= 0x0F)
-                 || (port == 0x87)
-                 || (port == 0x83)
-                 || (port == 0x81)
-                 || (port == 0x82)
-                 )
+        else if (port >= 0xa0 && port <= 0xa1)
+        {
+            pic2.write(port-0xa0, data&0xFF);
+        }
+        else if (port >= 0x00 && port <= 0x0F)
         {
             dma.write(port-0x00, data&0xFF);
         }
-        else if (port >= 0x60 && port <= 0x63)
+        else if (port >= 0xC0 && port <= 0xDF)
+        {
+            dma2.write((port-0xC0)>>1, data&0xFF);
+        }
+        else if (port >= 0x60 && port <= 0x64)
         {
             kbd.write(port-0x60, data&0xFF);
         }
@@ -3123,6 +3497,14 @@ struct IO
         {
             ltems.write(port-0x260, data&0xFF);
         }
+        else if (port >= 0x70 && port <= 0x71)
+        {
+            cmos.write(port-0x70, data&0xFF);
+        }
+        else if (port >= 0x80 && port <= 0x8F)
+        {
+            dmapage.write(port-0x80, data&0xFF);
+        }
         else
         {
             //if constexpr(DEBUG_LEVEL > 0)
@@ -3142,11 +3524,19 @@ struct IO
         {
             data = pic.read(port-0x20);
         }
+        else if (port >= 0xA0 && port <= 0xA1)
+        {
+            data = pic2.read(port-0xA0);
+        }
         else if (port >= 0x00 && port <= 0x0F)
         {
             data = dma.read(port-0x00);
         }
-        else if (port >= 0x60 && port <= 0x63)
+        else if (port >= 0xC0 && port <= 0xDF)
+        {
+            data = dma2.read((port-0xC0)>>1);
+        }
+        else if (port >= 0x60 && port <= 0x64)
         {
             data = kbd.read(port-0x60);
         }
@@ -3174,14 +3564,21 @@ struct IO
         {
             data = ltems.read(port-0x260);
         }
+        else if (port >= 0x70 && port <= 0x71)
+        {
+            data = cmos.read(port-0x70);
+        }
+        else if (port >= 0x80 && port <= 0x8F)
+        {
+            data = dmapage.read(port-0x80);
+        }
         else
         {
             //if constexpr(DEBUG_LEVEL > 0)
                 //cout << "Reading unknown port " << u32(port) << endl;
             //std::abort();
         }
-        if (startprinting)
-            cout << "Read  Port 0x" << u32(port) << " <---- 0x" << u32(data) << endl;
+        //cout << "Read  Port 0x" << u32(port) << " <---- 0x" << u32(data) << endl;
         return data;
     }
 };
@@ -3521,6 +3918,23 @@ void configline(std::string line)
         std::string address_str, filename;
         iss >> address_str >> filename;
 
+        unsigned long stride = 1;
+        while(true)
+        {
+            std::string option;
+            iss >> option;
+            std::cout << option << "?!?=!?" << std::endl;
+            std::cout << "noin" << std::endl;
+            if (option.substr(0,7) == "stride=")
+            {
+                stride = atoi(option.substr(7).c_str());
+            }
+            if (iss.eof())
+                break;
+        }
+
+        std::cout << filename << " stride = " << stride << std::endl;
+
         // Convert hex address to integer
         unsigned long address = std::stoul(address_str, nullptr, 16);
 
@@ -3538,14 +3952,20 @@ void configline(std::string line)
         file.seekg(0, std::ios::beg);
 
         // Read file contents into memory
-        if (address + fileSize <= 0x100000)
+
+        for(int i=0; i<fileSize; ++i)
+        {
+            file.read(reinterpret_cast<char*>(&mem.memory_bytes[address+i*stride]),1);
+        }
+
+        /*if (address + fileSize <= 0x100000)
         {
             file.read(reinterpret_cast<char*>(&mem.memory_bytes[address]), fileSize);
         }
         else
         {
             std::cerr << "Error: ROM file too large or invalid address" << std::endl;
-        }
+        }*/
     }
     else if (command == "load")
     {
@@ -3579,6 +3999,10 @@ void configline(std::string line)
         else if (machine_type == "xt")
         {
             globalsettings.machine = globalsettings.MACHINE_XT;
+        }
+        else if (machine_type == "at")
+        {
+            globalsettings.machine = globalsettings.MACHINE_AT;
         }
         else
         {
@@ -3907,6 +4331,15 @@ int main(int argc, char* argv[])
 
     double previousTime=0.0;
 
+    u8 data[1<<16] = {};
+    for(int i=0; i<65536; ++i)
+    {
+        data[i] = mem.direct8(0xF0000+i);
+    }
+    FILE* filu = fopen("biosaward.bin","wb");
+    fwrite(data,65536,1,filu);
+    fclose(filu);
+
     u64 loop_counter=0, clockgen_fast=0, clockgen_real=0;
     while(true)
     {
@@ -3921,7 +4354,8 @@ int main(int argc, char* argv[])
             {
                 cpu.cycle();
                 ++cpu.cpu_steps;
-                pic.cycle();
+                cpu.cycle();
+                ++cpu.cpu_steps;
                 for(u8 irq=0; irq<8; ++irq)
                 {
                     if (pic.isr&(1<<irq))
@@ -3945,6 +4379,7 @@ int main(int argc, char* argv[])
             }
             if (clockgen_fast%288)
             {
+                global_port0x61 ^= 0x10;
                 ym3812.cycle_timers();
             }
 
@@ -3958,7 +4393,9 @@ int main(int argc, char* argv[])
                 if (clockgen_fast%298 == 0) //ca. 48kHz. handles sound output in general
                     beeper.cycle();
                 if (clockgen_fast%288 == 0)
+                {
                     ym3812.cycle();
+                }
                 if (clockgen_fast%GAMEPORT_CYCLE == 0)
                     gameport.cycle();
             }
@@ -3981,6 +4418,8 @@ int main(int argc, char* argv[])
                     {
                         cpu.cycle();
                         ++cpu.cpu_steps;
+                        cpu.cycle();
+                        ++cpu.cpu_steps;
                         pic.cycle();
                         for(u8 irq=0; irq<8; ++irq)
                         {
@@ -3998,6 +4437,8 @@ int main(int argc, char* argv[])
                             }
                         }
                         kbd.cycle();
+                        if (kbd.is_reset())
+                            cpu.reset();
                         diskettecontroller.cycle();
                         harddisk.cycle();
                         if (clockgen_real%4 == 0) //we're already inside %3 so this makes for %12
@@ -4015,6 +4456,7 @@ int main(int argc, char* argv[])
                 {
                     ym3812.cycle();
                     ym3812.cycle_timers();
+                    global_port0x61 ^= 0x10;
                 }
                 if (clockgen_real%GAMEPORT_CYCLE == 0)
                     gameport.cycle();
