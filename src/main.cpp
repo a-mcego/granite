@@ -64,7 +64,7 @@ struct GlobalSettings
 
 const u32 DEBUG_LEVEL = 0;
 
-u8 global_port0x61{};
+u8 global_port0x61{0x00}; //system control port B
 const u32 PRINT_START = 0;
 u64 cycles{};
 u32 readonly_start = 0xF0000;
@@ -929,36 +929,14 @@ struct CHIP8259 //PIC
 
 struct CHIP8042 //AT keyboard etc
 {
-    static const u8 FLOPPY_DRIVES = 2;
-    static const u8 HAS_8087 = 0;
-    static const u8 MEMORY_BANKS = 4;
-
-    enum VIDEO_CARD_TYPES
-    {
-        V_OTHER=0x00,
-        CGA40=0x10,
-        CGA80=0x20,
-        MDA=0x30
-    } const static VIDEO_CARD_TYPE = CGA80;
-
-    //onboard DIP switches
-
-    static const u8 SW1 = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
-    static const u8 SW2 = 0b1'1'1'1'0'0'1'0;//TODO: make these into setuppable bools
-
-    static const u8 XT_SW = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
-
-    u8 regs[4] = {};
-    u8 keyboard_self_test{0}; //if > 0, is doing a self test
-    bool keyboard_self_test_done{};
-    static const u8 KEYBOARD_SELF_TEST_LENGTH = 16; //:peeposhrug: lol
     u8 current_scancode = 0;
     bool is_initialized{false};
 
     deque<u8> scancode_queue;
     u16 kbd_wait{};
 
-    u8 clear_input_bit{};
+    u16 clear_input_bit{}; //time to clear the input bit
+    u16 set_output_bit{}; //time to set the output bit
 
     /* status byte documentation
     Bit 7: Parity error
@@ -976,10 +954,10 @@ struct CHIP8042 //AT keyboard etc
     Bit 0: Output buffer status
         0: empty, don't read yet. 1: full, can be read.
     */
-    u8 status_byte{0x18};
+    u8 status_byte{0x10};
     u8 result{};
     u8 ram[32] = {};
-    u8 command{};
+    u16 command{0x100};
 
     /*
     P1 documentation
@@ -1037,24 +1015,61 @@ struct CHIP8042 //AT keyboard etc
     {
         if (port == 0)
         {
-            if (command >= 0x00 && command <= 0x3F)
+            if (set_output_bit)
+                return 0;
+            if (command == 0x100)
+            {
+                result = current_scancode;
+                current_scancode = 0;
+                P2 &= ~0x10;
+            }
+            else if (command >= 0x00 && command <= 0x7F)
             {
                 result = ram[command&0x1F];
             }
-            if (command == 0xC0)
+            else if (command == 0xC0)
             {
                 result = P1;
             }
-            if (command == 0xD0)
+            else if (command == 0xD0)
             {
                 result = P2;
             }
-            if (command == 0xAB)
+            else if (command == 0xAA)
+            {
+                result = 0x55; // self test OK!
+            }
+            else if (command == 0xAB)
             {
                 result = 0;
             }
-            //std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
+            else if (command == 0xA1) //firmware version! :-) AMI only so far.
+            {
+                result = 0x01;
+            }
+            else if (command == 0xAD);
+            else if (command == 0xAE);
+            else if (command == 0xD1); //**WRITE** P2..
+            else if (command == 0xE0) //keyboard clock (bit 0), keyboard data (bit 1) wat do i do.
+            {
+                if (ram[0]&0x04) //kbd disabled
+                {
+                    result = 0;
+                }
+                else
+                {
+                    result = rand()&0x03;
+                }
+            }
+            else
+            {
+                std::cout << "UNKNOWN command is: " << (u32)command << std::endl;
+                std::abort();
+            }
+            //std::cout << "command is: " << (u32)command << std::endl;
+            std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
             status_byte &= 0xFE; //clear "output byte available" bit
+            command = 0x100;
             return result;
         }
         if (port == 1)
@@ -1064,7 +1079,7 @@ struct CHIP8042 //AT keyboard etc
         }
         if (port == 4)
         {
-            //std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte) << std::endl;
+            std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte & (set_output_bit?0xFE:0xFF)) << " ," << u32(clear_input_bit) << std::endl;
             return status_byte;
         }
 
@@ -1075,31 +1090,59 @@ struct CHIP8042 //AT keyboard etc
 
     void write(u8 port, u8 data) //port from 0 to 4! inclusive. 0 is port 0x80, 4 is port 0x84 etc.
     {
-        if (port != 1)
-            std::cout << std::hex << "keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
+        //if (port != 1)
+        std::cout << std::hex << "keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
         if (port == 0)
         {
-            status_byte = (status_byte&0b1111'1110);
+            status_byte &= ~0x08;
+            //status_byte = (status_byte&0b1111'1110);
+            status_byte |= 0x03; //input byte done - don't do more!
+            clear_input_bit = 128;
+            set_output_bit = 192;
             std::cout << "command is: " << (u32)command << std::endl;
-            if (command >= 0x40 && command <= 0x7F)
+            if (command >= 0x00 && command <= 0x3F); //read keyboard RAM???
+            else if (command >= 0x40 && command <= 0x7F) //write keyboard RAM
             {
                 ram[command&0x1F] = data;
-                return;
+                if ((command&0x1F) == 0x00)
+                {
+                    status_byte = (status_byte&~0x04) | (data&0x04);
+                }
             }
-            if (command == 0xC1) //write P1
+            else if (command == 0xC1) //write P1
             {
-                P1 = data;
-                return;
+                P1 = (P1&0xF0) | (data&0x0F);
             }
-            if (command == 0xD1) //write P2
+            else if (command == 0xD1) //write P2
             {
-                P2 = data;
-                return;
+                P2 = (P2&0xF0) | (data&0x0F);
             }
+            else if (command == 0xAE); //enable kbd
+            else if (command == 0xAD); //disable kbd
+            else if (command == 0x100) //no cmd
+            {
+                result = 0xFA; //ACK
+                status_byte |= 0x01; //output byte available!
+            }
+            else if (command == 0xDF) //enable A20 (hp vectra) / (quadtel?)
+            {
+                P2 |= 0x02;
+            }
+            else if (command == 0xDD) //disable A20 (hp vectra) / (quadtel?)
+            {
+                P2 &= ~0x02;
+            }
+            else
+            {
+                std::cout << "Unknown kbd command: " << u32(command) << std::endl;
+                std::abort();
+            }
+            command = 0x100;
+            return;
         }
         else if (port == 1)
         {
-            //global_port0x61 = data;
+            global_port0x61 = (global_port0x61&~0x0F) | (data&0x0F);
             return;
         }
         else if (port == 4)
@@ -1107,15 +1150,14 @@ struct CHIP8042 //AT keyboard etc
             status_byte = status_byte | 0x08;
             command = data;
             status_byte |= 0x02; //input byte done - don't do more!
-            clear_input_bit = 32;
+            clear_input_bit = 128;
+            set_output_bit = 192;
             if (data == 0xAA)
             {
                 result = 0x55;
                 status_byte |= 0x04; //self-test done
                 std::cout << "Keyboard self-test done!" << std::endl;
-                status_byte |= 0x01; //output byte available!
-
-                clear_input_bit = 32;
+                is_initialized = true;
                 return;
             }
             else if (data >= 0x00 && data <= 0x7F) // write kbd ctrl ram
@@ -1123,11 +1165,12 @@ struct CHIP8042 //AT keyboard etc
             else if (data == 0xC0) //read P1
             {
                 result = 0b0000'0000;
-                status_byte |= 0x01; //output byte available!
                 return;
             }
             else if (data == 0xA1) //read firmware version (unimplemented)
+            {
                 return;
+            }
             else if (data == 0xD1) //write P2
                 return;
             else if (data == 0xFE) //RESET
@@ -1149,48 +1192,76 @@ struct CHIP8042 //AT keyboard etc
             {
                 return;
             }
+            else if (command == 0xE0) // show keyboard clock (bit0) and data (bit1) ???
+            {
+                return;
+            }
         }
-        std::cout << "unknown, aborting." << std::endl;
-        std::abort();
+        std::cout << "unknown kbd: " << std::hex << "0x6" << u16(port) << ", with data " << u16(data) << std::endl;
+        //std::abort();
     }
 
+    u32 printer{};
     void cycle()
     {
+        ++printer;
+        if (printer&0x100000)
+        {
+            std::cout << u32(ram[0]) << " " << scancode_queue.size() << " " << u32(status_byte) << " " << u32(current_scancode) << " " << u32(kbd_wait) << std::endl;
+            printer=0;
+        }
+
         if (clear_input_bit > 0)
         {
             --clear_input_bit;
             if (clear_input_bit == 0)
             {
-                status_byte &= 0xFD; //clear bit 1: input buffer bit
+                status_byte &= ~0x02; //clear bit 1: input buffer bit
             }
         }
-        if (keyboard_self_test > 0)
+        if (set_output_bit > 0)
         {
-            --keyboard_self_test;
-            if (keyboard_self_test == 0) //finished the test :-)
+            --set_output_bit;
+            if (set_output_bit == 0)
             {
-                keyboard_self_test_done = true;
-                is_initialized = true;
-                pic.request_interrupt(1);
+                status_byte |= 0x01;
             }
         }
 
         if (!scancode_queue.empty())
         {
-            if (kbd_wait == 0 && current_scancode == 0)
+            if (set_output_bit == 0 && clear_input_bit == 0 && (status_byte&1) == 0 && kbd_wait == 0 && current_scancode == 0 && !(ram[0] & 0x10))
             {
                 current_scancode = scancode_queue.front();
-                bool result = pic.request_interrupt(1);
-                if (result)
+                //status_byte |= 1;
+                scancode_queue.pop_front();
+                std::cout << "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
+                std::cout << "keyboard! " << u32(current_scancode) << " ";
+
+                if (ram[0]&0x01) //IRQ enabled?
                 {
-                    scancode_queue.pop_front();
+                    P2 |= 0x10;
+                    pic.request_interrupt(1);
+                    std::cout << " int 1" << std::endl;
                 }
+                else
+                {
+                    status_byte |= 1;
+                }
+                std::cout << std::endl;
+
                 kbd_wait = 2048;
             }
-            else
-            {
-                --kbd_wait;
-            }
+        }
+
+        if (kbd_wait > 0)
+        {
+            --kbd_wait;
+        }
+
+        if (!(status_byte & 0x01))
+        {
+            P2 &= ~0x10;
         }
     }
 } kbd;
@@ -1568,6 +1639,7 @@ struct CHIP146818 // RTC & CMOS
         {
             ret = CMOSdata[current_reg];
             std::cout << "CMOS READ: " << u32(current_reg) << ":" << u32(ret) << std::endl;
+
             //current_reg = 0x0D;
         }
         return ret;
@@ -1763,6 +1835,7 @@ struct CHIPLS612N //DMA page registers, POST card value
 
     u8 read(u8 port)
     {
+        std::cout << "---LS612 READ--- " << u32(port) << ":" << u32(pages[port]) << std::endl;
         return pages[port];
     }
 
@@ -1771,8 +1844,12 @@ struct CHIPLS612N //DMA page registers, POST card value
         if (port == 0 && data != pages[0])
         {
             std::cout << "---POSTCARD--- " << u32(data) << std::endl;
-            //if (data==0x15)
+            //if (data==0x0C)
             //    startprinting=true;
+        }
+        else
+        {
+            //std::cout << "---LS612 WRITE--- " << u32(port) << ":" << u32(data) << std::endl;
         }
         pages[port] = data;
     }
@@ -2213,8 +2290,8 @@ struct CHIP8253 //PIT
 
             //if constexpr (DEBUG_LEVEL > 0)
             {
-                cout << "-----PIT Channel #" << u32(channel_n) << ":" << endl;
-                c.Print();
+                //cout << "-----PIT Channel #" << u32(channel_n) << ":" << endl;
+                //c.Print();
             }
         }
         else
@@ -4336,7 +4413,7 @@ int main(int argc, char* argv[])
     {
         data[i] = mem.direct8(0xF0000+i);
     }
-    FILE* filu = fopen("biosaward.bin","wb");
+    FILE* filu = fopen("asd.bin","wb");
     fwrite(data,65536,1,filu);
     fclose(filu);
 

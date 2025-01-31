@@ -63,7 +63,7 @@ struct CPU8088
     };
     DescriptorTable gdtr{}, ldtr{}, idtr{}; //global, local and interrupt tables!
     Descriptor descriptor_cache[4]; //cache, one for each segment
-
+    Descriptor task;
 
     void load_segment(SEG segment_number, u16 segment_data)
     {
@@ -75,31 +75,35 @@ struct CPU8088
             u8 rpl = segment_data & 0x3;          // Bits 1-0
 
             // Choose GDT or LDT
-            DescriptorTable& table = is_ldt ? ldtr : gdtr;
+            DescriptorTable& table = is_ldt ? ldtr : gdtr; //TODO: how to do idtr here?
 
             // Check if index is within table limits
-            if(index >= table.n_entries)
+            if(index*8 > table.n_entries)
             {
                 // Should generate exception
-                std::cout << "äää" << std::endl;
+                std::cout << std::dec << "load segment " << int(segment_number) << " from index " << index << " (sdata=" << segment_data <<  ") but table only has " << table.n_entries << " bytes." << std::hex << std::endl;
+                protection_fault(original_ip, 0);
                 //throw std::runtime_error("Segment index out of bounds");
             }
+            else
+            {
+                // Calculate descriptor address in physical memory
+                u32 descriptor_addr = table.base + (index * 8);
 
-            // Calculate descriptor address in physical memory
-            u32 descriptor_addr = table.base + (index * 8);
+                // Read 8 bytes from physical memory
+                u16 word1 = mem.direct16(descriptor_addr);
+                u16 word2 = mem.direct16(descriptor_addr+2);
+                u16 word3 = mem.direct16(descriptor_addr+4);
 
-            // Read 8 bytes from physical memory
-            u16 word1 = mem.direct16(descriptor_addr);
-            u16 word2 = mem.direct16(descriptor_addr+2);
-            u16 word3 = mem.direct16(descriptor_addr+4);
+                // Fill descriptor fields
+                descriptor_cache[(int)segment_number].base = ((word3 & 0xFF) << 16) | word2;
+                descriptor_cache[(int)segment_number].limit = word1;
+                descriptor_cache[(int)segment_number].flags = (word3 >> 8) & 0xFF;
+                descriptor_cache[(int)segment_number].data = segment_data;
+                //const char* names[4] = {"ES", "CS", "SS", "DS"};
+                //std::cout << names[(int)segment_number] << ": Protected base=" << descriptor_cache[(int)segment_number].base << std::endl;
+            }
 
-            // Fill descriptor fields
-            descriptor_cache[(int)segment_number].base = ((word3 & 0xFF) << 16) | word2;
-            descriptor_cache[(int)segment_number].limit = word1;
-            descriptor_cache[(int)segment_number].flags = (word3 >> 8) & 0xFF;
-            descriptor_cache[(int)segment_number].data = segment_data;
-            const char* names[4] = {"ES", "CS", "SS", "DS"};
-            //std::cout << names[(int)segment_number] << ": Protected base=" << descriptor_cache[(int)segment_number].base << std::endl;
         }
         else // real mode
         {
@@ -163,6 +167,7 @@ struct CPU8088
         registers[IP] = 0xFFF0;
         msw = 0;
         cpl = 0;
+        registers[FLAGS] = 0x0002;
 
         load_segment(SEG::ES, 0x0000);
         load_segment(SEG::CS, 0xF000);
@@ -258,9 +263,9 @@ struct CPU8088
 
     const u8 effective_address_cycles[32] =
     {
-         7, 8, 8, 7, 5, 5, 6, 5,
-        11,12,12,11, 9, 9, 9, 9,
-        11,12,12,11, 9, 9, 9, 9,
+         1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 1,
          0, 0, 0, 0, 0, 0, 0, 0, //reg
     };
     bool modrm_is_register{};
@@ -299,7 +304,6 @@ struct CPU8088
 				offset += registers[BP], segname = SEG::SS;
             }
 		}
-		cycles_used = ((offset&0x01)<<2); //4 cycles for odd accesses
         segment = get_offset(get_segment(segname));//registers[get_segment(segment)];
     }
 
@@ -487,20 +491,23 @@ struct CPU8088
     u32 interrupt_true_cycles{};
     bool inhibit_ss{};
     u32 interrupt_table[256] = {};
+    u8 interrupt_stack{};
+
 
     bool accepts_interrupts()
     {
         return interrupt_true_cycles >= 2 && !inhibit_ss && delay==0;
     }
 
-    void interrupt(u8 n, bool forced=false)
+    void interrupt(u8 n, bool forced=false, bool has_code=false, u16 code=0)
     {
+        if (n==2)
+            startprinting=true;
         if (inhibit_ss)
             return;
         if (accepts_interrupts() || forced)
         {
-            if (startprinting)
-                cout << "INTERRUPT " << u32(n) << " start!" << endl;
+            //cout << "INTERRUPT " << u32(n) << " start! orig ip=" << registers[IP] << " protmode=" << (msw&1) << endl;
             halt = false;
             cycles_used += 80;
 
@@ -509,14 +516,20 @@ struct CPU8088
             push(registers[FLAGS]);
             push(descriptor_cache[(int)SEG::CS].data);
             push(registers[IP]);
+            if (has_code)
+            {
+                push(code);
+            }
 
             u32 idtr_base = 0;
+            u32 mult = 4;
             if (msw&1)
             {
                 idtr_base = idtr.base;
+                mult = 8;
             }
-            registers[IP] = mem.direct16(idtr_base + n*4); //TODO: check n in protected mode
-            load_segment(SEG::CS, mem.direct16(idtr_base + n*4+2));
+            registers[IP] = mem.direct16(idtr_base + n*mult); //TODO: check n in protected mode
+            load_segment(SEG::CS, mem.direct16(idtr_base + n*mult+2));
             set_flag(F_INTERRUPT,false);
             set_flag(F_TRAP, false);
             if (!forced)
@@ -528,6 +541,11 @@ struct CPU8088
         }
     }
 
+    u32 full_ip()
+    {
+        return u32(descriptor_cache[(int)SEG::CS].base) + u32(registers[IP]);
+    }
+
     void divide_by_zero(u16 original_ip)
     {
         registers[IP] = original_ip;
@@ -536,7 +554,7 @@ struct CPU8088
     void invalid_instruction(u16 original_ip)
     {
         //cout << "Invalid instruction." << endl;
-        //registers[IP] = original_ip;
+        registers[IP] = original_ip;
         interrupt(6, true);
     }
     void outside_bound(u16 original_ip)
@@ -545,10 +563,13 @@ struct CPU8088
         registers[IP] = original_ip;
         interrupt(5, true);
     }
-    void protection_fault(u16 original_ip)
+    void protection_fault(u16 original_ip, u16 error_code)
     {
         registers[IP] = original_ip;
-        interrupt(13, true);
+        interrupt(13, true, true, error_code);
+        std::cout << "-------------------PROTECTION FAULT----------------- at " << full_ip() << std::endl;
+        print_regs();
+        std::abort();
     }
 
     void irq(u8 n)
@@ -571,6 +592,8 @@ struct CPU8088
     bool halt{false};
     u64 cycles_used{};
     bool is_inside_multi_part_instruction{};
+
+    u16 original_ip{};
 
     void cycle()
     {
@@ -598,7 +621,7 @@ struct CPU8088
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
         }
-        u16 original_ip = registers[IP];
+        original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
         u8 instruction = read_inst<u8>();
@@ -619,12 +642,53 @@ struct CPU8088
         if (false);
         else if (instruction == 0x0F) // pop cs :-)
         {
-            std::cout << "wtf." << std::endl;
             u8 secondbyte = read_inst<u8>();
             u8 modrm = read_inst<u8>();
             u8 op = u32(modrm>>3)%0x08;
 
-            if (secondbyte == 0x01 && op == 0x02) // LGDT
+            if (false);
+            else if (secondbyte == 0x00 && op == 0x00) // SLDT
+            {
+                u32 addr = decode_modrm_fulladdr(modrm);
+                mem.direct16(addr) = ldtr.n_entries;
+                mem.direct16(addr+2) = (ldtr.base)&0xFFFF;
+                mem.direct16(addr+4) = (ldtr.base>>16)&0xFFFF;
+                std::cout << "store ldtr" << std::endl;
+                //startprinting = true;
+            }
+            else if (secondbyte == 0x00 && op == 0x02) // LLDT
+            {
+                //TODO: check cpl
+                u32 addr = decode_modrm_fulladdr(modrm);
+                ldtr.n_entries = mem.direct16(addr);
+                ldtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
+
+                std::cout << "Loaded ldtr with n_entries=0x" << std::hex << ldtr.n_entries << " and base=0x" << ldtr.base << std::endl;
+                //startprinting = true;
+            }
+            else if (secondbyte == 0x00 && op == 0x01) // STR
+            {
+                u32 addr = decode_modrm_fulladdr(modrm);
+                mem.direct16(addr) = task.data;
+                std::cout << "store task" << std::endl;
+            }
+            else if (secondbyte == 0x00 && op == 0x03) // LTR
+            {
+                //TODO: check cpl
+                u32 addr = decode_modrm_fulladdr(modrm);
+                task.data = mem.direct16(addr);
+                std::cout << "load task" << std::endl;
+            }
+            else if (secondbyte == 0x01 && op == 0x00) // SGDT
+            {
+                u32 addr = decode_modrm_fulladdr(modrm);
+                mem.direct16(addr) = gdtr.n_entries;
+                mem.direct16(addr+2) = (gdtr.base)&0xFFFF;
+                mem.direct16(addr+4) = (gdtr.base>>16)&0xFFFF;
+                std::cout << "store gdtr" << std::endl;
+                //startprinting = true;
+            }
+            else if (secondbyte == 0x01 && op == 0x02) // LGDT
             {
                 //TODO: check cpl
                 u32 addr = decode_modrm_fulladdr(modrm);
@@ -634,6 +698,15 @@ struct CPU8088
                 std::cout << "Loaded gdtr with n_entries=0x" << std::hex << gdtr.n_entries << " and base=0x" << gdtr.base << std::endl;
                 //startprinting = true;
             }
+            else if (secondbyte == 0x01 && op == 0x01) // SIDT
+            {
+                //TODO: check cpl
+                u32 addr = decode_modrm_fulladdr(modrm);
+                mem.direct16(addr) = idtr.n_entries;
+                mem.direct16(addr+2) = (idtr.base)&0xFFFF;
+                mem.direct16(addr+4) = (idtr.base>>16)&0xFFFF;
+                std::cout << "store idtr" << std::endl;
+            }
             else if (secondbyte == 0x01 && op == 0x03) // LIDT
             {
                 //TODO: check cpl
@@ -641,7 +714,7 @@ struct CPU8088
                 idtr.n_entries = mem.direct16(addr);
                 idtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
 
-                std::cout << "Loaded idtr with n_entries=0x" << std::hex << idtr.n_entries << " and base=0x" << idtr.base << std::endl;
+                std::cout << "Loaded idtr from fulladdr=" << addr << " with n_entries=0x" << std::hex << idtr.n_entries << " and base=0x" << idtr.base << std::endl;
             }
             else if (secondbyte == 0x01 && op == 0x06) // LMSW
             {
@@ -1295,7 +1368,7 @@ struct CPU8088
             {
                 if (seg_n == 1) //CS
                 {
-                    protection_fault(original_ip);
+                    protection_fault(original_ip, 0);
                 }
                 else
                 {
@@ -1305,7 +1378,7 @@ struct CPU8088
                     u16 index = selector >> 3;
                     if (index * 8 >= gdtr.n_entries)
                     {
-                        protection_fault(original_ip);
+                        protection_fault(original_ip,0);
                     }
                     else
                     {
@@ -1315,7 +1388,7 @@ struct CPU8088
                         // Check descriptor privileges
                         if (desc.dpl() < cpl || desc.dpl() < (selector & 3))
                         {
-                            protection_fault(original_ip);
+                            protection_fault(original_ip,0);
                         }
                     }
 
@@ -1977,7 +2050,7 @@ struct CPU8088
                 }
                 else if (op == 6)
                 {
-                    std::cout << "DIVISIO PIQ 1" << std::endl;
+                    //std::cout << "DIVISIO PIQ 1" << std::endl;
 
                     u8 denominator = rm;
                     u16 result = registers[AX]/denominator;
@@ -1999,7 +2072,7 @@ struct CPU8088
                 }
                 else if (op == 7)
                 {
-                    std::cout << "DIVISIO PIQ 2" << std::endl;
+                    //std::cout << "DIVISIO PIQ 2" << std::endl;
 
                     i8 denominator = i8(rm);
                     i16 result = i16(registers[AX]) / denominator;
@@ -2083,7 +2156,7 @@ struct CPU8088
                 }
                 else if (op == 6)
                 {
-                    std::cout << "DIVISIO" << std::endl;
+                    //std::cout << "DIVISIO" << std::endl;
                     u32 numerator = (registers[DX]<<16)|registers[AX];
                     u16 denominator = rm;
                     u32 result = numerator / denominator;
