@@ -1,15 +1,15 @@
 #pragma once
 
 #include "interrupt.h"
-#include "mem8088.h"
+#include "mem186.h"
 
 struct CPU80186
 {
     //TODO: actually use the 186 mem mapping here, for example segment overruns etc.
-    MemoryManager8088& mem;
+    MemoryManager186& mem;
     CHIP8259& pic;
     IOSystem& iosystem;
-    CPU80186(MemoryManager8088& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
+    CPU80186(MemoryManager186& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
 
     u16 registers[16] = {};
 
@@ -21,7 +21,7 @@ struct CPU80186
         V30,
         i286,
         N
-    } type{TYPE::i286};
+    } type{TYPE::i186};
 
     u8 segment_override{};
     u8 string_prefix{};

@@ -1,4 +1,4 @@
-cpu 8086
+cpu 80186
 
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN

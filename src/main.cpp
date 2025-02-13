@@ -109,6 +109,7 @@ const u8 byte_parity[256] =
 #include "ltems.h"
 #include "interrupt.h"
 #include "mem286.h"
+#include "mem186.h"
 #include "mem8088.h"
 #include "beeper.h"
 #include "audio.h"
@@ -130,6 +131,7 @@ struct IOSystem
     CHIP8259 pic, pic2;
     MemBytes membytes;
     MemoryManager8088 mem88{cga, ltems, membytes};
+    MemoryManager186 mem186{cga, ltems, membytes};
     MemoryManager286 mem286{cga, ltems, membytes};
     BEEPER beeper;
     YM3812 ym3812;
@@ -302,7 +304,7 @@ struct Machine
 
     CPU8086 cpu8086{p.mem88, p.pic, p};
     CPU8088MC cpu8088mc{p.mem88, p.pic, p};
-    CPU80186 cpu80186{p.mem88, p.pic, p};
+    CPU80186 cpu80186{p.mem186, p.pic, p};
     CPU80286 cpu80286{p.mem286, p.pic, p};
 
     u32 current_cpu{};
@@ -736,17 +738,17 @@ void configline(std::string line)
         iss >> cputype;
 
         //TODO: set queue size as per 6/8 cpu (not 80286)
-        if (cputype == "8086")
+        if (cputype == "8086" || cputype == "86")
             mac.init_cpu(0);
-        else if (cputype == "8088")
+        else if (cputype == "8088" || cputype == "88")
             mac.init_cpu(0);
-        else if (cputype == "80186")
+        else if (cputype == "80186" || cputype == "186")
             mac.init_cpu(2);
-        else if (cputype == "80188")
+        else if (cputype == "80188" || cputype == "188")
             mac.init_cpu(2);
-        else if (cputype == "8088mc")
+        else if (cputype == "8088mc" || cputype == "88mc")
             mac.init_cpu(1);
-        else if (cputype == "80286")
+        else if (cputype == "80286" || cputype == "286")
             mac.init_cpu(3);
         else
             std::cout << "ERROR unknown cpu: " << cputype << std::endl;
