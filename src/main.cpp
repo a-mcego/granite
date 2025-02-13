@@ -314,25 +314,28 @@ struct Machine
     CPUResetFn reset_fn;
     CPUIrqFn irq_fn;
 
-    void init_cpu(u32 cpu_type)
+    void init_cpu(u32 cpu_type, i32 prefetch_queue_size)
     {
         if (cpu_type == 0)
         {
             cycle_fn = &Machine::cycle_8086;
             reset_fn = &Machine::reset_8086;
             irq_fn = &Machine::irq_if_accept_8086;
+            cpu8086.prefetch_queue_size = prefetch_queue_size;
         }
         else if (cpu_type == 1)
         {
             cycle_fn = &Machine::cycle_8088mc;
             reset_fn = &Machine::reset_8088mc;
             irq_fn = &Machine::irq_if_accept_8088mc;
+            cpu8088mc.prefetch_queue_size = prefetch_queue_size;
         }
         else if (cpu_type == 2)
         {
             cycle_fn = &Machine::cycle_80186;
             reset_fn = &Machine::reset_80186;
             irq_fn = &Machine::irq_if_accept_80186;
+            cpu80186.prefetch_queue_size = prefetch_queue_size;
         }
         else if (cpu_type == 3)
         {
@@ -739,17 +742,17 @@ void configline(std::string line)
 
         //TODO: set queue size as per 6/8 cpu (not 80286)
         if (cputype == "8086" || cputype == "86")
-            mac.init_cpu(0);
+            mac.init_cpu(0,6);
         else if (cputype == "8088" || cputype == "88")
-            mac.init_cpu(0);
+            mac.init_cpu(0,4);
         else if (cputype == "80186" || cputype == "186")
-            mac.init_cpu(2);
+            mac.init_cpu(2,6);
         else if (cputype == "80188" || cputype == "188")
-            mac.init_cpu(2);
+            mac.init_cpu(2,4);
         else if (cputype == "8088mc" || cputype == "88mc")
-            mac.init_cpu(1);
+            mac.init_cpu(1,4);
         else if (cputype == "80286" || cputype == "286")
-            mac.init_cpu(3);
+            mac.init_cpu(3,-1);
         else
             std::cout << "ERROR unknown cpu: " << cputype << std::endl;
     }
@@ -1142,7 +1145,7 @@ int main(int argc, char* argv[])
 
     //glfwInit();
     initialize_key_lookup();
-    mac.init_cpu(1);
+    mac.init_cpu(1,4);
 
     std::string configFilename = "config.txt";
     if (argc > 1)

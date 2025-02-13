@@ -266,27 +266,20 @@ struct CPU8086
     }
 
 
-    static const u32 PREFETCH_QUEUE_SIZE = 6;
-    u8 prefetch_queue[PREFETCH_QUEUE_SIZE] = {};
+    u32 prefetch_queue_size = 6;
+    u8 prefetch_queue[6] = {};
     u32 prefetch_address{0xFFFFFFFF};
 
     bool do_prefetch_delay{};
     template<typename T>
     T read_inst() requires integral<T>
     {
-        if constexpr(PREFETCH_QUEUE_SIZE == 0)
-        {
-            u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
-            T data = *(T*)(mem.membytes.bytes+position);
-            registers[IP] += sizeof(T);
-            return data;
-        }
         T result{};
         u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
         if (prefetch_address != position)
         {
             prefetch_address = position;
-            for(u32 i=0; i<PREFETCH_QUEUE_SIZE; ++i)
+            for(u32 i=0; i<prefetch_queue_size; ++i)
             {
                 prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
             }
@@ -296,11 +289,11 @@ struct CPU8086
         prefetch_address += sizeof(T);
         registers[IP] += sizeof(T);
 
-        for(u32 i=0; i<PREFETCH_QUEUE_SIZE-sizeof(T); ++i)
+        for(u32 i=0; i<prefetch_queue_size-sizeof(T); ++i)
         {
             prefetch_queue[i] = prefetch_queue[i+sizeof(T)];
         }
-        for(u32 i=PREFETCH_QUEUE_SIZE-sizeof(T); i<PREFETCH_QUEUE_SIZE; ++i)
+        for(u32 i=prefetch_queue_size-sizeof(T); i<prefetch_queue_size; ++i)
         {
             prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
         }
