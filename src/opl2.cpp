@@ -451,3 +451,5 @@ void Opl2::writebyte(int port, int val)
 	else
 		write(writereg, val);
 }
+
+void Opl2::Quit() {}

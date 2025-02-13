@@ -62,23 +62,15 @@ struct GlobalSettings
     } machine=MACHINE_PC;
 } globalsettings{};
 
+    u8 global_port0x61{0x00}; //system control port B
+    u64 cycles{};
 const u32 DEBUG_LEVEL = 0;
 
-u8 global_port0x61{0x00}; //system control port B
 const u32 PRINT_START = 0;
-u64 cycles{};
-u32 readonly_start = 0xF0000;
 
 const char* r8_names[8] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
 const char* r16_names[8] = {"AX","CX","DX","BX","SP","BP","SI","DI"};
 const char* seg_names[8] = {"ES", "CS", "SS", "DS", "(invalid segment register #4)", "(invalid segment register #5)", "(invalid segment register #6)", "(invalid segment register #7)"};
-
-const char* r_fullnames[14] =
-{
-    "AX","CX","DX","BX","SP","BP","SI","DI",
-    "ES", "CS", "SS", "DS",
-    "FLAGS","IP"
-};
 
 const u8 byte_parity[256] =
 {
@@ -101,3423 +93,47 @@ const u8 byte_parity[256] =
 };
 
 #include "screen.h"
+#include "YM3812.h"
+#include "gameport.h"
+#include "cga.h"
+#include "ltems.h"
+#include "interrupt.h"
+#include "mem286.h"
+#include "mem8088.h"
+#include "beeper.h"
+#include "audio.h"
+#include "rtccmos.h"
+#include "keyboard_at.h"
+#include "keyboard_xt.h"
+#include "dmapage.h"
+#include "dma.h"
+#include "pit.h"
+#include "harddisk.h"
+#include "diskette.h"
 
-struct YM3812
+
+struct IOSystem
 {
-    Opl2 opl2;
-
-    u8 current_register{};
-    u8 status{};
-
-    u8 timer1{};
-    u8 timer2{};
-
-    u8 counter{};
-
-    i16 sample{};
-    i16 previous_sample{};
-
-    void write(u8 port, u8 data) //port from 0 to 1! inclusive.
-    {
-        //cout << "YM3812 WRITE! " << u32(port) << ":" << u32(data) << endl;
-        if (port == 0x00)
-        {
-            current_register = data;
-        }
-        else if (port == 0x01)
-        {
-            if (current_register == 0x02)
-            {
-                timer1 = data;
-            }
-            else if (current_register == 0x03)
-            {
-                timer2 = data;
-            }
-            else if (current_register == 0x04) //reset IRQ
-            {
-                if (data&0x80)
-                {
-                    status = 0;
-                }
-            }
-            else
-            {
-                opl2.write(current_register,data);
-            }
-        }
-    }
-
-    u8 read(u8 port) //port from 0 to 1! inclusive.
-    {
-        u8 ret{};
-        if (port == 0)
-        {
-            ret = status;
-        }
-        //cout << "YM3812 READ!" << u32(port) << ":" << u32(ret) << endl;
-        return ret;
-    }
-
-    void cycle_timers() //at circa 49715 hz
-    {
-        ++counter;
-        if(timer1 != 0  && (counter&0x03) == 0) //fast timer
-        {
-            ++timer1;
-            if (timer1==0)
-            {
-                status |= 0xC0;
-                cout << "YM3812: TIMER 1 expired!" << endl;
-            }
-        }
-        if(timer2 != 0  && (counter&0x0F) == 0) //slow timer
-        {
-            ++timer2;
-            if (timer2==0)
-            {
-                status |= 0xA0;
-                cout << "YM3812: TIMER 2 expired!" << endl;
-            }
-        }
-    }
-    void cycle() //at circa 49715 hz in real time!
-    {
-        previous_sample = sample;
-        sample = opl2.update();
-    }
-} ym3812;
-
-const u32 GAMEPORT_CYCLE = 64;
-
-struct Gameport
-{
-    u8 reg{0xF0};
-    /*
-    bit 7: button 4 off
-    bit 6: button 3 off
-    bit 5: button 2 off
-    bit 4: button 1 off
-
-    bit 3: #2 axis y state
-    bit 2: #2 axis x state
-    bit 1: #1 axis y state
-    bit 0: #1 axis x state
-    */
-
-    i16 axes[400] = {};
-    u32 counters[400] = {};
-
-    u32 axis_to_counter(i16 axis_value)
-    {
-        //u32 resistor = u32((u64(axis_value+32768)*100000ULL)>>16); //ohms
-        u32 cycles = u32((i32(axis_value)+32768)>>2) + 384; //cycles
-        //cout << std::dec << axis_value << " -> " << cycles/(14.318180) << "us" << std::hex << endl;
-        return u32(cycles);
-    }
-
-    void set_button_state(u8 button, bool is_on)
-    {
-        reg = (reg&~(0x10<<button)) | (is_on?0:(0x10<<button));
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 0! inclusive.
-    {
-        reg |= 0x0F;
-        for(int axis=0; axis<4; ++axis)
-            counters[axis] = axis_to_counter(axes[axis]);
-    }
-
-    u8 read(u8 port) //port from 0 to 0! inclusive.
-    {
-        return reg;
-    }
-
-    void cycle() //called at 14318180/GAMEPORT_CYCLE Hz
-    {
-        reg &= 0xF0;
-
-        for (int i = 0; i < 4; ++i)
-        {
-            counters[i] -= (counters[i]>=GAMEPORT_CYCLE ? GAMEPORT_CYCLE : 0);
-            reg |= (counters[i]>=GAMEPORT_CYCLE ? (1 << i): 0);
-        }
-    }
-} gameport;
-
-struct CGA
-{
-    static const u8 REGISTER_COUNT = 18;
-    static const u8 COLORBURST_START = 240;
-    u8 registers[REGISTER_COUNT] = {};
-    u8 current_register{};
-    u8 mode_select{};
-    u8 color_select{};
-
-    enum struct OUTPUT
-    {
-        RGB,
-        COMPOSITE
-    } output{OUTPUT::RGB};
-
-    bool snow{false};
-    bool snow_enabled{false};
-
-    u8 mem[0x4000 + 1] = {};
-    u8& memory8(u16 address)
-    {
-        snow = snow_enabled;
-        return mem[address&0x3FFF];
-    }
-    u16& memory16(u16 address)
-    {
-        snow = snow_enabled;
-        return *(u16*)(void*)(mem+(address&0x3FFF));
-    }
-    u8 memory8_internal(u16 address)
-    {
-        if (snow)
-            return 0xFF;
-        return mem[address&0x3FFF];
-    }
-    u16 memory16_internal(u16 address)
-    {
-        if (snow)
-            return 0xFF;
-        return *(u16*)(void*)(mem+(address&0x3FFF));
-    }
-    void print_regs()
-    {
-        for(int i=0; i<16; ++i)
-            cout << u32(registers[i]) << (i%4==3?"  ":" ");
-        cout << endl;
-    }
-
-    struct CompositeColor
-    {
-        float getlevel(u8 color, u8 pos)
-        {
-            //black  00000000
-            //blue   00011110
-            //green  11000011
-            //cyan   10000111
-            //red    01111000
-            //mgnt   00111100
-            //yellow 11100001
-            //white  11111111
-
-            //       00011110
-            //       22211112
-
-            //       21111222
-            //       11222211
-
-            //       BAA--AAB
-            //       aa-AAA-a
-
-            //const float curve[8] = {0,0,0,0,1,1,1,1};
-            //const u8 add[8] = {0,1,1,1,1,1,1,0};
-            const u8 start[8] = {0,1,6,7,3,2,5,4};
-            //return curve[(start[color]+add[color]*pos)&7];
-
-            const u8 mask[8] = {0,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0};
-
-            return ((start[color]+(mask[color]&pos))&4)?1.0f:0.0f;
-        }
-
-        u8 curr_idx[4] = {};
-        bool intense[4] = {false, false, false, false};
-        void Clear()
-        {
-            for(int i=0; i<4; ++i)
-            {
-                curr_idx[i] = 0;
-                intense[i] = false;
-            }
-        }
-
-        /*void Set(u8 position, u8 color_index)
-        {
-            curr_idx[position] = color_index&7;
-            intense[position] = color_index&8;
-        }*/
-        float num[8] = {};
-
-        u32 Get(u8 position, u8 color_index) //return type AABBGGRR
-        {
-            //Set(position, color_index);
-            num[position*2+0] = getlevel(color_index&7,position*2+0)+(color_index&8?2.2f/5.6f:0.0f);
-            num[position*2+1] = getlevel(color_index&7,position*2+1)+(color_index&8?2.2f/5.6f:0.0f);
-
-            const float phase[8] =
-            {
-                //0, 1, 1, 0, 0, -1, -1, 0, //works worse
-                1,1,1,1,-1,-1,-1,-1 //works better
-            };
-
-            float fy{}, fi{}, fq{};
-            for(int i=0; i<8; ++i)
-            {
-                fy += num[i];
-                fi += num[i]*phase[i];
-                fq += num[i]*phase[(i+6)&7];
-            }
-            const float yiq2rgb[9] =
-            {
-                1.0f/12.0f, 0.5694/12.0f/0.5957f, 0.3234/12.0f/0.5226f,
-                1.0f/12.0f, -0.1620/12.0f/0.5957f, -0.3381/12.0f/0.5226f,
-                1.0f/12.0f, -0.6588/12.0f/0.5957f, 0.8900/12.0f/0.5226f,
-            };
-            float fr = fy*yiq2rgb[0] + fi*yiq2rgb[1] + fq*yiq2rgb[2];
-            float fg = fy*yiq2rgb[3] + fi*yiq2rgb[4] + fq*yiq2rgb[5];
-            float fb = fy*yiq2rgb[6] + fi*yiq2rgb[7] + fq*yiq2rgb[8];
-
-            fr = std::min(std::max(fr,0.0f),1.0f);
-            fg = std::min(std::max(fg,0.0f),1.0f);
-            fb = std::min(std::max(fb,0.0f),1.0f);
-
-            u8 r = fr*255.0f;
-            u8 g = fg*255.0f;
-            u8 b = fb*255.0f;
-
-            return 0xFF000000+(b<<16)+(g<<8)+r;
-        }
-    } compositecolor;
-
-    enum REGISTER
-    {
-        H_TOTAL,
-        H_DISPLAYED,
-        H_SYNC_POS,
-        H_SYNC_WIDTH,
-
-        V_TOTAL,
-        V_TOTAL_ADJUST,
-        V_DISPLAYED,
-        V_SYNC_POS,
-
-        INTERLACE,
-        MAX_SCAN_LINE, //not "scanline" but "scan line" as per ibm's manual :-)
-        CURSOR_START,
-        CURSOR_END,
-
-        START_ADDRESS_H,
-        START_ADDRESS_L,
-        LIGHT_PEN_H,
-        LIGHT_PEN_L,
-    };
-
-    u8 horizontal_retrace{};
-    u8 vertical_retrace{};
-    bool retrace{};
-    u16 current_startaddress{};
-    u8 vcc{};
-
-    u32 totalvsync{};
-
-    double last_render{};
-
-    void render()
-    {
-        double now = glfwGetTime();
-        if (now-last_render > 0.01)
-        {
-            screen.render();
-            last_render = now;
-            screen.clear();
-        }
-    }
-
-    u8 read(u8 port) //port from 0 to 15! inclusive
-    {
-        if constexpr (DEBUG_LEVEL > 0)
-            cout << "CGA READ! " << u32(port) << endl;
-        u8 readdata{};
-        if (port == 0x05)
-        {
-            if (current_register < 0x12)
-            {
-                readdata = registers[current_register];
-            }
-            else
-            {
-                cout << "CGA current register bad: " << u32(current_register) << endl;
-                std::abort();
-            }
-        }
-        else if (port == 0x0A)
-        {
-            //bit 0 = we are in vert. or horiz. retrace
-            readdata |= retrace;
-            //bit 1 = light pen triggered (vs 0 = armed)
-            //bit 2 = light pen switch open (vs 0 = closed)
-            //bit 3 = vertical sync pulse!
-            readdata |= (vertical_retrace<<3);
-        }
-        //std::cout << "r" << u32(port) << " d" << u32(readdata) << " " << std::endl;
-        return readdata;
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 15! inclusive.
-    {
-        //std::cout << "w" << u32(port) << " d" << u32(data) << " " << std::endl;
-        if (port == 0x04)
-        {
-            current_register = data;
-        }
-        else if (port == 0x05)
-        {
-            if (current_register < 0x10)
-            {
-                registers[current_register] = data;
-                //if (current_register != 0x0E && current_register != 0x0F)
-                //      cout << "CGA " << u32(current_register) << "=" << u32(data) << " " << std::dec << column << ":" << line << "(" << logical_line << ")" << std::hex << "  ", print_regs();
-            }
-            else
-            {
-                cout << "CGA current register bad: " << u32(current_register) << endl;
-                std::abort();
-            }
-        }
-        else if (port == 0x08) //mode select register
-        {
-            mode_select = data;
-        }
-        else if (port == 0x09) //color select register (UWAGA!! documentation had a mistake here, said port is 8 but it is 9)
-        {
-            color_select = data;
-        }
-        if constexpr(DEBUG_LEVEL > 1)
-        {
-            for(int i=0; i<88; ++i)
-                cout << i << "=" << u32(registers[i]) << ", ";
-            cout << endl;
-        }
-    }
-
-    u64 total_frames{};
-
-    void HSBtoRGB(u8 hue, u8 saturation, u8 brightness, u8& red, u8& green, u8& blue)
-    {
-        float h = hue / 256.0f * 6.0f;
-        float s = saturation / 255.0f;
-        float v = brightness / 255.0f;
-
-        int i = (hue*6)>>8;
-        float f = h - i;
-        float p = v * (1.0f - s);
-        float q = v * (1.0f - f * s);
-        float t = v * (1.0f - (1.0f - f) * s);
-
-        float r, g, b;
-        switch (i)
-        {
-            case 0: r = v; g = t; b = p; break;
-            case 1: r = q; g = v; b = p; break;
-            case 2: r = p; g = v; b = t; break;
-            case 3: r = p; g = q; b = v; break;
-            case 4: r = t; g = p; b = v; break;
-            case 5: r = v; g = p; b = q; break;
-        }
-
-        r = min(r,1.0f);
-        g = min(g,1.0f);
-        b = min(b,1.0f);
-
-        red = static_cast<u8>(r * 255.0f);
-        green = static_cast<u8>(g * 255.0f);
-        blue = static_cast<u8>(b * 255.0f);
-    }
-
-    u32 column{};
-    u32 logical_line{};
-    u32 scan_line{};
-    u32 scan_column{};
-    u32 line_inside_character{};
-    u32 vsyncadjust{};
-    bool hsync{}, vsync{};
-    void cycle()
-    {
-        u8 textmode_40_80 = (mode_select>>0)&0x01;
-        u8 is_graphics_mode = ((mode_select>>1)&0x01);
-        u16 hsync_mult = 16;
-
-        if (textmode_40_80)
-        {
-            hsync_mult = 8;
-        }
-
-        column += 8;
-        column = (column>=(registers[H_TOTAL]+1)*hsync_mult?0:column);
-
-        scan_column += 8;
-        scan_column = (scan_column>=912?0:scan_column);
-
-        if (column == 0) //new line
-        {
-            ++line_inside_character;
-            if (line_inside_character > registers[MAX_SCAN_LINE])
-            {
-                line_inside_character = 0;
-                ++logical_line;
-                //cout << std::dec << physical_line << "-" << logical_line <<std::hex << endl;
-            }
-            bool all_lines_drawn = (logical_line > registers[V_TOTAL]);
-            if (all_lines_drawn)
-                ++vsyncadjust;
-            else
-                vsyncadjust = 0;
-
-            if (all_lines_drawn && vsyncadjust > registers[V_TOTAL_ADJUST])
-            {
-                vsyncadjust = 0;
-                logical_line = 0;
-                line_inside_character = 0;
-            }
-
-            if (logical_line == 0 && line_inside_character == 0)
-            {
-                current_startaddress = ((registers[START_ADDRESS_H]<<8) | registers[START_ADDRESS_L])*2;
-            }
-        }
-
-        bool old_vsync = vsync;
-        vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+2);
-
-        u16 hsync_start = (registers[H_SYNC_POS])*hsync_mult;
-        u16 hsync_end = (registers[H_SYNC_POS]+registers[H_SYNC_WIDTH])*hsync_mult;
-
-        bool old_hsync = hsync;
-
-        hsync = (column >= hsync_start && column <= hsync_end);
-
-        //if (old_hsync && !hsync && (scan_column == 0 || scan_column >= 656))
-        if (hsync && (scan_column == 0 || scan_column >= 800))
-        {
-            scan_column = 0;
-        }
-        if (scan_column == 0)
-        {
-            scan_line += (scan_line>=261?-261:1);
-        }
-        if (!old_vsync && vsync)
-        {
-            render();
-            ++totalvsync;
-            scan_line = 0;
-            scan_column = 0;
-        }
-
-        vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
-        horizontal_retrace = (column >= (registers[H_DISPLAYED])*hsync_mult);
-
-        u8 no_colorburst = (mode_select>>2)&0x01;
-        u8 resolution = (mode_select>>4)&0x01;
-        bool output_enabled = (mode_select&0x08);
-
-        const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
-        const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
-
-        retrace = (vertical_retrace|horizontal_retrace);
-        bool draw_bg = retrace|!output_enabled;
-
-        if (output == OUTPUT::RGB)
-        {
-            if (is_graphics_mode && !textmode_40_80)
-            {
-                int x = column>>3;
-                u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
-                u8 gfx_byte = memory8_internal(offset);
-
-                for(int i=0; i<8; i+=2)
-                {
-                    u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
-                    u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
-
-                    if (draw_bg)
-                    {
-                        if (!resolution)
-                            p1 = palette[0], p2 = palette[0];
-                        else
-                            p1 = 0, p2 = 0;
-                    }
-                    if (vsync|hsync)
-                        p1 = 0, p2 = 0;
-
-                    screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
-                    screen.pixels[scan_line*screen.X + scan_column + i+1] = getpalette(p2);
-                    gfx_byte <<= 2;
-                }
-            }
-            else
-            {
-                int x = column>>(textmode_40_80?3:4);
-                bool half = (textmode_40_80?0:(column&8));
-                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
-                u8 char_code = memory8_internal(offset);
-                u8 attribute = memory8_internal(offset+1);
-                u8 fg_color = attribute & 0x0F;
-                u8 bg_color = (attribute >> 4) & 0x0F;
-                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
-
-                for (u32 x_off = 0; x_off < 8; x_off++)
-                {
-                    u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
-                    u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (draw_bg || is_graphics_mode)
-                        color = palette[0];
-                    if (vsync|hsync)
-                        color = 0;
-
-                    screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
-                }
-            }
-        }
-        else if (output == OUTPUT::COMPOSITE)
-        {
-            if (is_graphics_mode && !textmode_40_80)
-            {
-                int x = column>>3;
-                u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
-                u8 gfx_byte = memory8_internal(offset);
-
-                for(int i=0; i<8; i+=2)
-                {
-                    u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
-                    u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
-
-                    if (draw_bg)
-                    {
-                        if (!resolution)
-                            p1 = palette[0], p2 = palette[0];
-                        else
-                            p1 = 0, p2 = 0;
-                    }
-                    if (vsync|hsync)
-                        p1 = 0, p2 = 0;
-
-                    screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get((i)&0x03, p1);
-                    screen.pixels[scan_line*screen.X + scan_column + i+1] = compositecolor.Get((i+1)&0x03, p2);
-                    gfx_byte <<= 2;
-                }
-            }
-            else
-            {
-                int x = column>>(textmode_40_80?3:4);
-                bool half = (textmode_40_80?0:(column&8));
-                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
-                u8 char_code = memory8_internal(offset);
-                u8 attribute = memory8_internal(offset+1);
-                u8 fg_color = attribute & 0x0F;
-                u8 bg_color = (attribute >> 4) & 0x0F;
-                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
-
-                for (u32 x_off = 0; x_off < 8; x_off++)
-                {
-                    u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
-                    u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (draw_bg || is_graphics_mode)
-                        color = palette[0];
-                    if (vsync|hsync)
-                        color = 0;
-
-                    screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get(x_off&0x03, color);
-                }
-            }
-        }
-
-        snow = false;
-    }
-} cga;
-
-struct LTEMS
-{
-    u8 memory[4*1024*1024+1] = {};
-
-    u32 pages[4] = {};
-
-    void write(u8 port, u8 data) // port from 0 to 3 inclusive
-    {
-        pages[port] = u32(data)*0x4000U;
-    }
-    u8 read(u8 port) // no port is readable
-    {
-        return 0;
-    }
-
-    u8& _8(u16 index)
-    {
-        u16 page = (index>>14);
-        u16 address = (index&0x3FFFU);
-        return memory[pages[page]+address];
-    }
-    u16& _16(u16 index)
-    {
-        u16 page = (index>>14);
-        u16 address = (index&0x3FFFU);
-        return *(u16*)(void*)(memory+(pages[page]+address));
-    }
-} ltems;
-
-struct CHIP8259 //PIC
-{
-    u8 init_state{}; // are we initializing?
-    u8 irr{}; // Interrupt Request Register
-    u8 imr{}; // Interrupt Mask Register
-    u8 isr{}; // In-Service Register
-    u8 icw[5] = {}; // Initialization Command Words
-    u8 ocw[4] = {}; // Operation Command Words
-    bool is_initialized = false;
-
-    void reset()
-    {
-        init_state = 0;
-        irr = 0;
-        imr = 0;
-        isr = 0;
-        icw[0] = 0;
-        icw[1] = 0;
-        icw[2] = 0;
-        icw[3] = 0;
-        icw[4] = 0;
-        ocw[0] = 0;
-        ocw[1] = 0;
-        ocw[2] = 0;
-        ocw[3] = 0;
-        is_initialized = false;
-    }
-
-    u8 read(u8 port) // port from 0 to 1 inclusive
-    {
-        if (port == 0)
-        {
-            if (ocw[3]&1)
-            {
-                if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
-                return irr;
-            }
-            else
-            {
-                if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
-                return isr;
-            }
-        }
-        else if (port == 1)
-        {
-            if constexpr (DEBUG_LEVEL > 0)
-                cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
-            return imr;
-        }
-        return 0;
-    }
-
-    void write(u8 port, u8 data) // port from 0 to 1 inclusive
-    {
-        if (port == 0)
-        {
-            if (data & 0x10) // ICW1
-            {
-                init_state = 1;
-                icw[1] = data;
-                is_initialized = false;
-                if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
-            }
-            else
-            {
-                // OCW2 or OCW3
-                if (data & 0x18) // OCW3
-                {
-                    ocw[3] = data;
-                }
-                else // OCW2
-                {
-                    ocw[2] = data;
-                    if (data & 0x20) // End of Interrupt (EOI)
-                    {
-                        if ((data&0x07) != 0)
-                            cout << "EOI isr " << u32(data & 0x07) << endl;
-                        isr &= ~(1 << (data & 0x07));
-                    }
-                }
-            }
-        }
-        else if (port == 1)
-        {
-            if (init_state == 1) // ICW2
-            {
-                icw[2] = data;
-                init_state = 3; //TODO: support multiple DMA chips. we skip ICW3 when there's only one
-            }
-            else if (init_state == 2) // ICW3
-            {
-                icw[3] = data;
-                init_state = 3;
-            }
-            else if (init_state == 3) // ICW4
-            {
-                icw[4] = data;
-                init_state = 0;
-                is_initialized = true;
-            }
-            else
-            {
-                // Write to Interrupt Mask Register (IMR)
-                imr = data;
-                if constexpr (DEBUG_LEVEL > 0)
-                {
-                    cout << "interrupt mask: " << u32(imr) << endl;
-                }
-            }
-        }
-    }
-
-    void cpu_ack_irq(u8 irq)
-    {
-        isr &= ~(1 << irq);
-    }
-
-    void cycle() // one clock cycle running
-    {
-        if (!is_initialized)
-        {
-            return;
-        }
-
-        // Check for any pending interrupts
-        for (int i = 0; i < 8; ++i)
-        {
-            if (!masked(i) && pending(i) && !serviced(i))
-            {
-                if (startprinting)
-                    cout << "IRQ: SERVICE " << u32(i) << endl;
-                isr |= (1 << i);
-                irr &= ~(1 << i);
-            }
-        }
-    }
-
-    bool masked(u8 irq)
-    {
-        return (imr&(1<<irq));
-    }
-    bool pending(u8 irq)
-    {
-        return (irr&(1<<irq));
-    }
-    bool serviced(u8 irq)
-    {
-        return (isr&(1<<irq));
-    }
-
-    bool request_interrupt(u8 irq)
-    {
-        if (!is_initialized || irq >= 8)
-            return false;
-
-        if (irr&(1<<irq))
-            return false;
-        if (isr&(1<<irq))
-            return false;
-
-        irr |= (1<<irq);
-        return true;
-    }
-} pic, pic2;
-
-struct CHIP8042 //AT keyboard etc
-{
-    u8 current_scancode = 0;
-    bool is_initialized{false};
-
-    deque<u8> scancode_queue;
-    u16 kbd_wait{};
-
-    u16 clear_input_bit{}; //time to clear the input bit
-    u16 set_output_bit{}; //time to set the output bit
-
-    /* status byte documentation
-    Bit 7: Parity error
-    Bit 6: Timeout on kbd->ctrl
-    Bit 5: Timeout on ctrl->kbd
-    Bit 4: Keyboard lock
-    Bit 3: Command/Data
-        0: Last write to input buffer was data (port 0x60). 1: Last write to input buffer was a command (port 0x64).
-
-    Bit 2: System flag. 0 after power on reset, 1 after ctrl self-test
-
-    Bit 1: Input buffer status
-        0: empty, can be written. 1: full, don't write yet.
-
-    Bit 0: Output buffer status
-        0: empty, don't read yet. 1: full, can be read.
-    */
-    u8 status_byte{0x10};
-    u8 result{};
-    u8 ram[32] = {};
-    u16 command{0x100};
-
-    /*
-    P1 documentation
-    bit 7 	Keyboard lock 	0: locked, 1: not locked
-    bit 6 	Display 	0: CGA, 1: MDA
-    bit 5 	Manufacturing jumper 	0: installed, 1: not installed
-            with jumper the BIOS runs an infinite diagnostic loop
-    bit 4 	RAM on motherboard 	0: 512 KB, 1: 256 KB
-    bit 3 	  	Unused in ISA, EISA, PS/2 systems
-            Can be configured for clock switching
-    bit 2 	  	Unused in ISA, EISA, PS/2 systems
-            Can be configured for clock switching
-        Keyboard power 	PS/2 MCA: 0: keyboard power normal, 1: no power
-    bit 1 	Mouse data in 	Unused in ISA
-    bit 0 	Keyboard data in 	Unused in ISA
-    */
-    u8 P1{0xA0};
-    /*
-    P2 documentation
-    bit 7 	Keyboard data 	data to keyboard
-    bit 6 	Keyboard clock
-    bit 5 	IRQ12 	0: IRQ12 not active, 1: active
-    bit 4 	IRQ1 	0: IRQ1 not active, 1: active
-    bit 3 	Mouse clock 	Unused in ISA
-    bit 2 	Mouse data 	Unused in ISA. Data to mouse
-    bit 1 	A20 	0: A20 line is forced 0, 1: A20 enabled
-    bit 0 	Reset 	0: reset CPU, 1: normal
-    */
-    u8 P2{};
-
-    bool A20()
-    {
-        return P2&2;
-    }
-    bool is_reset()
-    {
-        bool ret = P2&1;
-        P2 |= 0x01;
-        if (!ret)
-        {
-            ram[0] |= 0x04;
-        }
-        return !ret;
-    }
-
-    void press(u8 scancode)
-    {
-        if (is_initialized)
-        {
-            scancode_queue.push_back(scancode);
-        }
-    }
-
-    u8 read(u8 port) //port from 0 to 4! inclusive
-    {
-        if (port == 0)
-        {
-            if (set_output_bit)
-                return 0;
-            if (command == 0x100)
-            {
-                result = current_scancode;
-                current_scancode = 0;
-                P2 &= ~0x10;
-            }
-            else if (command >= 0x00 && command <= 0x7F)
-            {
-                result = ram[command&0x1F];
-            }
-            else if (command == 0xC0)
-            {
-                result = P1;
-            }
-            else if (command == 0xD0)
-            {
-                result = P2;
-            }
-            else if (command == 0xAA)
-            {
-                result = 0x55; // self test OK!
-            }
-            else if (command == 0xAB)
-            {
-                result = 0;
-            }
-            else if (command == 0xA1) //firmware version! :-) AMI only so far.
-            {
-                result = 0x01;
-            }
-            else if (command == 0xAD);
-            else if (command == 0xAE);
-            else if (command == 0xD1); //**WRITE** P2..
-            else if (command == 0xE0) //keyboard clock (bit 0), keyboard data (bit 1) wat do i do.
-            {
-                if (ram[0]&0x04) //kbd disabled
-                {
-                    result = 0;
-                }
-                else
-                {
-                    result = rand()&0x03;
-                }
-            }
-            else
-            {
-                std::cout << "UNKNOWN command is: " << (u32)command << std::endl;
-                std::abort();
-            }
-            //std::cout << "command is: " << (u32)command << std::endl;
-            std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
-            status_byte &= 0xFE; //clear "output byte available" bit
-            command = 0x100;
-            return result;
-        }
-        if (port == 1)
-        {
-            //std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(global_port0x61) << std::endl;
-            return global_port0x61;
-        }
-        if (port == 4)
-        {
-            std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte & (set_output_bit?0xFE:0xFF)) << " ," << u32(clear_input_bit) << std::endl;
-            return status_byte;
-        }
-
-        //what
-        cout << __PRETTY_FUNCTION__ << " weird thing?" << endl;
-        std::abort();
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 4! inclusive. 0 is port 0x80, 4 is port 0x84 etc.
-    {
-        //if (port != 1)
-        std::cout << std::hex << "keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
-        if (port == 0)
-        {
-            status_byte &= ~0x08;
-            //status_byte = (status_byte&0b1111'1110);
-            status_byte |= 0x03; //input byte done - don't do more!
-            clear_input_bit = 128;
-            set_output_bit = 192;
-            std::cout << "command is: " << (u32)command << std::endl;
-            if (command >= 0x00 && command <= 0x3F); //read keyboard RAM???
-            else if (command >= 0x40 && command <= 0x7F) //write keyboard RAM
-            {
-                ram[command&0x1F] = data;
-                if ((command&0x1F) == 0x00)
-                {
-                    status_byte = (status_byte&~0x04) | (data&0x04);
-                }
-            }
-            else if (command == 0xC1) //write P1
-            {
-                P1 = (P1&0xF0) | (data&0x0F);
-            }
-            else if (command == 0xD1) //write P2
-            {
-                P2 = (P2&0xF0) | (data&0x0F);
-            }
-            else if (command == 0xAE); //enable kbd
-            else if (command == 0xAD); //disable kbd
-            else if (command == 0x100) //no cmd
-            {
-                result = 0xFA; //ACK
-                status_byte |= 0x01; //output byte available!
-            }
-            else if (command == 0xDF) //enable A20 (hp vectra) / (quadtel?)
-            {
-                P2 |= 0x02;
-            }
-            else if (command == 0xDD) //disable A20 (hp vectra) / (quadtel?)
-            {
-                P2 &= ~0x02;
-            }
-            else
-            {
-                std::cout << "Unknown kbd command: " << u32(command) << std::endl;
-                std::abort();
-            }
-            command = 0x100;
-            return;
-        }
-        else if (port == 1)
-        {
-            global_port0x61 = (global_port0x61&~0x0F) | (data&0x0F);
-            return;
-        }
-        else if (port == 4)
-        {
-            status_byte = status_byte | 0x08;
-            command = data;
-            status_byte |= 0x02; //input byte done - don't do more!
-            clear_input_bit = 128;
-            set_output_bit = 192;
-            if (data == 0xAA)
-            {
-                result = 0x55;
-                status_byte |= 0x04; //self-test done
-                std::cout << "Keyboard self-test done!" << std::endl;
-                is_initialized = true;
-                return;
-            }
-            else if (data >= 0x00 && data <= 0x7F) // write kbd ctrl ram
-                return;
-            else if (data == 0xC0) //read P1
-            {
-                result = 0b0000'0000;
-                return;
-            }
-            else if (data == 0xA1) //read firmware version (unimplemented)
-            {
-                return;
-            }
-            else if (data == 0xD1) //write P2
-                return;
-            else if (data == 0xFE) //RESET
-            {
-                P2 &= 0xFE;
-                return;
-            }
-            else if (command == 0xAD) //disable kbd
-            {
-                ram[0] |= 0x10; //set bit 4 -> disable kbd
-                return;
-            }
-            else if (command == 0xAE) //enable kbd
-            {
-                ram[0] &= 0xEF; //clear bit 4 -> enable kbd
-                return;
-            }
-            else if (command == 0xAB) // interface test - return 0 for success
-            {
-                return;
-            }
-            else if (command == 0xE0) // show keyboard clock (bit0) and data (bit1) ???
-            {
-                return;
-            }
-        }
-        std::cout << "unknown kbd: " << std::hex << "0x6" << u16(port) << ", with data " << u16(data) << std::endl;
-        //std::abort();
-    }
-
-    u32 printer{};
-    void cycle()
-    {
-        ++printer;
-        if (printer&0x100000)
-        {
-            std::cout << u32(ram[0]) << " " << scancode_queue.size() << " " << u32(status_byte) << " " << u32(current_scancode) << " " << u32(kbd_wait) << std::endl;
-            printer=0;
-        }
-
-        if (clear_input_bit > 0)
-        {
-            --clear_input_bit;
-            if (clear_input_bit == 0)
-            {
-                status_byte &= ~0x02; //clear bit 1: input buffer bit
-            }
-        }
-        if (set_output_bit > 0)
-        {
-            --set_output_bit;
-            if (set_output_bit == 0)
-            {
-                status_byte |= 0x01;
-            }
-        }
-
-        if (!scancode_queue.empty())
-        {
-            if (set_output_bit == 0 && clear_input_bit == 0 && (status_byte&1) == 0 && kbd_wait == 0 && current_scancode == 0 && !(ram[0] & 0x10))
-            {
-                current_scancode = scancode_queue.front();
-                //status_byte |= 1;
-                scancode_queue.pop_front();
-                std::cout << "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
-                std::cout << "keyboard! " << u32(current_scancode) << " ";
-
-                if (ram[0]&0x01) //IRQ enabled?
-                {
-                    P2 |= 0x10;
-                    pic.request_interrupt(1);
-                    std::cout << " int 1" << std::endl;
-                }
-                else
-                {
-                    status_byte |= 1;
-                }
-                std::cout << std::endl;
-
-                kbd_wait = 2048;
-            }
-        }
-
-        if (kbd_wait > 0)
-        {
-            --kbd_wait;
-        }
-
-        if (!(status_byte & 0x01))
-        {
-            P2 &= ~0x10;
-        }
-    }
-} kbd;
-
-const u32 MEMORY_SIZE = (1<<21);
-struct MemoryManager286
-{
-    u8 memory_bytes[MEMORY_SIZE+1] = {};
-    void dump_memory(const char* filename)
-    {
-        FILE* filu = fopen(filename, "wb");
-        fwrite(memory_bytes, 0x100000, 1, filu);
-        fclose(filu);
-    }
-
-    u16 readonly_words[256] = {};
-    u8 readonly_word{};
-    u8 readonly_bytes[256] = {};
-    u8 readonly_byte{};
-
-    u16 rw_words[256] = {};
-    u8 rw_word{};
-
-    u16 INVALID_ADDRESS_16[16];
-    u8 INVALID_ADDRESS_8[16];
-    u16& direct16(u32 address)
-    {
-        if (!kbd.A20())
-            address &= 0xFFEFFFFF;
-        if (address >= 0xB8000 && address <= 0xBFFFF)
-            return cga.memory16(address&0x7FFF);
-        if (address >= 0xE0000 && address <= 0xEFFFF)
-            return ltems._16(address&0xFFFF);
-        if (address >= 0xA0000 && address <= 0xFFFFF) //upper memory area, make read-only
-        {
-            ++readonly_word;
-            readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+address);
-            return readonly_words[readonly_word];
-        }
-        if (address >= MEMORY_SIZE)
-        {
-            INVALID_ADDRESS_16[0] = 0xFFFF;
-            return INVALID_ADDRESS_16[0];
-        }
-        return *(u16*)(void*)(memory_bytes+address);
-    }
-    u8& direct8(u32 address)
-    {
-        //std::cout << "direct8 " << std::hex << address << std::endl;
-        if (address >= 0xB8000 && address <= 0xBFFFF)
-        {
-            //std::cout << '.';
-            return cga.memory8(address&0x7FFF);
-        }
-        if (address >= 0xE0000 && address <= 0xEFFFF)
-        {
-            return ltems._8(address&0xFFFF);
-        }
-        if (address >= 0xF0000 && address <= 0xFFFFF)
-        {
-            ++readonly_byte;
-            readonly_bytes[readonly_byte] = memory_bytes[address];
-            return readonly_bytes[readonly_byte];
-        }
-        if (address >= MEMORY_SIZE)
-        {
-            INVALID_ADDRESS_8[0] = 0xFF;
-            return INVALID_ADDRESS_8[0];
-        }
-        return *(u8*)(void*)(memory_bytes+address);
-    }
-
-    void update()
-    {
-
-    }
-} mem;
-
-struct MemoryManager8088
-{
-    u8 memory_bytes[(1<<20)+1] = {};
-    void dump_memory(const char* filename)
-    {
-        FILE* filu = fopen(filename, "wb");
-        fwrite(memory_bytes, 0x100000, 1, filu);
-        fclose(filu);
-    }
-
-    u16 readonly_words[256] = {};
-    u8 readonly_word{};
-    u8 readonly_bytes[256] = {};
-    u8 readonly_byte{};
-
-    u16 rw_words[256] = {};
-    u16 rw_segs[256] = {};
-    u16 rw_offsets[256] = {};
-    u8 rw_word{};
-
-    bool cga_used{};
-
-    u8& _8(u16 segment, u16 index)
-    {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++readonly_byte;
-            readonly_bytes[readonly_byte] = memory_bytes[total_address];
-            return readonly_bytes[readonly_byte];
-        }
-
-        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
-            return ltems._8(total_address&0xFFFF);
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory8(total_address&0x7FFF);
-        }
-        return memory_bytes[total_address];
-    }
-    u16& _16(u16 segment, u16 index)
-    {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= readonly_start)
-        {
-            ++readonly_word;
-            readonly_words[readonly_word] = *(u16*)(void*)(memory_bytes+total_address);
-            return readonly_words[readonly_word];
-        }
-        if (readonly_start < 0x100000 && (total_address&0xF0000) == 0xE0000)
-            return ltems._16(total_address&0xFFFF);
-        if (readonly_start < 0x100000 && (total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory16(total_address&0x7FFF);
-        }
-        rw_words[rw_word] = _8(segment,index);
-        rw_words[rw_word] |= (_8(segment,index+1) << 8);
-        rw_segs[rw_word] = segment;
-        rw_offsets[rw_word] = index;
-        ++rw_word;
-        return rw_words[rw_word-1];
-    }
-
-    void update()
-    {
-        for(int i=0; i<rw_word; ++i)
-        {
-            _8(rw_segs[i], rw_offsets[i]) = (rw_words[i]&0xFF);
-            _8(rw_segs[i], rw_offsets[i]+1) = (rw_words[i]>>8);
-        }
-        rw_word = 0;
-    }
-};
-
-struct BEEPER
-{
-    i16 buffer[1<<16] = {};
-    u16 write_offset{};
-    u16 read_offset{};
-
-    //u8 timer{};
-
-    i16 sampleA{}, sampleB{}, sampleC{};
-
-    u8 pb1{}; //speaker data
-    u8 pb0{}; //timer gate
-
-    void set_output_from_pit(bool value)
-    {
-        /*if (globalsettings.sound_on)
-        {
-            static FILE* filu = nullptr;
-            if (filu == nullptr)
-                filu = fopen("d:\\out2.raw", "wb");
-            fwrite(&sampleA, 2, 1, filu);
-        }*/
-
-
-
-        sampleA = ((value&&(global_port0x61&0x02))?60*256:0)*(pb0?-1:1); //TODO: make pc work again
-        sampleB = ((sampleB<<5)-sampleB+sampleA)>>5; //crude lowpass
-        sampleC = ((sampleC<<5)-sampleC+sampleB)>>5; //crude lowpass
-    }
-
-    void cycle()
-    {
-        i16 state = sampleC;
-        i32 data = state+ym3812.sample;
-        data = (data<-32768?-32768:data);
-        data = (data>32767?32767:data);
-        buffer[write_offset] = globalsettings.sound_on?i16(data):i16(0);
-        ++write_offset;
-    }
-} beeper;
-
-u64 totalframes = 0;
-
-//we need to somehow sync the "real audio timing" to the "emulator timing"
-//this takes some thinking.
-
-//METHOD 1: always take the N last frames. might lead to misses or repetition, but has stable pitch!
-void audio_method1(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-    static bool started{false};
-    if (!started)
-    {
-        started = true;
-        beeper.read_offset = beeper.write_offset-256;
-    }
-    u16 offset_end = beeper.write_offset;
-    u16 offset_start = beeper.read_offset;
-    u16 done_count = u16(offset_end-offset_start);
-    if (frameCount == 0 || done_count == 0)
-        return;
-
-    totalframes += frameCount;
-    offset_start = offset_end-frameCount;
-    i16* pi16Output = (i16*)pOutput;
-    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
-    {
-        i16 data = beeper.buffer[u16(offset_start+done_frames)];
-        *pi16Output = data;
-        ++pi16Output;
-    }
-}
-
-//METHOD 2: resample the M last frames to fit into frameCount. always uses every sample but has unstable pitch!
-void audio_method2(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-    static bool started{false};
-    if (!started)
-    {
-        started = true;
-        beeper.read_offset = beeper.write_offset-256;
-    }
-    u16 offset_end = beeper.write_offset;
-    u16 offset_start = beeper.read_offset;
-    u16 done_count = u16(offset_end-offset_start);
-    if (frameCount == 0 || done_count == 0)
-        return;
-
-    totalframes += frameCount;
-    u64 frame_counter=0;
-    i16* pi16Output = (i16*)pOutput;
-    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
-    {
-        i16 data = beeper.buffer[u16(offset_start+frame_counter/frameCount)];
-        *pi16Output = data;
-        ++pi16Output;
-        frame_counter += done_count;
-    }
-    beeper.read_offset += frame_counter/frameCount;
-}
-
-//METHOD 3: dynamic resampling. experimental!
-i16 additional_samples = 0;
-const float SAMPLERATE = 48000.0;
-float veer = (14318180.0/298.0)/SAMPLERATE;
-void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-    static bool started{false};
-    u16 offset_end = beeper.write_offset;
-    if (!started)
-    {
-        started = true;
-        beeper.read_offset = offset_end-256;
-    }
-    u16 offset_start = beeper.read_offset;
-    u16 done_count = u16(offset_end-offset_start);
-    if (frameCount == 0 || done_count == 0)
-        return;
-
-    totalframes += frameCount;
-    u64 frame_counter=0;
-
-    done_count = frameCount*veer+additional_samples;
-    i16* pi16Output = (i16*)pOutput;
-    for(u32 done_frames=0; done_frames<frameCount; ++done_frames)
-    {
-        i16 data = beeper.buffer[offset_start];
-        *pi16Output = data;
-        ++pi16Output;
-        frame_counter += done_count;
-        while(frame_counter >= frameCount)
-        {
-            ++offset_start;
-            frame_counter -= frameCount;
-            if (offset_start == offset_end)
-                goto double_break; //oh no :o
-        }
-    }
-double_break: // oh no :O
-    u16 left = (offset_end-offset_start);
-
-    if (u16(offset_end-offset_start) >= 2048)
-        offset_start = offset_end-256;
-
-    if (left > 1024)
-        additional_samples = 2;
-    else if (left > 260)
-        additional_samples = 1;
-    else if (left < 252)
-        additional_samples = -1;
-    else
-        additional_samples = 0;
-
-    beeper.read_offset = offset_start;
-}
-
-struct MiniAudio
-{
-    ma_result result;
-    ma_device_config deviceConfig;
-    ma_device device;
-
-    MiniAudio()
-    {
-        deviceConfig = ma_device_config_init(ma_device_type_playback);
-        deviceConfig.playback.format   = ma_format_s16;
-        deviceConfig.playback.channels = 1;
-        deviceConfig.sampleRate        = u32(SAMPLERATE);
-        deviceConfig.dataCallback      = audio_method3;
-
-        deviceConfig.noPreSilencedOutputBuffer = true;
-        deviceConfig.noClip = true;
-        deviceConfig.noFixedSizedCallback = true;
-
-        if (ma_device_init(NULL, &deviceConfig, &device) != MA_SUCCESS)
-        {
-            cout << "MINIAUDIO init not succesful." << endl;
-            std::abort();
-        }
-        if (ma_device_start(&device) != MA_SUCCESS)
-        {
-            cout << "MINIAUDIO device start not successful. No audio will be output." << endl;
-            ma_device_uninit(&device);
-        }
-    }
-
-    ~MiniAudio()
-    {
-        ma_device_uninit(&device);
-    }
-} miniaudio;
-
-/*struct POSTCARD // postikortti :)
-{
-    u8 value{};
-    u8 read(u8 port)
-    {
-        return value;
-    }
-
-    void write(u8 port, u8 data)
-    {
-        if (data != value)
-        {
-            std::cout << "---POSTCARD--- " << u32(data) << std::endl;
-            if (data==0x12)
-                startprinting=true;
-        }
-        value = data;
-    }
-} postcard;*/
-
-struct CHIP146818 // RTC & CMOS
-{
-    u8 CMOSdata[256] = {};
-    u8 current_reg = 0x0D;
-
-    u8 read(u8 port) //port from 0 to 1! inclusive
-    {
-        u8 ret=0;
-        if (port == 1) //read
-        {
-            ret = CMOSdata[current_reg];
-            std::cout << "CMOS READ: " << u32(current_reg) << ":" << u32(ret) << std::endl;
-
-            //current_reg = 0x0D;
-        }
-        return ret;
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 1! inclusive.
-    {
-        if (port == 0)
-        {
-            current_reg = (data&0x7F);
-        }
-        else if (port == 1)
-        {
-            CMOSdata[current_reg] = data;
-            //current_reg = 0x0D;
-            std::cout << "CMOS WRITE: " << u32(current_reg) << ":" << u32(data) << std::endl;
-        }
-    }
-
-    void cycle()
-    {
-    }
-} cmos;
-
-
-struct CHIP8255 //PC/XT keyboard etc
-{
-    static const u8 FLOPPY_DRIVES = 2;
-    static const u8 HAS_8087 = 0;
-    static const u8 MEMORY_BANKS = 4;
-
-    enum VIDEO_CARD_TYPES
-    {
-        V_OTHER=0x00,
-        CGA40=0x10,
-        CGA80=0x20,
-        MDA=0x30
-    } const static VIDEO_CARD_TYPE = CGA80;
-
-    //onboard DIP switches
-
-    static const u8 SW1 = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
-    static const u8 SW2 = 0b1'1'1'1'0'0'1'0;//TODO: make these into setuppable bools
-
-    static const u8 XT_SW = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
-
-    u8 regs[4] = {};
-    u8 keyboard_self_test{0}; //if > 0, is doing a self test
-    bool keyboard_self_test_done{};
-    static const u8 KEYBOARD_SELF_TEST_LENGTH = 16; //:peeposhrug: lol
-    u8 current_scancode = 0;
-    bool is_initialized{false};
-
-    deque<u8> scancode_queue;
-    u16 kbd_wait{};
-
-    void press(u8 scancode)
-    {
-        if (is_initialized)
-        {
-            scancode_queue.push_back(scancode);
-        }
-    }
-
-    u8 read(u8 port) //port from 0 to 3! inclusive
-    {
-        if constexpr (DEBUG_LEVEL > 1)
-        {
-            cout << __PRETTY_FUNCTION__ << ": " << u32(port) << " read!" << endl;
-            cout << u32(regs[0]) << endl;
-            cout << u32(regs[1]) << endl;
-            cout << u32(regs[2]) << endl;
-            cout << u32(regs[3]) << endl;
-        }
-
-        if (port == 0)
-        {
-            if (globalsettings.machine == globalsettings.MACHINE_PC && regs[1]&0x80)
-            {
-                return SW1;
-            }
-            else
-            {
-                if (keyboard_self_test_done)
-                {
-                    keyboard_self_test_done = false;
-                    return 0xAA;
-                }
-                else
-                {
-                    u8 ret = current_scancode;
-                    return ret;
-                }
-            }
-        }
-        if (port==1)
-        {
-            return regs[1];
-        }
-        if (port == 2)
-        {
-            u8 value{};
-            if (globalsettings.machine == globalsettings.MACHINE_XT)
-            {
-                if (regs[1]&0x08)
-                {
-                    value |= (XT_SW&0xF0)>>4;
-                }
-                else
-                {
-                    value |= XT_SW&0x0F;
-                }
-            }
-            else if (globalsettings.machine == globalsettings.MACHINE_PC)
-            {
-                if (regs[1]&0x04)
-                {
-                    value |= SW2&0x0F;
-                }
-                else
-                {
-                    value |= (SW2&0xF0)>>4;
-                }
-            }
-            return value;
-        }
-
-        //what
-        cout << __PRETTY_FUNCTION__ << " weird thing?" << endl;
-        std::abort();
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 3! inclusive.
-    {
-        if (port == 1)
-        {
-            if ((data&0x40) && (!(regs[port]&0x40)))
-            {
-                cout << "Setting keyboard self test." << endl;
-                if (keyboard_self_test == 0)
-                {
-                    keyboard_self_test = KEYBOARD_SELF_TEST_LENGTH;
-                    is_initialized = false;
-                }
-            }
-            if (data&0x80)
-            {
-                current_scancode = 0;
-                pic.cpu_ack_irq(1);
-            }
-        }
-        regs[port] = data;
-        beeper.pb0 = (regs[1]&0x01)?1:0;
-        beeper.pb1 = (regs[1]&0x02)?1:0;
-    }
-
-    void cycle()
-    {
-        if (keyboard_self_test > 0)
-        {
-            --keyboard_self_test;
-            if (keyboard_self_test == 0) //finished the test :-)
-            {
-                keyboard_self_test_done = true;
-                is_initialized = true;
-                pic.request_interrupt(1);
-            }
-        }
-
-        if (!scancode_queue.empty())
-        {
-            if (kbd_wait == 0 && current_scancode == 0)
-            {
-                current_scancode = scancode_queue.front();
-                bool result = pic.request_interrupt(1);
-                if (result)
-                {
-                    scancode_queue.pop_front();
-                }
-                kbd_wait = 2048;
-            }
-            else
-            {
-                --kbd_wait;
-            }
-        }
-    }
-};
-
-struct CHIPLS612N //DMA page registers, POST card value
-{
-    u8 pages[16] = {};
-
-    u8 read(u8 port)
-    {
-        std::cout << "---LS612 READ--- " << u32(port) << ":" << u32(pages[port]) << std::endl;
-        return pages[port];
-    }
-
-    void write(u8 port, u8 data)
-    {
-        if (port == 0 && data != pages[0])
-        {
-            std::cout << "---POSTCARD--- " << u32(data) << std::endl;
-            //if (data==0x0C)
-            //    startprinting=true;
-        }
-        else
-        {
-            //std::cout << "---LS612 WRITE--- " << u32(port) << ":" << u32(data) << std::endl;
-        }
-        pages[port] = data;
-    }
-} dmapage;
-
-struct CHIP8237 //DMA
-{
-    u8 type{}; //0 for primary, 1 for secondary
-    struct Channel
-    {
-        u16 num{}; //which channel this is
-
-        u8& page()
-        {
-            static const u16 addrs[8] = {0x7, 0x3, 0x1, 0x2, 0xF, 0xB, 0x9, 0xA};
-
-            return dmapage.pages[addrs[num&0x07]];
-        }
-
-        u16 start_addr{};
-        u16 transfer_count{};
-        vector<u8>* device_vector{nullptr};
-        u32 device_vector_offset{};
-
-        u16 curr_addr{};
-        u16 curr_count{};
-        u32 curr_vector_offset{};
-
-        bool mask{};
-        bool automatic{};
-        bool down{};
-        enum TRANSFER_DIRECTION
-        {
-            DIR_VERIFY=0,
-            DIR_TO_MEMORY=1,
-            DIR_FROM_MEMORY=2,
-        } transfer_direction{};
-        enum MODE
-        {
-            MODE_ON_DEMAND=0,
-            MODE_SINGLE=1,
-            MODE_BLOCK=2,
-            MODE_CASCADE=3
-        } mode{};
-        bool pending{};
-        bool is_complete{};
-
-        void initiate_transfer()
-        {
-            if (!pending)
-            {
-                curr_addr = start_addr;
-                curr_count = transfer_count;
-                curr_vector_offset = device_vector_offset;
-                pending = true;
-                is_complete = false;
-            }
-        }
-
-        void cycle_transfer()
-        {
-            if (device_vector == nullptr)
-            {
-                //nothing
-            }
-            else if (transfer_direction == DIR_TO_MEMORY)
-            {
-                mem.direct8((page()<<12)+curr_addr) = (*device_vector)[curr_vector_offset];
-            }
-            else if (transfer_direction == DIR_FROM_MEMORY)
-            {
-                (*device_vector)[curr_vector_offset] = mem.direct8((page()<<12)+curr_addr);
-            }
-            else if (transfer_direction == DIR_VERIFY)
-            {
-            }
-            else
-            {
-                cout << "Weird transfer direction " << u32(transfer_direction) << endl;
-            }
-            //cout << "CYCLE TRANSFER " << curr_count << " data=" << u32(*curr_data) << endl;
-            //cout << "transfer_direction=" << u32(transfer_direction) << endl;
-            if (down)
-                --curr_addr;
-            else
-                ++curr_addr;
-
-            bool cross_seg_boundary = (down && curr_addr==0xFFFF) || (!down && curr_addr==0x0000);
-
-            if (cross_seg_boundary)
-            {
-                cout << "DMA " << num << ": seg boundary crossed. :(" << endl;
-            }
-
-            ++curr_vector_offset;
-            if (curr_count == 0 || cross_seg_boundary)
-            {
-                pending = false;
-                is_complete = true;
-                if (!automatic)
-                {
-                    start_addr = 0;
-                    transfer_count = 0;
-                }
-            }
-            else
-            {
-                curr_count -= 1;
-            }
-        }
-
-        bool is_complete_and_reset()
-        {
-            bool ret = is_complete;
-            is_complete = false;
-            return ret;
-        }
-    } chans[4];
-
-    CHIP8237(u8 type_):type(type_)
-    {
-        chans[0].num = 0 + (type?4:0);
-        chans[1].num = 1 + (type?4:0);
-        chans[2].num = 2 + (type?4:0);
-        chans[3].num = 3 + (type?4:0);
-    }
-
-    void print_params(u8 channel)
-    {
-        Channel& c = chans[channel];
-        cout << std::hex;
-        cout << ">DMA port " << u32(channel) << "!< ";
-        cout << "p+addr=" << c.page()*65536+c.start_addr << " ";
-        cout << "n=" << c.transfer_count << " ";
-        cout << "mode=" << u32(c.mode) << " ";
-        cout << "direction=" << u32(c.transfer_direction) << endl;
-    }
-
-    bool enabled{};
-    bool flip_flop{false};
-
-    u8 read(u8 port) //port from 0 to 15! inclusive
-    {
-        u8 result{};
-        if (port >= 0x00 && port <= 0x07)
-        {
-            u16 value = (port&0x01?chans[port>>1].transfer_count:chans[port>>1].start_addr);
-            result = (value>>(flip_flop?8:0))&0xFF;
-            flip_flop = !flip_flop;
-        }
-        else if (port == 0x08)
-        {
-            for(int i=0; i<4; ++i)
-            {
-                result |= (chans[i].is_complete)<<i;
-                result |= (chans[i].pending)<<(i+4);
-
-                chans[i].is_complete = false;
-            }
-        }
-        else
-        {
-            std::cout << "Unsupported DMA read port " << u32(port) << endl;
-            //std::abort();
-            result = 0;
-        }
-        return result;
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 15! inclusive
-    {
-        if (startprinting)
-            cout << "DMA WRITE " << u32(port) << " <- " << u32(data) << endl;
-        if (port >= 0x08 && port <= 0x0F)
-        {
-            if (false);
-            else if (port == 0x08) //we're only interested in bit 2 as per osdev's article. hooray indeed
-            {
-                enabled = (data&0x04);
-            }
-            else if (port == 0x09)
-            {
-                //osdev says
-                //"Request Registers 0x09 and 0xD2 (Write)"
-                //"Used for memory to memory transfers and setting up priority rotation -- absolutely useless."
-                //interesting.
-            }
-            else if (port == 0x0A)
-            {
-                chans[data&0x03].mask = data&0x04;
-            }
-            else if (port == 0x0B)
-            {
-                u8 chan_n = data&0x03;
-                Channel& c = chans[chan_n];
-                c.transfer_direction = Channel::TRANSFER_DIRECTION((data>>2)&0x03);
-                c.automatic = (data>>4)&0x01;
-                c.down = ((data>>5)&0x01);
-                c.mode = Channel::MODE(data>>6);
-                if (startprinting)
-                    cout << "DMA #" << u32(chan_n) << ": dir=" << u32(c.transfer_direction) << " auto=" << u32(c.automatic) << " down=" << u32(c.down) << " mode=" << u32(c.mode) << endl;
-
-                if (chan_n == 0 && c.automatic)
-                {
-                    c.device_vector = nullptr;
-                }
-            }
-            else if (port == 0x0C)
-            {
-                flip_flop = false;
-            }
-            else if (port == 0x0D) //master clear!
-            {
-                flip_flop = false;
-                chans[0].mask = true;
-                chans[1].mask = true;
-                chans[2].mask = true;
-                chans[3].mask = true;
-            }
-            else if (port == 0x0E)
-            {
-                chans[0].mask = false;
-                chans[1].mask = false;
-                chans[2].mask = false;
-                chans[3].mask = false;
-            }
-            else if (port == 0x0F)
-            {
-                chans[0].mask = data&0x01;
-                chans[1].mask = data&0x02;
-                chans[2].mask = data&0x04;
-                chans[3].mask = data&0x08;
-            }
-            else
-            {
-                std::cout << "Unsupported DMA write port " << u32(port) << endl;
-                std::abort();
-            }
-        }
-        else
-        {
-            u16& value = (port&0x01?chans[port>>1].transfer_count:chans[port>>1].start_addr);
-            if (flip_flop)
-                value = (value&(0xFF)) | (data<<8);
-            else
-                value = data;
-            flip_flop = !flip_flop;
-        }
-    }
-
-    void transfer(u8 channel, vector<u8>* device_vector, u32 device_vector_offset)
-    {
-        Channel& c = chans[channel];
-        if (startprinting)
-        {
-            cout << ">DMA transfer on port " << u32(channel) << "!< ";
-            cout << "p=" << c.page() << " ";
-            cout << "addr=" << c.start_addr << " ";
-            cout << "n=" << c.transfer_count << endl;
-            if (device_vector != nullptr)
-            {
-                cout << device_vector->size() << " total in device." << endl;
-                cout << device_vector_offset << "+" << c.transfer_count+1 << "=" << device_vector_offset+c.transfer_count+1 << endl;
-            }
-        }
-
-        //cout << "device dataptr: " << (void*)device_data << endl;
-        c.device_vector = device_vector;
-        c.device_vector_offset = device_vector_offset;
-
-        c.initiate_transfer();
-    }
-
-    void cycle()
-    {
-        for(u64 i=0; i<4; ++i)
-        {
-            Channel& c = chans[i];
-            while (c.pending)
-            {
-                c.cycle_transfer();
-            }
-        }
-    }
-} dma(0), dma2(1);
-
-
-struct CHIP8253 //PIT
-{
-    static constexpr const u32 N_CHANNELS = 4;
-
-    struct Channel
-    {
-        bool write_wait_for_second_byte{};
-        u8 operating_mode{}; //0-5 inclusive
-        u8 access_mode{}; //0-3 inclusive
-        u16 reload{};
-        u16 reload_loader{};
-        u16 current{};
-        bool stopped{};
-        u8 output{};
-
-        void Print()
-        {
-            #define paska(x) cout << #x ": " << u32(x) << endl;
-            paska(write_wait_for_second_byte);
-            paska(operating_mode);
-            paska(access_mode);
-            paska(reload);
-            paska(current);
-            #undef paska
-        }
-
-        /*u8 get_current()
-        {
-            if (access_mode == 1)
-                return current&0xFF;
-            if (access_mode == 2)
-                return current>>8;
-            cout << "Tried to get current but mode is " << u32(access_mode) << endl;
-            std::abort();
-        }*/
-
-        u8 normal_data_state{};
-
-        u8 latch_data_state{}; //0=no data, 1=has data, 2=access mode III, upper bytes
-        u16 latch_data{};
-
-    } channels[N_CHANNELS];
-
-    u8 read(u8 port) //port from 0 to 3! inclusive
-    {
-        //std::cout << std::hex << "PIT READ: " << u32(port) << std::endl;
-        if (port >= 3) //can't read port 3
-        {
-            return 0;
-        }
-        //TODO: do better
-        Channel& c = channels[port];
-
-        if (c.latch_data_state > 0)
-        {
-            if (c.access_mode == 1)
-            {
-                c.latch_data_state = 0;
-                return c.latch_data;
-            }
-            else if (c.access_mode == 2)
-            {
-                c.latch_data_state = 0;
-                return c.latch_data>>8;
-            }
-            else if (c.access_mode == 3)
-            {
-                if (c.latch_data_state == 1)
-                {
-                    c.latch_data_state = 2;
-                    return c.latch_data;
-                }
-                else if (c.latch_data_state == 2)
-                {
-                    c.latch_data_state = 0;
-                    return c.latch_data>>8;
-                }
-            }
-
-        }
-
-
-        if (c.access_mode == 1)
-        {
-            return c.current;
-        }
-        else if (c.access_mode == 2)
-        {
-            return c.current>>8;
-        }
-        else if (c.access_mode == 3)
-        {
-            if (c.normal_data_state == 0)
-            {
-                c.normal_data_state = 1;
-                return c.current;
-            }
-            else if (c.normal_data_state == 1)
-            {
-                c.normal_data_state = 0;
-                return c.current>>8;
-            }
-        }
-
-        if (c.access_mode == 0)
-        {
-            return 0;
-        }
-
-        cout << "PIT WTF. reading port: " << u32(port) << endl;
-        cout << u32(c.access_mode) << endl;
-        std::abort();
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 3! inclusive.
-    {
-        //std::cout << std::hex << "PIT WRITE: " << u32(port) << ":" << u32(data) << std::endl;
-        if (port == 3)
-        {
-            bool is_bcd = (data&0x01);
-            if (is_bcd)
-            {
-                cout << "PIT doesn't support BCD mode yet!" << endl;
-                std::abort();
-            }
-            u8 channel_n = (data>>6);
-            if (channel_n == 3 && globalsettings.machine != GlobalSettings::MACHINE_AT)
-            {
-                cout << "Channel 3 non-existent on PIT! (trying to run AT code? this is an PC emulator.)" << endl;
-                std::abort();
-            }
-            Channel& c = channels[channel_n];
-            if (((data>>4)&0x03) == 0)
-            {
-                c.latch_data_state = 1;
-                c.latch_data = c.current;
-                return;
-            }
-            c.access_mode = ((data>>4)&0x03);
-
-            c.operating_mode = ((data>>1)&0x07);
-            c.operating_mode = (c.operating_mode>=6?c.operating_mode^4:c.operating_mode);
-            c.write_wait_for_second_byte = false;
-            c.latch_data_state = 0;
-            c.normal_data_state = 0;
-
-            if (c.access_mode == 0)
-            {
-                c.output = false;
-            }
-
-            //if constexpr (DEBUG_LEVEL > 0)
-            {
-                //cout << "-----PIT Channel #" << u32(channel_n) << ":" << endl;
-                //c.Print();
-            }
-        }
-        else
-        {
-            Channel& c = channels[port];
-
-            if (c.access_mode == 1) //lobyte only
-            {
-                c.reload = data;
-                c.stopped = false;
-                //if constexpr (DEBUG_LEVEL > 0)
-                {
-                    cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << endl;                c.write_wait_for_second_byte = false;
-                }
-            }
-            else if (c.access_mode == 2) //hibyte only
-            {
-                c.reload = (data<<8);
-                c.stopped = false;
-                //if constexpr (DEBUG_LEVEL > 0)
-                    cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << endl;
-            }
-            else if (c.access_mode == 3) //lo, unless latch is, then hi
-            {
-                if (c.write_wait_for_second_byte)
-                {
-                    c.reload_loader = (c.reload_loader| (data<<8));
-                    c.stopped = false;
-                    c.reload = c.reload_loader;
-                }
-                else
-                {
-                    c.reload_loader = data;
-                    c.stopped = false;
-                }
-                //if constexpr (DEBUG_LEVEL > 0)
-                    cout << "port " << u32(port) << " ACCESS MODE " << u32(c.access_mode) << ": new data " << c.reload << " & " << c.current << endl;
-                c.write_wait_for_second_byte = !c.write_wait_for_second_byte;
-            }
-            //if constexpr (DEBUG_LEVEL > 0)
-                cout << "--- operating mode " << u32(c.operating_mode) << endl;
-
-            if (c.operating_mode == 0 || c.operating_mode == 1 || c.operating_mode == 2)
-            {
-                c.current = c.reload;
-                c.output = false;
-                c.stopped = false;
-            }
-        }
-    }
-
-    u64 int0_count{};
-    void cycle()
-    {
-        for(u32 i=0; i<3; ++i)
-        {
-            Channel& c = channels[i];
-
-            if (i==2 && !(global_port0x61&0x01))
-            {
-                continue;
-            }
-
-            if (c.operating_mode == 0)
-            {
-                c.current -= 1;
-                if (c.current == 0)
-                {
-                    if (c.output == false && i==0)
-                    {
-                        if constexpr (DEBUG_LEVEL > 0)
-                        {
-                            cout << std::dec;
-                            cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
-                            cout << std::hex;
-                        }
-                        ++int0_count;
-                        pic.request_interrupt(0);
-                    }
-                    c.output = true;
-                }
-            }
-            else if (c.operating_mode == 1)
-            {
-                if (c.current == 0)
-                {
-                    c.output = true;
-                }
-                else
-                {
-                    c.current -= 1;
-                }
-            }
-            else if (c.operating_mode == 2)
-            {
-                //cout << "PIT #" << i << " opmode 2, curr " << u32(c.current) << endl;
-                c.current -= 1;
-                if (c.current <= 1)
-                {
-                    c.output = 0;
-                    c.current = c.reload;
-                    if (i==0)
-                    {
-                        if constexpr (DEBUG_LEVEL > 0)
-                        {
-                            cout << std::dec;
-                            cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
-                            cout << std::hex;
-                        }
-                        ++int0_count;
-                        pic.request_interrupt(0);
-                    }
-                    else if (i==1 && globalsettings.machine == globalsettings.MACHINE_XT)
-                    {
-                        //cout << "INITIATE TRANSFER XT 1" << endl;
-                        //dma.chans[0].initiate_transfer();
-                        //dma.chans[0].start_addr += 1;
-                    }
-                }
-                else if (c.current == u32(c.reload-1))
-                {
-                    c.output = 1;
-                }
-                //cout << "PIT #" << i << " opmode 2, new  " << u32(c.current) << endl;
-            }
-            else if (c.operating_mode == 3)
-            {
-                if (c.current&1)
-                {
-                    c.current -= c.output?1:3;
-                }
-                else
-                {
-                    c.current -= 2;
-                }
-                if (c.current < 2)
-                {
-                    c.output = !c.output;
-                    c.current = c.reload;
-                    if (i==0)
-                    {
-                        if constexpr (DEBUG_LEVEL > 0)
-                        {
-                            cout << std::dec;
-                            cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
-                            cout << std::hex;
-                        }
-                        if (c.output)
-                        {
-                            ++int0_count;
-                            pic.request_interrupt(0);
-                        }
-                    }
-                    else if (i==1 && globalsettings.machine == globalsettings.MACHINE_XT)
-                    {
-                        cout << "INITIATE TRANSFER XT 2" << endl;
-                        //dma.chans[0].initiate_transfer();
-                    }
-                }
-            }
-            else
-            {
-                cout << "Unknown PIT operating mode " << u32(c.operating_mode) << endl;
-                std::abort();
-            }
-            //TODO
-        }
-        beeper.set_output_from_pit(!channels[2].output);
-    }
-} pit;
-
-struct HARDDISK
-{
-    struct DISK
-    {
-        struct DiskType
-        {
-            static const u32 BYTES_PER_SECTOR = 512;
-            u32 cylinders=0;
-            u32 heads=0;
-            u32 sectors=0;
-
-            u32 get_byte_offset(u32 cylinder, u32 head, u32 sector)
-            {
-                return ((cylinder*heads+head)*sectors+sector)*BYTES_PER_SECTOR;
-            }
-
-            bool is_valid(u32 cylinder, u32 head, u32 sector)
-            {
-                return (cylinder < cylinders) && (head < heads) && (sector < sectors);
-            }
-
-            u32 totalsize()
-            {
-                return cylinders*heads*sectors*BYTES_PER_SECTOR;
-            }
-        } static constexpr disktypes[4] =
-        {
-            {306, 2, 17},
-            {375, 8, 17},
-            {306, 6, 17},
-            {306, 4, 17}
-        };
-
-        static const u32 DISKTYPE_ID = 1;
-        DiskType type{disktypes[DISKTYPE_ID]};
-        vector<u8> data;
-        std::string filename;
-
-        void flush()
-        {
-            if (data.empty())
-            {
-                return;
-            }
-            const u64 BLOCK_SIZE = 0x10000;
-
-            FILE* filu = fopen(filename.c_str(), "rb+");
-
-            if (filu == nullptr)
-            {
-                filu = fopen(filename.c_str(), "wb");
-                fwrite(data.data(), data.size(), 1, filu);
-                fclose(filu);
-                return;
-            }
-
-            fseek(filu, 0, SEEK_END);
-            u64 filesize = ftell(filu);
-            if (data.size() != filesize)
-            {
-                cout << "Data size " << data.size() << " is not file size " << filesize << endl;
-                std::abort();
-            }
-            fseek(filu, 0, SEEK_SET);
-
-            vector<u8> filedata(BLOCK_SIZE,0);
-            for(u64 pos=0; pos<data.size(); pos += BLOCK_SIZE)
-            {
-                fseek(filu, pos, SEEK_SET);
-                int sectors_read = fread(filedata.data(), 512, BLOCK_SIZE/512, filu);
-
-                if (memcmp(filedata.data(), data.data()+pos, sectors_read*512) != 0)
-                {
-                    cout << "Block " << pos/BLOCK_SIZE << " changed." << endl;
-                    fseek(filu, pos, SEEK_SET);
-                    fwrite(data.data()+pos, 512, BLOCK_SIZE/512, filu);
-                }
-            }
-            fclose(filu);
-        }
-
-        DISK()
-        {
-            //data.assign(type.totalsize(),0);
-            //cout << "HD: " << data.size() << " bytes." << endl;
-            filename = "pieru";
-        }
-
-        DISK(const std::string& filename_):filename(filename_)
-        {
-            data.assign(type.totalsize(),0);
-            cout << "HD: " << data.size() << " bytes." << endl;
-
-            FILE* filu = fopen(filename.c_str(), "rb");
-            if (filu != nullptr)
-            {
-                fseek(filu,0,SEEK_END);
-                u32 size = ftell(filu);
-                if (size == data.size())
-                {
-                    fseek(filu,0,SEEK_SET);
-                    data.assign(size,0);
-                    fread(data.data(), size, 1, filu);
-                }
-                else
-                {
-                    cout << "File " << filename << " doesnt contain an image of " << data.size() << " bytes." << endl;
-                }
-                fclose(filu);
-            }
-            else
-            {
-                cout << "File " << filename << " not found when loading harddisk." << endl;
-            }
-        }
-    } disks[2];
-
-    enum COMMAND
-    {
-        TEST_DRIVE_READY = 0x00,
-        RECALIBRATE = 0x01,
-        REQUEST_SENSE_STATUS = 0x03,
-        FORMAT_DRIVE = 0x04,
-        READY_VERIFY = 0x05,
-        FORMAT_TRACK = 0x06,
-        FORMAT_BAD_TRACK = 0x07,
-        READ = 0x08,
-        WRITE = 0x0A,
-        SEEK = 0x0B,
-        INITIALIZE_DRIVE_CHARACTERISTICS = 0x0C, //has 8 extra bytes!
-        READ_ECC_BURST_ERROR_LENGTH = 0x0D,
-        READ_DATA_FROM_SECTOR_BUFFER = 0x0E,
-        WRITE_DATA_TO_SECTOR_BUFFER = 0x0F,
-        RAM_DIAGNOSTIC = 0xE0,
-        DRIVE_DIAGNOSTIC = 0xE3,
-        CONTROLLER_INTERNAL_DIAGNOSTICS = 0xE4,
-        READ_LONG = 0xE5,
-        WRITE_LONG = 0xE6
-    };
-    enum ERROR //i commented out the ones that won't come up
-    {
-        NO_ERROR = 0x00,
-        //NO_INDEX_SIGNAL = 0x01,
-        //NO_SEEK_COMPLETE = 0x02,
-        //WRITE_FAULT = 0x03,
-        NO_READY_AFTER_SELECT = 0x04,
-        //NO_TRACK_00_SIGNAL = 0x06,
-        STILL_SEEKING = 0x08, //reported by TEST_DRIVE_READY
-        //ID_READ_ERROR = 0x10,
-        //DATA_ECC_ERROR = 0x11,
-        //NO_TARGET_ADDRESS_MARK = 0x12,
-        SECTOR_NOT_FOUND = 0x14,
-        SEEK_ERROR = 0x15,
-        //CORRECTABLE_DATA_ECC_ERROR = 0x18,
-        //BAD_TRACK = 0x19,
-        INVALID_COMMAND = 0x20,
-        ILLEGAL_DISK_ADDRESS = 0x21,
-        //RAM_ERROR = 0x30,
-        //PROGRAM_MEMORY_CHECKSUM_ERROR = 0x31,
-        //ECC_POLYNOMIAL_ERROR = 0x32,
-    };
-
-    bool error{false};
-    bool logical_unit_number{0}; //0 or 1 (?? what is this)
-    bool dma_enabled{};
-    bool irq_enabled{};
-
-    bool r1_busy{};
-    bool r1_bus{};
-
-    enum
-    {
-        IO_A = 0,
-        IO_B = 1,
-    };
-    bool r1_iomode{IO_A};
-    bool r1_req{};
-    bool r1_int_occurred{};
-
-    u16 interrupttime{};
-
-    u8 data_in[6] = {};
-    u8 current_data_in_index{};
-
-    bool address_valid{};
-    u8 errorcode{}; // look in the ERROR enum
-    u8 current_drive{};
-    u8 current_head{};
-    u16 current_cylinder{};
-    u8 current_sector{};
-
-    void print_data_in()
-    {
-        cout << "HD data in:";
-        cout << " command=" << u32(data_in[0]);
-        cout << " drive=" << u32(data_in[1]>>5);
-        cout << " head=" << u32(data_in[1]&0x1F);
-        cout << " cylinder=" << u32(data_in[2]&0xC0)*4+u32(data_in[3]);
-        cout << " sector=" << (u32(data_in[2])&0x3F);
-        cout << " interleave=" << u32(data_in[4]&0x1F);
-        cout << " step=" << u32(data_in[5]&0x07);
-        cout << " retries=" << bool(data_in[5]&0x80);
-        cout << " eccretry=" << bool(data_in[5]&0x40);
-        cout << endl;
-    }
-
-    u8 sense[4] = {};
-    bool do_drive_characteristics{};
-    u8 drive_characteristics[8] = {};
-    u8 dc_index{};
-
-    vector<u8> sector_buffer = vector<u8>(512,0); //todo: verify size?
-
-    bool dma_in_progress{false};
-
-    deque<u8> output_bytes;
-
-    void set_current_params()
-    {
-        current_cylinder = data_in[3]|((data_in[2]<<2)&0xFF00);
-        current_sector = (data_in[2]&0x3F);
-        current_head = (data_in[1]&0x1F);
-        current_drive = (data_in[1]&0x20)>>5;
-
-        address_valid = disks[current_drive].type.is_valid(current_cylinder,current_head,current_sector);
-    }
-
-    void write(u8 port, u8 data) //port from 0 to 3! inclusive.
-    {
-        if (port == 0) // data port
-        {
-            if (do_drive_characteristics)
-            {
-                r1_iomode = IO_B;
-                r1_req = true;
-                //cout << "HD: doing more drive characteristics! c[" << u32(dc_index) << "] = " << u32(data) << endl;
-                drive_characteristics[dc_index] = data;
-                ++dc_index;
-                if (dc_index == 8)
-                {
-                    do_drive_characteristics = false;
-                    dc_index = 0;
-                    cout << "HD: drive characteristics gotten! ";
-                    for(int i=0; i<8; ++i)
-                        cout << u32(drive_characteristics[i]) << ' ';
-                    cout << endl;
-                    interrupttime = 0x300;
-                    r1_req = false;
-                }
-            }
-            else
-            {
-                r1_busy = true;
-                data_in[current_data_in_index] = data;
-                ++current_data_in_index;
-                if (current_data_in_index == 6)
-                {
-                    //cout << "HD: All data collected! ";
-                    //for(int i=0; i<6; ++i)
-                    //    cout << u32(data_in[i]) << ' ';
-                    //cout << endl;
-                    //print_data_in();
-
-                    if (false);
-                    else if (data_in[0] == READ)
-                    {
-                        set_current_params();
-                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
-                        //cout << "HD READ offset: " << offset << endl;
-                        if (address_valid)
-                        {
-                            //dma.print_params(3);
-                            dma.transfer(3, &disks[current_drive].data, offset);
-                            dma_in_progress = true;
-                        }
-                        else
-                        {
-                            interrupttime = 0x300;
-                        }
-                        error = !address_valid;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == WRITE)
-                    {
-                        set_current_params();
-                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
-                        //cout << "HD WRITE offset: " << offset << endl;
-                        if (address_valid)
-                        {
-                            if (dma.chans[3].transfer_count != 0x1FF)
-                            {
-                                //cout << "----------------Transfer count: " << dma.chans[3].transfer_count << endl;
-                            }
-
-                            dma.print_params(3);
-                            dma.transfer(3, &disks[current_drive].data, offset);
-                            dma_in_progress = true;
-                        }
-                        else
-                        {
-                            interrupttime = 0x300;
-                            errorcode = NO_READY_AFTER_SELECT;
-                        }
-                        error = !address_valid;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == REQUEST_SENSE_STATUS)
-                    {
-                        output_bytes.clear();
-                        output_bytes.push_back((address_valid<<7)|errorcode);
-                        output_bytes.push_back((current_drive<<5)|current_head);
-                        output_bytes.push_back(((current_cylinder&0x300)>>3)|current_sector);
-                        output_bytes.push_back(current_cylinder&0xFF);
-                        r1_iomode = IO_B;
-                        errorcode = NO_ERROR;
-                    }
-                    else if (data_in[0] == INITIALIZE_DRIVE_CHARACTERISTICS)
-                    {
-                        //do nothing for now
-                        do_drive_characteristics = true;
-                        dc_index = 0;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == WRITE_DATA_TO_SECTOR_BUFFER)
-                    {
-                        //dma.chans[3].device_data = sector_buffer;
-                        if (dma.chans[3].transfer_count != 0x1FF)
-                        {
-                            cout << "sector buf write size not 512" << endl;
-                            std::abort();
-                        }
-                        dma.print_params(3);
-                        dma.transfer(3, &sector_buffer, 0);
-                        r1_req = false;
-                        dma_in_progress = true;
-                    }
-                    else if (data_in[0] == SEEK)
-                    {
-                        //do nothing(?)
-                        interrupttime = 0x300;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == READY_VERIFY)
-                    {
-                        //do nothing(?)
-                        interrupttime = 0x300;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == TEST_DRIVE_READY)
-                    {
-                        //do nothing(?)
-                        interrupttime = 0x300;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == RECALIBRATE)
-                    {
-                        //do nothing(?)
-                        interrupttime = 0x300;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == RAM_DIAGNOSTIC)
-                    {
-                        //do nothing(?)
-                        interrupttime = 0x300;
-                        r1_req = false;
-                    }
-                    else if (data_in[0] == CONTROLLER_INTERNAL_DIAGNOSTICS)
-                    {
-                        //do nothing(?)
-                        interrupttime = 0x300;
-                        r1_req = false;
-                    }
-                    else
-                    {
-                        cout << "idk command " << u32(data_in[0]) << endl;
-                        std::abort();
-                    }
-
-                    current_data_in_index = 0;
-                }
-            }
-        }
-        else if (port == 1) //controller reset
-        {
-            //cout << "HD WRITE: reset controller" << endl;
-            //startprinting = true;
-            error=false;
-            r1_busy = false;
-            r1_int_occurred = false;
-            r1_iomode = IO_A;
-            current_data_in_index = 0;
-        }
-        else if (port == 2) //generate controller-select pulse (?)
-        {
-            //cout << "HD WRITE: controller select pulse! unn tss unn tss" << endl;
-            //idk
-        }
-        else if (port == 3)
-        {
-            dma_enabled = (data&0x01);
-            irq_enabled = (data&0x02);
-            //cout << "HD WRITE: dma=" << (dma_enabled?"enabled":"disabled") << " irq=" << (irq_enabled?"enabled":"disabled") << endl;
-            r1_iomode = IO_A;
-            r1_busy = true;
-            r1_bus = true;
-            r1_req = true;
-            current_data_in_index = 0;
-        }
-        else
-        {
-            cout << "HD WRITE: unknown port " << u32(port) << " w/data " << u32(data) << endl;
-            std::abort();
-        }
-    }
-    u8 read(u8 port) //port from 0 to 3! inclusive
-    {
-        u8 data{};
-        if (port == 0)
-        {
-            if (output_bytes.empty())
-            {
-                data = (error<<1) | (logical_unit_number<<5);
-                r1_busy = 0;
-                r1_int_occurred = 0;
-                r1_iomode = IO_A;
-            }
-            else
-            {
-                data = output_bytes.front();
-                output_bytes.pop_front();
-            }
-        }
-        else if (port == 1) //controller hardware status
-        {
-            //data |= (error << 1); //error bit but is wrong?
-            //data |= (logical_unit_number << 5); //these are for some other status byte
-
-            data |= (r1_busy << 3);
-            data |= (r1_bus << 2);
-            data |= (r1_iomode << 1);
-            data |= (r1_req << 0);
-            data |= (r1_int_occurred << 5);
-            //cout << "HD READ hw status: " << u32(data) << endl;
-        }
-        else if (port == 2) //switch settings
-        {
-            data = 0b0101; //both drives type 2 (note inverted logic)
-            //cout << "HD READ switch: " << u32(data) << endl;
-            r1_req = true;
-        }
-        else
-        {
-            cout << "HD READ: unknown port " << u32(port) << endl;
-            std::abort();
-        }
-        //cout << "HD READ total=" << u32(data) << endl;
-        return data;
-    }
-
-    void cycle()
-    {
-        if (dma_in_progress)
-        {
-            if (dma.chans[3].is_complete_and_reset())
-            {
-                dma_in_progress = false;
-                pic.request_interrupt(5);
-                //cout << "HD IRQ AFTER DMA!!!" << endl;
-                r1_int_occurred = true;
-                current_sector += dma.chans[3].transfer_count/512; //this is correct. the count is -1, but we want -1.
-                set_current_params();
-            }
-        }
-        else if (interrupttime > 0)
-        {
-            //cout << "hd irq in " << interrupttime << endl;
-            --interrupttime;
-            if (interrupttime == 0)
-            {
-                if (irq_enabled)
-                {
-                    //cout << "HD IRQ!!!" << endl;
-                    pic.request_interrupt(5);
-                    r1_int_occurred = true;
-                }
-            }
-        }
-    }
-
-
-} harddisk;
-
-struct DISKETTECONTROLLER
-{
-/*
-3F0-3F7  Floppy disk controller (except PCjr)
-	3F0 Diskette controller status A
-	3F1 Diskette controller status B
-	3F2 controller control port
-	3F4 controller status register
-	3F5 data register (write 1-9 byte command, see INT 13)
-	3F6 Diskette controller data
-	3F7 Diskette digital input
-
-STATUS_REGISTER_A                = 0x3F0, // read-only
-STATUS_REGISTER_B                = 0x3F1, // read-only
-DIGITAL_OUTPUT_REGISTER          = 0x3F2,
-TAPE_DRIVE_REGISTER              = 0x3F3,
-MAIN_STATUS_REGISTER             = 0x3F4, // read-only
-DATARATE_SELECT_REGISTER         = 0x3F4, // write-only
-DATA_FIFO                        = 0x3F5,
-DIGITAL_INPUT_REGISTER           = 0x3F7, // read-only
-CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
-*/
-
-    static const u16 RESET_CYCLES = 256;
-    u16 reset_state{};
-    u32 interrupt_timer{};
-
-    std::deque<u8> out_buffer;
-
-    struct Drive
-    {
-        struct DISKETTE
-        {
-            u32 cylinders{};
-            u32 heads{};
-            u32 sectors{};
-            u32 bytes_per_sector{512};
-            vector<u8> data;
-
-            void eject()
-            {
-                data.clear();
-            }
-
-            u32 get_byte_offset(u32 cylinder, u32 head, u32 sector)
-            {
-                return ((cylinder*heads+head)*sectors+(sector-1))*bytes_per_sector;
-            }
-
-            bool is_ready()
-            {
-                return !data.empty();
-            }
-
-            DISKETTE()
-            {
-                cylinders = 40;
-                heads = 1;
-                sectors = 9;
-                //data.assign(184320,0);
-            }
-
-            DISKETTE(std::string filename)
-            {
-                FILE* filu = fopen(filename.c_str(), "rb");
-                fseek(filu,0,SEEK_END);
-                u32 size = ftell(filu);
-                fseek(filu,0,SEEK_SET);
-
-                if (size == 163840) //160k disk
-                {
-                    cylinders = 40;
-                    heads = 1;
-                    sectors = 8;
-                }
-                else if (size == 184320) //180k disk
-                {
-                    cylinders = 40;
-                    heads = 1;
-                    sectors = 9;
-                }
-                else if (size == 327680) //320k disk :-)
-                {
-                    cylinders = 40;
-                    heads = 2;
-                    sectors = 8;
-                }
-                else if (size == 368640) //360k disk :o
-                {
-                    cylinders = 40;
-                    heads = 2;
-                    sectors = 9;
-                }
-                else if (size == 1228800) //1.2M disk :O
-                {
-                    cylinders = 80;
-                    heads = 2;
-                    sectors = 15;
-                }
-                else if (size == 737280) //720k disk
-                {
-                    cylinders = 80;
-                    heads = 2;
-                    sectors = 9;
-                }
-                else if (size == 1474560) //1.44M disk
-                {
-                    cylinders = 80;
-                    heads = 2;
-                    sectors = 18;
-                }
-                else if (size == 2949120) //2.88M disk
-                {
-                    cylinders = 80;
-                    heads = 2;
-                    sectors = 36;
-                }
-                else
-                {
-                    cout << "Unknown floppy size in bytes: " << size << " and in sectors: " << size/512 << endl;
-                    std::abort();
-                }
-                //u32 size = cylinders*heads*sectors*bytes_per_sector;
-                data.assign(size,0);
-                fread(data.data(), size, 1, filu);
-                fclose(filu);
-            }
-        };
-        DISKETTE diskette;
-
-        bool is_write_protected()
-        {
-            return false;
-        }
-        bool is_double_sided()
-        {
-            return (diskette.heads > 1);
-        }
-        bool is_ready()
-        {
-            return diskette.is_ready();
-        }
-
-        u8 current_cylinder{};
-        bool motor{};
-    } drives[4];
-
-    u8 selected_drive{};
-    u8 main_status{0x80}; // RQM DIO NDM CB D3B D2B D1B D0B
-    u8 st0{};
-    u8 st1{};
-    u8 st2{};
-
-    u8 registers[8] = {}; // not all registers are used, but we'll do it this way to be simple
-
-    u8 is_selected_and_on(u8 drive)
-    {
-        bool on = registers[2]&(0x10<<drive);
-        bool selected = (registers[2]&0x3) == drive;
-        return on && selected;
-    }
-
-    u8 read(u8 port) //port from 0 to 7! inclusive
-    {
-        /*if (FLOPPY_DEBUG)
-            cout << "/-------------------------------------------\\" << endl;
-        if (FLOPPY_DEBUG)
-            cout << "FLOPPY CONTROLLER READ: " << u32(port) << endl;*/
-        //PrintCSIP();
-        u8 readdata{};
-        if(false);
-        else if (port == 0) // STATUS_REGISTER_A
-        {
-            return 0;
-        }
-        else if (port == 1) // STATUS_REGISTER_B
-        {
-            return 0;
-        }
-        else if (port == 4)
-        {
-            if (FLOPPY_DEBUG)
-                cout << "READ MAIN STATUS REGISTER: ";
-            readdata = main_status;
-        }
-        else if (port == 5) // FIFO
-        {
-            if (FLOPPY_DEBUG)
-                cout << "READ FIFO" << endl;
-            if (!out_buffer.empty())
-            {
-                readdata = out_buffer.front();
-                out_buffer.pop_front();
-                if (FLOPPY_DEBUG)
-                    cout << "After the read, buffer still has " << out_buffer.size() << " bytes." << endl;
-            }
-            else
-            {
-                cout << "FIFO is empty :(" << endl;
-                std::abort();
-            }
-        }
-        else // 6 isnt used
-        {
-            std::cout << "Unsupported floppy port " << u32(port) << endl;
-            //std::abort();
-        }
-        if (FLOPPY_DEBUG)
-            cout << "DATA READ = " << u32(readdata) << endl;
-        /*if (FLOPPY_DEBUG)
-            cout << "\\-------------------------------------------/" << endl;*/
-
-        if (out_buffer.empty())
-        {
-            main_status &= ~0x50;
-            main_status |= 0x80;
-        }
-        return readdata;
-    }
-
-
-    enum FloppyCommands // https://wiki.osdev.org/Floppy_Disk_Controller
-    {
-       READ_TRACK =                 2,	// generates IRQ6
-       SPECIFY =                    3,      // * set drive parameters
-       SENSE_DRIVE_STATUS =         4,
-       WRITE_DATA =                 5,      // * write to the disk
-       READ_DATA =                  6,      // * read from the disk
-       RECALIBRATE =                7,      // * seek to cylinder 0
-       SENSE_INTERRUPT =            8,      // * ack IRQ6, get status of last command
-       WRITE_DELETED_DATA =         9,
-       READ_ID =                    10,	// generates IRQ6
-       READ_DELETED_DATA =          12,
-       FORMAT_TRACK =               13,     // *
-       DUMPREG =                    14,
-       SEEK =                       15,     // * seek both heads to cylinder X
-       VERSION =                    16,	// * used during initialization, once
-       SCAN_EQUAL =                 17,
-       PERPENDICULAR_MODE =         18,	// * used during initialization, once, maybe
-       CONFIGURE =                  19,     // * set controller parameters
-       LOCK =                       20,     // * protect controller params from a reset
-       VERIFY =                     22,
-       SCAN_LOW_OR_EQUAL =          25,
-       SCAN_HIGH_OR_EQUAL =         29
-    };
-    static constexpr const char* commandnames[256] =
-    {
-        nullptr,
-        nullptr,
-        "read track",
-        "specify",
-        "sense drive",
-        "write data",
-        "read data",
-        "recalibrate",
-        "sense interrupt",
-        "write deleted data",
-        "read id",
-        nullptr,
-        "read deleted data",
-        "format track",
-        "dump registers",
-        "seek",
-        "version",
-        "scan equal",
-        "perpendicular mode",
-        "configure",
-        "lock",
-        nullptr,
-        "verify",
-        nullptr,
-        nullptr,
-        "scan low or equal",
-        nullptr,
-        nullptr,
-        nullptr,
-        "scan high or equal"
-    };
-
-    u8 current_command{};
-    u8 current_full_command{};
-    u8 fifo_input_bytes_left{};
-
-    void write(u8 port, u8 data) //port from 0 to 7! inclusive.
-    {
-        /*if (FLOPPY_DEBUG)
-            cout << "/===========================================\\" << endl;
-        if (FLOPPY_DEBUG)
-            cout << "FLOPPY CONTROLLER WRITE: " << u32(port) << " data=" << u32(data) << endl;*/
-        //PrintCSIP();
-        if (port == 5) // DATA_FIFO
-        {
-            if (fifo_input_bytes_left > 0) // FIFO has input bytes, collect them
-            {
-                out_buffer.push_back(data);
-                --fifo_input_bytes_left;
-                if (fifo_input_bytes_left == 0) //all bytes collected! execute command
-                {
-                    if (FLOPPY_DEBUG)
-                    {
-                        cout << u32(current_command) << " finished!" << endl;
-                        cout << "Command data: " << endl;
-                        for(u64 i=0; i<out_buffer.size(); ++i)
-                            cout << u32(out_buffer[i]) << " ";
-                        cout << endl;
-                    }
-                    if (current_command == 0x03) //specify
-                    {
-                        out_buffer.clear();
-                        main_status &= ~0x50; //no output bytes
-                        current_command = 0;
-                    }
-                    else if (current_command == 0x04) // sense drive status
-                    {
-                        u8 databyte = out_buffer.back();
-                        u8 drive_n = databyte&0x03;
-                        out_buffer.clear();
-                        main_status &= ~0xC0;
-                        u8 st3 = 0;
-                        //bit7 is fault, no fault
-                        //bit6 is writeprotect
-                        st3 |= drives[drive_n].is_write_protected()<<6;
-                        st3 |= (drives[drive_n].is_ready()<<5); //ready
-                        st3 |= (drives[drive_n].is_ready()<<4); //track 0 signal
-                        st3 |= drives[drive_n].is_double_sided()<<3;
-                        st3 |= databyte&0x07; //the rest are the same
-                        out_buffer.push_back(st3);
-                    }
-                    else if (current_command == 0x05 || current_command == 0x06) //write | read
-                    {
-                        u32 drive = out_buffer[0]&0x03;
-                        u32 head_A = out_buffer[0]>>2;
-                        u32 cylinder = out_buffer[1];
-                        u32 head_B = out_buffer[2];
-                        if (head_A != head_B)
-                        {
-                            std::cout << "Head numbers don't match in WRITE/READ Command" << endl;
-                        }
-                        u32 sector = out_buffer[3];
-                        if (out_buffer[4] != 0x02)
-                        {
-                            std::cout << "weird out_buffer[4] = " << u32(out_buffer[4]) << ", should be 0x02" << endl;
-                            std::abort();
-                        }
-                        u32 end_of_track = out_buffer[5]; //number of sectors in a track
-                        if (out_buffer[7] != 0xFF)
-                        {
-                            std::cout << "weird out_buffer[7] = " << u32(out_buffer[7]) << ", should be 0xFF" << endl;
-                            std::abort();
-                        }
-                        u32 byte_offset = drives[drive].diskette.get_byte_offset(cylinder,head_A,sector);
-                        std::cout << (current_command == 0x05?"WRITE":"READ") << ":";
-                        cout << " drive=" << drive;
-                        cout << " head=" << head_A;
-                        cout << " cylinder=" << cylinder;
-                        cout << " sector=" << sector;
-                        cout << " end_of_track=" << end_of_track;
-                        cout << " -> byte offset=" << byte_offset << endl;
-
-                        if (drives[drive].diskette.is_ready())
-                        {
-                            dma.transfer(2, &drives[drive].diskette.data, byte_offset);
-                        }
-                        else
-                        {
-                            cout << "Drive not ready. (no diskette?)" << endl;
-                        }
-                        main_status &= ~0xC0;
-                    }
-                    else if (current_command == 0x07) //recalibrate
-                    {
-                        drives[data&0x03].current_cylinder = 0;
-                        out_buffer.clear();
-                        pic.request_interrupt(6);
-                        main_status &= ~0x50; //no output bytes
-                        st0 = selected_drive;
-                        current_command = 0;
-                    }
-                    else if (current_command == 0x0F) //seek
-                    {
-                        //TODO: verify that this drive is selected
-                        u8 drive_number = out_buffer[0]&0x03;
-                        if (drives[drive_number].motor)
-                        {
-                            drives[drive_number].current_cylinder = out_buffer[1];
-                        }
-                        else
-                        {
-                            cout << "Tried to seek on drive #" << u32(drive_number) << " but motor is not on." << endl;
-                        }
-                        st0 = selected_drive;
-                        main_status |= (1<<st0);
-                        interrupt_timer = 4096;
-                    }
-                    else
-                    {
-                        cout << "Weird command " << u32(current_command) << " while starting operation." << endl;
-                        std::abort();
-                    }
-                }
-            }
-            else //FIFO not active, start a new command
-            {
-                // Handle FDC commands here
-                if (FLOPPY_DEBUG)
-                    cout << "PORT 5 means COMMAND! ";
-
-                u8 command = data&0x1F;
-
-                if (FLOPPY_DEBUG)
-                    if (commandnames[command])
-                        cout << commandnames[command] << " - ";
-
-                if (FLOPPY_DEBUG)
-                    cout << "number=" << u32(command) << endl;
-                switch (data&0x1F)
-                {
-                    case 0x03: // Specify
-                        fifo_input_bytes_left = 2;
-                        current_command = (data&0x1F);
-                        main_status |= 0x10;
-                        out_buffer.clear();
-                        break;
-                    case 0x04: // sense drive status
-                        fifo_input_bytes_left = 1;
-                        current_command = (data&0x1F);
-                        main_status |= 0x10;
-                        out_buffer.clear();
-                        break;
-                    case 0x05: // Write Data
-                        fifo_input_bytes_left = 8;
-                        current_command = (data&0x1F);
-                        current_full_command = data;
-                        main_status |= 0x10;
-                        out_buffer.clear();
-                        break;
-                    case 0x06: // Read Data
-                        fifo_input_bytes_left = 8;
-                        current_command = (data&0x1F);
-                        current_full_command = data;
-                        main_status |= 0x10;
-                        out_buffer.clear();
-                        break;
-                    case 0x07: // Recalibrate (seek to cyl 0)
-                        fifo_input_bytes_left = 1;
-                        current_command = (data&0x1F);
-                        main_status |= 0x10;
-                        out_buffer.clear();
-                        break;
-                    case 0x08: // Sense interrupt
-                        out_buffer.push_back(st0);
-                        out_buffer.push_back(drives[0].current_cylinder);
-                        main_status |= 0x50;
-                        break;
-                    case 0x0F: // Seek
-                        fifo_input_bytes_left = 2;
-                        current_command = (data&0x1F);
-                        main_status |= 0x10;
-                        out_buffer.clear();
-                        break;
-                    default:
-                        std::cout << "Unsupported FDC command " << u32(data) << "/" << u32(data&0x1F) << endl;
-                        std::abort();
-                }
-                if (FLOPPY_DEBUG)
-                    cout << "expecting " << u32(fifo_input_bytes_left) << " more bytes." << endl;
-            }
-
-        }
-        else if (port == 2)
-        {
-            if (FLOPPY_DEBUG)
-            {
-                cout << "DOR byte!" << endl;
-                cout << "Select drive #" << (data&0x03) << endl;
-
-                if (data&0x04)
-                    cout << "No reset mode." << endl;
-                else
-                {
-                    cout << "Enter reset mode." << endl;
-                }
-
-                if (data&0x08)
-                    cout << "Enable IRQ & DMA." << endl;
-                else
-                    cout << "Disable IRQ & DMA." << endl;
-            }
-
-            selected_drive = (data&0x03);
-            if (!(data&0x04))
-                reset_state = RESET_CYCLES;
-
-            for(int i=0; i<4; ++i)
-            {
-                if (FLOPPY_DEBUG)
-                    cout << "Drive #" << i << " motor " << ((data&(0x10<<i))?"ON":"OFF") << endl;
-                drives[i].motor = (data&(0x10<<i));
-            }
-            registers[port] = data;
-        }
-        else
-        {
-            std::cout << "Write: Unsupported floppy port " << u32(port) << " with data: " << u32(data) << endl;
-            //registers[port] = data;
-        }
-        /*if (FLOPPY_DEBUG)
-            cout << "\\===========================================/" << endl;*/
-    }
-
-    void cycle()
-    {
-        if (reset_state > 0)
-        {
-            --reset_state;
-            if (reset_state == 0) //RESET DONE!
-            {
-                out_buffer.clear();
-                cout << "FLOPPY Reset is now done!" << endl;
-                main_status = 0x80;
-                st0 = 0xC0;
-                st1 = 0;
-                st2 = 0;
-                pic.request_interrupt(6);
-            }
-        }
-        if (interrupt_timer > 0)
-        {
-            --interrupt_timer;
-            if (interrupt_timer == 0)
-            {
-                st0 &= 0xF0; //clear the "seek" bits
-                pic.request_interrupt(6);
-            }
-        }
-
-        if (dma.chans[2].is_complete_and_reset())
-        {
-            pic.request_interrupt(6);
-            main_status = 0xC0 | 0x10;
-
-            st0 = 0x00;
-
-            u32 cylinder = out_buffer[1];
-            u32 sector = out_buffer[3];
-
-            out_buffer.clear();
-            out_buffer.push_back(st0);
-            out_buffer.push_back(st1);
-            out_buffer.push_back(st2);
-            out_buffer.push_back(cylinder);
-            out_buffer.push_back(0);
-            out_buffer.push_back(sector + (dma.chans[2].transfer_count+1)/512);
-            out_buffer.push_back(2);
-            cout << "DMA COMPLETE lol. interrupt 6. did " << dma.chans[2].transfer_count << " bytes aka " << (dma.chans[2].transfer_count)/512+1 << " sectors" << endl;
-            dma.print_params(2);
-        }
-    }
-} diskettecontroller;
-
-struct IO
-{
-    static void out(u16 port, u16 data)
+    Gameport gameport;
+    CGA cga;
+    LTEMS ltems;
+    CHIP8259 pic, pic2;
+    MemBytes membytes;
+    MemoryManager8088 mem88{cga, ltems, membytes};
+    MemoryManager286 mem286{cga, ltems, membytes};
+    BEEPER beeper;
+    YM3812 ym3812;
+    CHIP146818 cmos;
+    CHIP8042 kbd_at{pic};
+    CHIP8255 kbd_xt{pic};
+    CHIPLS612N dmapage;
+    CHIP8237 dma{0, dmapage, mem286}, dma2{1, dmapage, mem286};
+    CHIP8253 pit{pic, beeper};
+    HARDDISK harddisk{dma, pic};
+    DISKETTECONTROLLER diskettecontroller{dma, pic};
+    MiniAudio miniaudio{beeper, ym3812};
+
+    void io_out(u16 port, u16 data)
     {
         //if (startprinting)
         //cout << "Write Port 0x" << u32(port) << " ----> 0x" << u32(data) << endl;
@@ -3548,7 +164,7 @@ struct IO
         }
         else if (port >= 0x60 && port <= 0x64)
         {
-            kbd.write(port-0x60, data&0xFF);
+            kbd_xt.write(port-0x60, data&0xFF);
         }
         else if (port >= 0x3D0 && port <= 0x3DF)
         {
@@ -3589,7 +205,7 @@ struct IO
             //std::abort();
         }
     }
-    static u16 in(u16 port)
+    u16 io_in(u16 port)
     {
         u16 data = 0;
         if (false);
@@ -3615,7 +231,7 @@ struct IO
         }
         else if (port >= 0x60 && port <= 0x64)
         {
-            data = kbd.read(port-0x60);
+            data = kbd_xt.read(port-0x60);
         }
         else if (port >= 0x3D0 && port <= 0x3DF)
         {
@@ -3660,11 +276,141 @@ struct IO
     }
 };
 
-//#include "8088mc.h"
-//#include "808x_microcoded.h"
-
-//#include "808x.h"
+#include "8088mc.h"
+#include "808x_microcoded.h"
+#include "808x.h"
+#include "80186.h"
 #include "80286.h"
+
+struct Machine;
+using CPUCycleFn = void (Machine::*)();
+using CPUResetFn = void (Machine::*)();
+using CPUIrqFn = bool (Machine::*)(int);
+struct Machine
+{
+    IOSystem p;
+
+    CPU8086 cpu8086{p.mem88, p.pic, p};
+    CPU8088MC cpu8088mc{p.mem88, p.pic, p};
+    CPU80186 cpu80186{p.mem88, p.pic, p};
+    CPU80286 cpu80286{p.mem286, p.pic, p};
+
+    u32 current_cpu{};
+    u64 cpu_steps{};
+
+    CPUCycleFn cycle_fn;
+    CPUResetFn reset_fn;
+    CPUIrqFn irq_fn;
+
+    void init_cpu(u32 cpu_type)
+    {
+        if (cpu_type == 0)
+        {
+            cycle_fn = &Machine::cycle_8086;
+            reset_fn = &Machine::reset_8086;
+            irq_fn = &Machine::irq_if_accept_8086;
+        }
+        else if (cpu_type == 1)
+        {
+            cycle_fn = &Machine::cycle_8088mc;
+            reset_fn = &Machine::reset_8088mc;
+            irq_fn = &Machine::irq_if_accept_8088mc;
+        }
+        else if (cpu_type == 2)
+        {
+            cycle_fn = &Machine::cycle_80186;
+            reset_fn = &Machine::reset_80186;
+            irq_fn = &Machine::irq_if_accept_80186;
+        }
+        else if (cpu_type == 3)
+        {
+            cycle_fn = &Machine::cycle_80286;
+            reset_fn = &Machine::reset_80286;
+            irq_fn = &Machine::irq_if_accept_80286;
+        }
+    }
+
+    void cycle_8086() { cpu8086.cycle(); ++cpu_steps; }
+    void cycle_8088mc() { cpu8088mc.cycle(); ++cpu_steps; }
+    void cycle_80186() { cpu80186.cycle(); ++cpu_steps; }
+    void cycle_80286() { cpu80286.cycle(); ++cpu_steps; }
+
+    void reset_8086() { cpu8086.reset(); }
+    void reset_8088mc() { cpu8088mc.reset(); }
+    void reset_80186() { cpu80186.reset(); }
+    void reset_80286() { cpu80286.reset(); }
+
+    bool irq_if_accept_8086(int irq) { bool ret = cpu8086.accepts_interrupts(); if (ret) cpu8086.irq(irq); return ret; }
+    bool irq_if_accept_8088mc(int irq) { bool ret = cpu8088mc.accepts_interrupts(); if (ret) cpu8088mc.irq(irq); return ret; }
+    bool irq_if_accept_80186(int irq) { bool ret = cpu80186.accepts_interrupts(); if (ret) cpu80186.irq(irq); return ret; }
+    bool irq_if_accept_80286(int irq) { bool ret = cpu80286.accepts_interrupts(); if (ret) cpu80286.irq(irq); return ret; }
+
+    void cycle_cpu()
+    {
+        (this->*cycle_fn)();
+    }
+    void reset_cpu()
+    {
+        (this->*reset_fn)();
+    }
+    bool irq_if_accept(int irq)
+    {
+        return (this->*irq_fn)(irq);
+    }
+
+    void fast_stuff(u64 clock)
+    {
+        //auto& cpu = cpu8088mc;
+        cycle_cpu();
+        p.pic.cycle();
+        for(u8 irq=0; irq<8; ++irq)
+        {
+            if (p.pic.isr&(1<<irq))
+            {
+                //if constexpr(DEBUG_LEVEL > 0)
+                    //cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
+                if (irq_if_accept(irq))
+                {
+                    break;
+                }
+
+                /*if (cpu.accepts_interrupts())
+                {
+                    if constexpr(DEBUG_LEVEL > 0)
+                        cout << "IRQ: SENT TO CPU " << u32(irq) << endl;
+                    cpu.irq(irq);
+                    break;
+                }*/
+            }
+        }
+        p.kbd_xt.cycle();
+        if (p.kbd_xt.is_reset())
+            reset_cpu();
+        p.diskettecontroller.cycle();
+        p.harddisk.cycle();
+        if (clock%4 == 0) //we're already inside %3 so this makes for %12
+            p.dma.cycle();
+    }
+
+    void real_stuff(u64 clock)
+    {
+        if (clock%8 == 0)
+            p.cga.cycle();
+        if (clock%12 == 0)
+            p.pit.cycle();
+        if (clock%298 == 0) //ca. 48kHz. handles sound output in general
+            p.miniaudio.cycle();
+        if (clock%288 == 0)
+        {
+            p.ym3812.cycle();
+            p.ym3812.cycle_timers();
+            global_port0x61 ^= 0x10;
+        }
+        if (clock%GAMEPORT_CYCLE == 0)
+            p.gameport.cycle();
+    }
+
+} mac;
 
 unsigned char key_lookup[GLFW_KEY_LAST+1] = {};
 void initialize_key_lookup()
@@ -3777,13 +523,13 @@ std::vector<std::string> list_all_files(const fs::path& directory)
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
     if (button == GLFW_MOUSE_BUTTON_1)
-        gameport.set_button_state(0, action == GLFW_PRESS);
+        mac.p.gameport.set_button_state(0, action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_2)
-        gameport.set_button_state(1, action == GLFW_PRESS);
+        mac.p.gameport.set_button_state(1, action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_3)
-        gameport.set_button_state(2, action == GLFW_PRESS);
+        mac.p.gameport.set_button_state(2, action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_4)
-        gameport.set_button_state(3, action == GLFW_PRESS);
+        mac.p.gameport.set_button_state(3, action == GLFW_PRESS);
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -3810,31 +556,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             else if (key == GLFW_KEY_R) //reset
             {
                 cout << "Reset!" << endl;
-                cpu.reset();
-            }
-            else if (key == GLFW_KEY_G)
-            {
-                if (cpu.halt)
-                {
-                    cout << "Force CPU out of halt." << endl;
-                    cpu.halt = false;
-                }
-                else
-                    cout << "Not in halt." << endl;
+                mac.reset_cpu();
             }
             else if (key == GLFW_KEY_F)
             {
                 cout << "Flushing disks." << endl;
-                harddisk.disks[0].flush();
-                harddisk.disks[1].flush();
+                mac.p.harddisk.disks[0].flush();
+                mac.p.harddisk.disks[1].flush();
                 cout << "Disks flushed." << endl;
-            }
-            else if (key == GLFW_KEY_G)
-            {
-                cout << "FLAGS: " << endl;
-                for(int i=0; i<16; ++i)
-                    cout << bool(cpu.registers[cpu.FLAGS]&(1<<i)) << (i%4==3?"  ":" ");
-                cout << endl;
             }
             else if (key == GLFW_KEY_Q)
             {
@@ -3848,11 +577,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             }
             else if (key == GLFW_KEY_V)
             {
-                if (cga.output == cga.OUTPUT::RGB)
-                    cga.output = cga.OUTPUT::COMPOSITE;
+                if (mac.p.cga.output == mac.p.cga.OUTPUT::RGB)
+                    mac.p.cga.output = mac.p.cga.OUTPUT::COMPOSITE;
                 else
-                    cga.output = cga.OUTPUT::RGB;
-                cout << "Cga output changed to " << (cga.output==cga.OUTPUT::RGB?"RGB.":"composite.") << endl;
+                    mac.p.cga.output = mac.p.cga.OUTPUT::RGB;
+                cout << "Cga output changed to " << (mac.p.cga.output==mac.p.cga.OUTPUT::RGB?"RGB.":"composite.") << endl;
             }
             else if (key == GLFW_KEY_L)
             {
@@ -3911,12 +640,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                 if (chosen_id != -1)
                 {
                     cout << "Loading " << files[chosen_id] << " to " << char('A'+chosen_drive) << ":" << endl;
-                    diskettecontroller.drives[chosen_drive].diskette = DISKETTECONTROLLER::Drive::DISKETTE(files[chosen_id]);
+                    mac.p.diskettecontroller.drives[chosen_drive].diskette = DISKETTECONTROLLER::Drive::DISKETTE(files[chosen_id]);
                 }
                 else
                 {
                     cout << "Ejecting " << char('A'+chosen_drive) << ":" << endl;
-                    diskettecontroller.drives[chosen_drive].diskette.eject();
+                    mac.p.diskettecontroller.drives[chosen_drive].diskette.eject();
                 }
             }
         }
@@ -3928,12 +657,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             startprinting = true;
             turbo = false;
             globalsettings.entertrace = false;
-            mem.dump_memory("memory.raw");
+            //mem.dump_memory("memory.raw");
         }
         u8 pc_scancode = key_lookup[key];
         if (pc_scancode != 0)
         {
-            kbd.press(pc_scancode | (action == GLFW_RELEASE ? 0x80 : 0));
+            mac.p.kbd_xt.press(pc_scancode | (action == GLFW_RELEASE ? 0x80 : 0));
         }
     }
 
@@ -3990,7 +719,29 @@ void configline(std::string line)
     std::string command;
     iss >> command;
 
-    if (command == "rom")
+    if (false);
+    else if (command == "cpu")
+    {
+        std::string cputype;
+        iss >> cputype;
+
+        //TODO: set queue size as per 6/8 cpu (not 80286)
+        if (cputype == "8086")
+            mac.init_cpu(0);
+        else if (cputype == "8088")
+            mac.init_cpu(0);
+        else if (cputype == "80186")
+            mac.init_cpu(2);
+        else if (cputype == "80188")
+            mac.init_cpu(2);
+        else if (cputype == "8088mc")
+            mac.init_cpu(1);
+        else if (cputype == "80286")
+            mac.init_cpu(3);
+        else
+            std::cout << "ERROR unknown cpu: " << cputype << std::endl;
+    }
+    else if (command == "rom")
     {
         std::string address_str, filename;
         iss >> address_str >> filename;
@@ -4000,8 +751,6 @@ void configline(std::string line)
         {
             std::string option;
             iss >> option;
-            std::cout << option << "?!?=!?" << std::endl;
-            std::cout << "noin" << std::endl;
             if (option.substr(0,7) == "stride=")
             {
                 stride = atoi(option.substr(7).c_str());
@@ -4032,7 +781,7 @@ void configline(std::string line)
 
         for(int i=0; i<fileSize; ++i)
         {
-            file.read(reinterpret_cast<char*>(&mem.memory_bytes[address+i*stride]),1);
+            file.read(reinterpret_cast<char*>(&mac.p.membytes.bytes[address+i*stride]),1);
         }
 
         /*if (address + fileSize <= 0x100000)
@@ -4053,12 +802,12 @@ void configline(std::string line)
         int drive_number = tolower(drive_letter) - 'a';
         if (drive_number >= 0 && drive_number < 2)
         {
-            diskettecontroller.drives[drive_number].diskette = DISKETTECONTROLLER::Drive::DISKETTE(image_filename);
+            mac.p.diskettecontroller.drives[drive_number].diskette = DISKETTECONTROLLER::Drive::DISKETTE(image_filename);
         }
         else if (drive_number >= 2 && drive_number < 4)
         {
             cout << "Loading hard disk from " << image_filename << endl;
-            harddisk.disks[drive_number-2] = HARDDISK::DISK(image_filename);
+            mac.p.harddisk.disks[drive_number-2] = HARDDISK::DISK(image_filename);
         }
         else
         {
@@ -4089,7 +838,8 @@ void configline(std::string line)
     }
     else if (command == "test")
     {
-        readonly_start = 0xFFFF0000;
+        //readonly_start = 0xFFFF0000;
+        //TODO: make mem controller for test mode
         string test_filename;
         iss >> test_filename;
 
@@ -4119,8 +869,9 @@ void configline(std::string line)
         u32 regs_failed[16] = {};
         while(ptr < filedata.size())
         {
+            /*
             bool test_passed = true;
-            CPU8088 testcpu;
+            CPU8086 testcpu;
             testcpu.reset();
             memset(mem.memory_bytes, 0, 1<<20);
 
@@ -4187,7 +938,7 @@ void configline(std::string line)
             if (!test_passed)
                 tests_failed += 1, ++tests_totalfailed;
             ++test_id;
-            ++tests_totaldone;
+            ++tests_totaldone;*/
 
             //if (test_id == 1)
             //    std::abort();
@@ -4204,7 +955,6 @@ void configline(std::string line)
                 cout << flags_failed[i] << (i%4==3?"  ":" ");
             cout << endl;
         }
-        readonly_start = 0xF0000;
     }
     else if (command == "end_tests")
     {
@@ -4266,14 +1016,14 @@ void gamepadbuttonfun(int joy_id, int key_id, InputEventSTATE action)
 {
     if (key_id >= 0 && key_id <= 3)
     {
-        gameport.set_button_state(key_id, action == InputEventSTATE::DOWN);
+        mac.p.gameport.set_button_state(key_id, action == InputEventSTATE::DOWN);
     }
 }
 void gamepadaxisfun([[maybe_unused]] int joy_id, int axis_id, int amount)
 {
     if (axis_id >= 0 && axis_id <= 3)
     {
-        gameport.axes[axis_id] = amount;
+        mac.p.gameport.axes[axis_id] = amount;
     }
     //InputEvent ie;
     //ie.type = InputEvent::TYPE::GAMEPAD_AXISMOVE;
@@ -4365,7 +1115,6 @@ void updatejoysticks()
 
 int main(int argc, char* argv[])
 {
-#ifdef MICROCODE_8088
     FILE* filu = fopen("rom/8088mc.bin","rb");
     if (filu != NULL)
     {
@@ -4373,11 +1122,15 @@ int main(int argc, char* argv[])
         fclose(filu);
         cout << "8088 microcode loaded!" << endl;
     }
-#endif
+    else
+    {
+        cout << "8088 microcode not found. put it in rom/8088mc.bin" << std::endl;
+    }
 
 
     //glfwInit();
     initialize_key_lookup();
+    mac.init_cpu(1);
 
     std::string configFilename = "config.txt";
     if (argc > 1)
@@ -4385,6 +1138,7 @@ int main(int argc, char* argv[])
         configFilename = argv[1];
     }
 
+    mac.p.membytes.set_size(1<<21);
     readConfigFile(configFilename);
     screen.SCREEN_start();
 
@@ -4404,18 +1158,9 @@ int main(int argc, char* argv[])
         }
     }
     glfwSetJoystickCallback(joystickfun);
-    cpu.reset();
+    mac.reset_cpu();
 
     double previousTime=0.0;
-
-    u8 data[1<<16] = {};
-    for(int i=0; i<65536; ++i)
-    {
-        data[i] = mem.direct8(0xF0000+i);
-    }
-    FILE* filu = fopen("asd.bin","wb");
-    fwrite(data,65536,1,filu);
-    fclose(filu);
 
     u64 loop_counter=0, clockgen_fast=0, clockgen_real=0;
     while(true)
@@ -4429,52 +1174,19 @@ int main(int argc, char* argv[])
 
             if (clockgen_fast%3 == 0)
             {
-                cpu.cycle();
-                ++cpu.cpu_steps;
-                cpu.cycle();
-                ++cpu.cpu_steps;
-                for(u8 irq=0; irq<8; ++irq)
-                {
-                    if (pic.isr&(1<<irq))
-                    {
-                        if constexpr(DEBUG_LEVEL > 0)
-                            cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
-                        if (cpu.accepts_interrupts())
-                        {
-                            if constexpr(DEBUG_LEVEL > 0)
-                                cout << "IRQ: SENT TO CPU " << u32(irq) << endl;
-                            cpu.irq(irq);
-                            break;
-                        }
-                    }
-                }
-                kbd.cycle();
-                diskettecontroller.cycle();
-                harddisk.cycle();
-                if (clockgen_fast%4 == 0) //we're already inside %3 so this makes for %12
-                    dma.cycle();
-            }
-            if (clockgen_fast%288)
-            {
-                global_port0x61 ^= 0x10;
-                ym3812.cycle_timers();
+                mac.fast_stuff(clockgen_fast);
             }
 
             //realtime stuff
             if (lockstep) //implies turbo==true
             {
-                if (clockgen_fast%8 == 0)
-                    cga.cycle();
-                if (clockgen_fast%12 == 0)
-                    pit.cycle();
-                if (clockgen_fast%298 == 0) //ca. 48kHz. handles sound output in general
-                    beeper.cycle();
-                if (clockgen_fast%288 == 0)
-                {
-                    ym3812.cycle();
-                }
-                if (clockgen_fast%GAMEPORT_CYCLE == 0)
-                    gameport.cycle();
+                mac.real_stuff(clockgen_fast);
+            }
+            if (!lockstep && turbo)
+            {
+                mac.real_stuff(clockgen_fast);
+                mac.real_stuff(clockgen_fast);
+                mac.real_stuff(clockgen_fast);
             }
         }
 
@@ -4493,50 +1205,11 @@ int main(int argc, char* argv[])
                 {
                     if (clockgen_real%3 == 0)
                     {
-                        cpu.cycle();
-                        ++cpu.cpu_steps;
-                        cpu.cycle();
-                        ++cpu.cpu_steps;
-                        pic.cycle();
-                        for(u8 irq=0; irq<8; ++irq)
-                        {
-                            if (pic.isr&(1<<irq))
-                            {
-                                if constexpr(DEBUG_LEVEL > 0)
-                                    cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
-                                if (cpu.accepts_interrupts())
-                                {
-                                    if constexpr(DEBUG_LEVEL > 0)
-                                        cout << "IRQ: SENT TO CPU " << u32(irq) << endl;
-                                    cpu.irq(irq);
-                                    break;
-                                }
-                            }
-                        }
-                        kbd.cycle();
-                        if (kbd.is_reset())
-                            cpu.reset();
-                        diskettecontroller.cycle();
-                        harddisk.cycle();
-                        if (clockgen_real%4 == 0) //we're already inside %3 so this makes for %12
-                            dma.cycle();
+                        mac.fast_stuff(clockgen_real);
                     }
                 }
                 //realtime stuff
-                if (clockgen_real%8 == 0)
-                    cga.cycle();
-                if (clockgen_real%12 == 0)
-                    pit.cycle();
-                if (clockgen_real%298 == 0) //ca. 48kHz. handles sound output in general
-                    beeper.cycle();
-                if (clockgen_real%288 == 0)
-                {
-                    ym3812.cycle();
-                    ym3812.cycle_timers();
-                    global_port0x61 ^= 0x10;
-                }
-                if (clockgen_real%GAMEPORT_CYCLE == 0)
-                    gameport.cycle();
+                mac.real_stuff(clockgen_real);
             }
             previousTime += double(cycles_done)/14318180.0;
         }
@@ -4554,21 +1227,21 @@ int main(int argc, char* argv[])
             if (glfwGetTime()-startTime >= 1.0)
             {
                 startTime += 1.0;
-                cout << cpu.cpu_steps*3/14318180.0 << "x realtime ";
-                cout << std::dec << cpu.cpu_steps/1000000.0 << std::hex << " MHz ";
+                cout << mac.cpu_steps*3/14318180.0 << "x realtime ";
+                cout << std::dec << mac.cpu_steps/1000000.0 << std::hex << " MHz ";
                 //cout << std::dec << totalframes << " Hz audio " << std::hex;
-                cout << std::dec << cga.totalvsync << " Hz vsync, " << std::hex;
-                cout << std::hex << "flags=" << cpu.registers[cpu.FLAGS] << " " << std::hex;
-                cout << "halt=" << cpu.halt << " ";
+                cout << std::dec << mac.p.cga.totalvsync << " Hz vsync, " << std::hex;
+                //cout << std::hex << "flags=" << cpu.registers[cpu.FLAGS] << " " << std::hex;
+                //cout << "halt=" << cpu.halt << " ";
 
                 cout << endl;
 
-                harddisk.disks[0].flush();
-                harddisk.disks[1].flush();
-                cpu.cpu_steps = 0;
+                mac.p.harddisk.disks[0].flush();
+                mac.p.harddisk.disks[1].flush();
+                mac.cpu_steps = 0;
                 totalframes = 0;
-                cga.totalvsync = 0;
-                pit.int0_count = 0;
+                mac.p.cga.totalvsync = 0;
+                mac.p.pit.int0_count = 0;
 
                 /*for(int i=0; i<256; ++i)
                 {

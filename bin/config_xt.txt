@@ -1,3 +1,5 @@
+cpu 8086
+
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN
 #rom fe000 rom/GLABIOS_0.2.5_8T.ROM
@@ -29,7 +31,7 @@ rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #load a disk/msfs1-d1.img
 
 #load b disk/8088mph.360
-load b disk/area5150.img
+#load b disk/area5150.img
 #load b disk/games/stunts.img
 #load b disk/games/spurgux.img
 #load b disk/games/rackem.img

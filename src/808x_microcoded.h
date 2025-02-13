@@ -1,9 +1,16 @@
 #pragma once
 
-#define MICROCODE_8088
+#include "interrupt.h"
+#include "mem8088.h"
+
 //NON WORKING NEW VERSION
-struct CPU8088
+struct CPU8088MC
 {
+    MemoryManager8088& mem;
+    CHIP8259& pic;
+    IOSystem& iosystem;
+    CPU8088MC(MemoryManager8088& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
+
     enum REG
     {
         ES,CS,SS,DS,IP, IND, OPR, Q,
@@ -733,7 +740,7 @@ struct CPU8088
         if constexpr(PREFETCH_QUEUE_SIZE == 0)
         {
             u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
-            T data = *(T*)(mem.memory_bytes+position);
+            T data = *(T*)(mem.membytes.bytes+position);
             registers[IP] += sizeof(T);
             return data;
         }
@@ -1923,27 +1930,27 @@ struct CPU8088
         }
         else if (instruction == 0xE4) // IN
         {
-            get_r8(0) = IO::in(read_inst<u8>());
+            get_r8(0) = iosystem.io_in(read_inst<u8>());
             cycles_used += 14;
         }
         else if (instruction == 0xE5) // IN
         {
             u8 port = read_inst<u8>();
-            u8 low = IO::in(port);
-            u8 high = IO::in(port+1);
+            u8 low = iosystem.io_in(port);
+            u8 high = iosystem.io_in(port+1);
             registers[AX] = (high<<8)|low;
             cycles_used += 14;
         }
         else if (instruction == 0xE6) // OUT
         {
-            IO::out(read_inst<u8>(), registers[AX]&0xFF);
+            iosystem.io_out(read_inst<u8>(), registers[AX]&0xFF);
             cycles_used += 14;
         }
         else if (instruction == 0xE7) // OUT
         {
             u8 port = read_inst<u8>();
-            IO::out(port, registers[AX]&0xFF);
-            IO::out(port+1, registers[AX]>>8);
+            iosystem.io_out(port, registers[AX]&0xFF);
+            iosystem.io_out(port+1, registers[AX]>>8);
             cycles_used += 14;
         }
         else if (instruction == 0xE8)
@@ -1976,26 +1983,26 @@ struct CPU8088
         }
         else if (instruction == 0xEC) // IN
         {
-            get_r8(0) = IO::in(registers[DX]);
+            get_r8(0) = iosystem.io_in(registers[DX]);
             cycles_used += 12;
         }
         else if (instruction == 0xED) // IN
         {
             u16 port = registers[DX];
-            u8 low = IO::in(port);
-            u8 high = IO::in(port+1);
+            u8 low = iosystem.io_in(port);
+            u8 high = iosystem.io_in(port+1);
             registers[AX] = (high<<8)|low;
             cycles_used += 12;
         }
         else if (instruction == 0xEE) // OUT
         {
-            IO::out(registers[DX], registers[AX]&0xFF);
+            iosystem.io_out(registers[DX], registers[AX]&0xFF);
             cycles_used += 12;
         }
         else if (instruction == 0xEF) // OUT
         {
-            IO::out(registers[DX], registers[AX]&0xFF);
-            IO::out(registers[DX]+1, registers[AX]>>8);
+            iosystem.io_out(registers[DX], registers[AX]&0xFF);
+            iosystem.io_out(registers[DX]+1, registers[AX]>>8);
             cycles_used += 12;
         }
         else if (instruction == 0xF4) // HALT / HLT
@@ -2187,6 +2194,6 @@ struct CPU8088
             //std::abort();
         }
     }
-} cpu;
+};
 
 

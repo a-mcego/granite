@@ -1,7 +1,203 @@
 #pragma once
 
-struct CPU8088
+#include "interrupt.h"
+#include "mem8088.h"
+
+struct CPU8086
 {
+    MemoryManager8088& mem;
+    CHIP8259& pic;
+    IOSystem& iosystem;
+    CPU8086(MemoryManager8088& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
+
+    auto divcord_byte(u16 ax, u8 m, u16 startflags)
+    {
+        const u8 bitwidth{8};
+        u16 tmpa{}, tmpb{}, tmpc{}, counter{}, flags{startflags}, aluflags{startflags};
+        u16 sigma{};
+        bool alucarry{};
+
+        u8 al = (ax&0xFF);
+        u8 ah = (ax>>8);
+
+        auto setflag = [&](auto flag, bool value)
+        {
+            aluflags = (aluflags&~flag) | (value?flag:0);
+        };
+
+        auto printstate = [&](const char* point)
+        {
+            //cout << point << " a=" << tmpa << " b=" << tmpb << " c=" << tmpc << " s=" << sigma << " ctr=" << counter << " f=" << flags << " af=" << aluflags << endl;
+        };
+
+        enum OPER
+        {
+            SUBT,
+            LRCY,
+            COM1
+        };
+        enum FLAG
+        {
+            CARRY=(1<<0),
+            PARITY=(1<<2),
+            AUX_CARRY=(1<<4),
+            ZERO=(1<<6),
+            SIGN=(1<<7),
+            OVERFLOW=(1<<11)
+        };
+
+        auto alu = [&](OPER oper, u16 reg1)
+        {
+            if (oper == COM1)
+            {
+                alucarry = (reg1&0x80);
+                sigma = ~reg1;
+            }
+            else if (oper == SUBT)
+            {
+                sigma = reg1-tmpb;
+                alucarry = (reg1<tmpb);
+
+                setflag(CARRY,reg1<tmpb);
+                setflag(PARITY,byte_parity[sigma&0xFF]);
+                setflag(AUX_CARRY, (reg1 ^ tmpb ^ sigma) & 0x10);
+                setflag(ZERO,sigma==0);
+                setflag(SIGN,sigma&0x80);
+                setflag(OVERFLOW,((reg1 ^ tmpb) & (reg1 ^ sigma))&0x80);
+            }
+            else if (oper == LRCY)
+            {
+                sigma = reg1 << 1;
+                sigma |= (alucarry?1:0);
+                alucarry = (reg1&0x80);
+            }
+        };
+
+        //DIV 0
+        printstate("DIV 0");
+        tmpa = ah;
+
+        //DIV 1
+        printstate("DIV 1");
+        tmpc = al;
+        alu(LRCY, tmpa);
+
+        //DIV 2
+        printstate("DIV 2");
+        tmpb = m;
+
+        //DIV 3
+        goto CORD_0;
+
+    CORD_RTN:
+
+        //DIV 4
+        printstate("DIV 4");
+        alu(COM1, tmpc);
+
+        //DIV 5
+        printstate("DIV 5");
+        tmpb = ah;
+
+        //DIV 6
+        printstate("DIV 6");
+        al = sigma;
+        flags = (flags&~CARRY) | (alucarry?CARRY:0);
+
+        //DIV 7
+        printstate("DIV 7");
+        ah = tmpa;
+        return make_tuple(ah, al, flags, false);
+
+        //CORD
+        //188
+    CORD_0:
+        printstate("CORD 0");
+        alu(SUBT, tmpa);
+
+        //189
+        printstate("CORD 1");
+        flags = aluflags;
+        counter=7; //only byte for now
+
+        //18a
+        printstate("CORD 2");
+        if (!(flags&CARRY))
+        {
+            return make_tuple(u8(0),u8(0),flags,true); //simulate int0
+        }
+
+        //18b
+    CORD_3:
+        printstate("CORD 3");
+        alu(LRCY, tmpc);
+
+        //18c
+        printstate("CORD 4");
+        tmpc = sigma;
+        flags = (flags&~CARRY) | (alucarry?CARRY:0);
+        alu(LRCY, tmpa);
+
+        //18d
+        printstate("CORD 5");
+        tmpa = sigma;
+        flags = (flags&~CARRY) | (alucarry?CARRY:0);
+        alu(SUBT, tmpa);
+
+        //18e
+        printstate("CORD 6");
+        if (flags&CARRY)
+            goto CORD_13;
+
+        //18f
+        printstate("CORD 7");
+        sigma; //no destination. here to indicate we're using sigma so we must update carry!
+        flags = aluflags;
+
+        //190
+        printstate("CORD 8");
+        if (!(flags&CARRY))
+            goto CORD_14;
+
+        //191
+        printstate("CORD 9");
+        if (counter-- != 0)
+            goto CORD_3;
+
+        //192
+    CORD_10: //from CORD_15
+
+        printstate("CORD 10");
+        alu(LRCY, tmpc);
+
+        //193
+        printstate("CORD 11");
+        flags = (flags&~CARRY) | (alucarry?CARRY:0);
+        tmpc = sigma;
+
+        //194
+        printstate("CORD 12");
+        flags = (flags&~CARRY) | (alucarry?CARRY:0);
+        goto CORD_RTN;
+
+        //195
+    CORD_13:
+        printstate("CORD 13");
+        flags = (flags&~CARRY);
+
+        //196
+    CORD_14:
+        printstate("CORD 14");
+        flags = (flags&~CARRY) | (alucarry?CARRY:0);
+        tmpa = sigma;
+        if (counter-- != 0)
+            goto CORD_3;
+
+        //197
+        printstate("CORD 15");
+        goto CORD_10;
+    }
+
     u16 registers[16] = {};
 
     u8 segment_override{};
@@ -22,6 +218,10 @@ struct CPU8088
         ES,CS,SS,DS,              //segment registers
         FLAGS,                    //flags, duh
         IP                        //instruction pointer
+    };
+    static constexpr u16 registermap[14] = //i wish we didnt need this
+    {
+        AX,CX,DX,BX, SP,BP,SI,DI, FLAGS, IP
     };
 
     enum FLAG
@@ -77,7 +277,7 @@ struct CPU8088
         if constexpr(PREFETCH_QUEUE_SIZE == 0)
         {
             u32 position = ((registers[CS]<<4) + registers[IP])&0xFFFFF;
-            T data = *(T*)(mem.memory_bytes+position);
+            T data = *(T*)(mem.membytes.bytes+position);
             registers[IP] += sizeof(T);
             return data;
         }
@@ -1252,27 +1452,27 @@ struct CPU8088
         }
         else if (instruction == 0xE4) // IN
         {
-            get_r8(0) = IO::in(read_inst<u8>());
+            get_r8(0) = iosystem.io_in(read_inst<u8>());
             cycles_used += 14;
         }
         else if (instruction == 0xE5) // IN
         {
             u8 port = read_inst<u8>();
-            u8 low = IO::in(port);
-            u8 high = IO::in(port+1);
+            u8 low = iosystem.io_in(port);
+            u8 high = iosystem.io_in(port+1);
             registers[AX] = (high<<8)|low;
             cycles_used += 14;
         }
         else if (instruction == 0xE6) // OUT
         {
-            IO::out(read_inst<u8>(), registers[AX]&0xFF);
+            iosystem.io_out(read_inst<u8>(), registers[AX]&0xFF);
             cycles_used += 14;
         }
         else if (instruction == 0xE7) // OUT
         {
             u8 port = read_inst<u8>();
-            IO::out(port, registers[AX]&0xFF);
-            IO::out(port+1, registers[AX]>>8);
+            iosystem.io_out(port, registers[AX]&0xFF);
+            iosystem.io_out(port+1, registers[AX]>>8);
             cycles_used += 14;
         }
         else if (instruction == 0xE8)
@@ -1305,26 +1505,26 @@ struct CPU8088
         }
         else if (instruction == 0xEC) // IN
         {
-            get_r8(0) = IO::in(registers[DX]);
+            get_r8(0) = iosystem.io_in(registers[DX]);
             cycles_used += 12;
         }
         else if (instruction == 0xED) // IN
         {
             u16 port = registers[DX];
-            u8 low = IO::in(port);
-            u8 high = IO::in(port+1);
+            u8 low = iosystem.io_in(port);
+            u8 high = iosystem.io_in(port+1);
             registers[AX] = (high<<8)|low;
             cycles_used += 12;
         }
         else if (instruction == 0xEE) // OUT
         {
-            IO::out(registers[DX], registers[AX]&0xFF);
+            iosystem.io_out(registers[DX], registers[AX]&0xFF);
             cycles_used += 12;
         }
         else if (instruction == 0xEF) // OUT
         {
-            IO::out(registers[DX], registers[AX]&0xFF);
-            IO::out(registers[DX]+1, registers[AX]>>8);
+            iosystem.io_out(registers[DX], registers[AX]&0xFF);
+            iosystem.io_out(registers[DX]+1, registers[AX]>>8);
             cycles_used += 12;
         }
         else if (instruction == 0xF4) // HALT / HLT
@@ -1395,11 +1595,52 @@ struct CPU8088
             }
             else if (op==6 || op == 7) //DIV IDIV
             {
-                bool interrupt_done = divcord_byte(0x160, registers,rm, 8, op&1, string_prefix);
-                if (interrupt_done)
-                    interrupt(0,true);
-                else
-                    cycles_used += (modrm_is_register?80:86);
+                if (rm == 0)
+                {
+                    interrupt(0, true);
+                    cycles_used += 80; //FIXME: this is made up
+                }
+                else if (op == 6)
+                {
+                    //std::cout << "DIVISIO PIQ 1" << std::endl;
+
+                    u8 denominator = rm;
+                    u16 result = registers[AX]/denominator;
+                    if (result >= 0x100)
+                    {
+                        set_flag(F_PARITY,false);
+                        set_flag(F_SIGN, registers[AX]&0x8000);
+                        interrupt(0, true);
+                    }
+                    else
+                    {
+                        u8 quotient = result;
+                        u8 remainder = registers[AX] % denominator;
+                        registers[AX] = (remainder<<8)|quotient;
+                        set_flag(F_PARITY,false);
+                        set_flag(F_SIGN, remainder^0x80);
+                    }
+                    cycles_used += (modrm_is_register?80:86); //TODO: 80-90, 86-96
+                }
+                else if (op == 7)
+                {
+                    //std::cout << "DIVISIO PIQ 2" << std::endl;
+
+                    i8 denominator = i8(rm);
+                    i16 result = i16(registers[AX]) / denominator;
+                    if (result < -0x80 || result >= 0x80) //186+ accept -0x80
+                    {
+                        interrupt(0, true);
+                    }
+                    else
+                    {
+                        i8 quotient = result&0xFF;
+                        i8 remainder = i16(registers[AX]) % denominator;
+                        registers[AX] = (remainder<<8)|u8(quotient);
+                        set_flag(F_PARITY,false);
+                    }
+                    cycles_used += (modrm_is_register?101:107); //TODO: 101-112, 107-118
+                }
             }
             else
             {
@@ -1467,11 +1708,43 @@ struct CPU8088
             }
             else if (op == 6 || op == 7) //DIV IDIV
             {
-                bool interrupt_done = divcord_byte(0x168, registers,rm, 16, op&1, string_prefix);
-                if (interrupt_done)
-                    interrupt(0,true);
-                else
-                    cycles_used += (modrm_is_register?80:86);
+                if (rm == 0)
+                {
+                    interrupt(0, true); //division by zero
+                }
+                else if (op == 6)
+                {
+                    //std::cout << "DIVISIO" << std::endl;
+                    u32 numerator = (registers[DX]<<16)|registers[AX];
+                    u16 denominator = rm;
+                    u32 result = numerator / denominator;
+                    if (result >= 0x10000)
+                    {
+                        interrupt(0, true);
+                    }
+                    else
+                    {
+                        registers[AX] = result;
+                        registers[DX] = numerator % denominator;
+                    }
+                    cycles_used += (modrm_is_register?144:150); //TODO: 144-162, 150-168
+                }
+                else if (op == 7)
+                {
+                    i32 numerator = i32((registers[DX]<<16)|registers[AX]);
+                    i16 denominator = i16(rm);
+                    i32 result = numerator / denominator;
+                    if (result < -0x8000 || result >= 0x8000) //186+ accept -0x8000
+                    {
+                        interrupt(0, true);
+                    }
+                    else
+                    {
+                        registers[AX] = numerator / denominator;
+                        registers[DX] = numerator % denominator;
+                    }
+                    cycles_used += (modrm_is_register?165:171); //TODO: 165-184, 171-190
+                }
             }
             else
             {
@@ -1631,5 +1904,5 @@ struct CPU8088
             std::abort();
         }
     }
-} cpu;
+};
 
