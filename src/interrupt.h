@@ -35,20 +35,20 @@ struct CHIP8259 //PIC
             if (ocw[3]&1)
             {
                 if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
+                    cout << PRETTY_FUNCTION << ":" << std::dec << __LINE__ << std::hex << endl;
                 return irr;
             }
             else
             {
                 if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
+                    cout << PRETTY_FUNCTION << ":" << std::dec << __LINE__ << std::hex << endl;
                 return isr;
             }
         }
         else if (port == 1)
         {
             if constexpr (DEBUG_LEVEL > 0)
-                cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
+                cout << PRETTY_FUNCTION << ":" << std::dec << __LINE__ << std::hex << endl;
             return imr;
         }
         return 0;
@@ -64,7 +64,7 @@ struct CHIP8259 //PIC
                 icw[1] = data;
                 is_initialized = false;
                 if constexpr (DEBUG_LEVEL > 0)
-                    cout << __PRETTY_FUNCTION__ << ":" << std::dec << __LINE__ << std::hex << endl;
+                    cout << PRETTY_FUNCTION << ":" << std::dec << __LINE__ << std::hex << endl;
             }
             else
             {

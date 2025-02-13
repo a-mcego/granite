@@ -46,7 +46,7 @@ struct CHIP8255 //PC/XT keyboard etc
     {
         if constexpr (DEBUG_LEVEL > 1)
         {
-            cout << __PRETTY_FUNCTION__ << ": " << u32(port) << " read!" << endl;
+            cout << PRETTY_FUNCTION << ": " << u32(port) << " read!" << endl;
             cout << u32(regs[0]) << endl;
             cout << u32(regs[1]) << endl;
             cout << u32(regs[2]) << endl;
@@ -106,7 +106,7 @@ struct CHIP8255 //PC/XT keyboard etc
         }
 
         //what
-        cout << __PRETTY_FUNCTION__ << " weird thing?" << endl;
+        cout << PRETTY_FUNCTION << " weird thing?" << endl;
         std::abort();
     }
 

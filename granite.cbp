@@ -49,6 +49,7 @@
 		<Unit filename="src/main.cpp" />
 		<Unit filename="src/mem286.h" />
 		<Unit filename="src/mem8088.h" />
+		<Unit filename="src/membytes.h" />
 		<Unit filename="src/miniaudio.cpp" />
 		<Unit filename="src/miniaudio.h" />
 		<Unit filename="src/opl2.cpp" />

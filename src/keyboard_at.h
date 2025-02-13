@@ -162,7 +162,7 @@ struct CHIP8042 //AT keyboard etc
         }
 
         //what
-        cout << __PRETTY_FUNCTION__ << " weird thing?" << endl;
+        cout << PRETTY_FUNCTION << " weird thing?" << endl;
         std::abort();
     }
 

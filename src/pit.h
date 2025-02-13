@@ -236,7 +236,7 @@ struct CHIP8253 //PIT
                         if constexpr (DEBUG_LEVEL > 0)
                         {
                             cout << std::dec;
-                            cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
+                            cout << PRETTY_FUNCTION << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
                             cout << std::hex;
                         }
                         ++int0_count;
@@ -269,7 +269,7 @@ struct CHIP8253 //PIT
                         if constexpr (DEBUG_LEVEL > 0)
                         {
                             cout << std::dec;
-                            cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
+                            cout << PRETTY_FUNCTION << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
                             cout << std::hex;
                         }
                         ++int0_count;
@@ -307,7 +307,7 @@ struct CHIP8253 //PIT
                         if constexpr (DEBUG_LEVEL > 0)
                         {
                             cout << std::dec;
-                            cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
+                            cout << PRETTY_FUNCTION << ":" << __LINE__ << ": " << u32(c.reload) << " "  << u32(c.current) << " " << u32(c.operating_mode) << endl;
                             cout << std::hex;
                         }
                         if (c.output)

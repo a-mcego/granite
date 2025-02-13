@@ -1,3 +1,13 @@
+#if defined(__clang__)
+    #define PRETTY_FUNCTION __PRETTY_FUNCTION__
+#elif defined(__GNUC__) || defined(__GNUG__)
+    #define PRETTY_FUNCTION __PRETTY_FUNCTION__
+#elif defined(_MSC_VER)
+    #define PRETTY_FUNCTION __FUNCSIG__
+#else
+    #define PRETTY_FUNCTION "()"
+#endif
+
 #include "glad/gl.h"
 #include <GLFW/glfw3.h>
 #include <iostream>
