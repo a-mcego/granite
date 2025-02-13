@@ -1,4 +1,5 @@
-cpu 80188
+cpu 8088
+cpu_multiplier 1/3
 
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN

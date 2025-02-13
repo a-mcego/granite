@@ -373,10 +373,20 @@ struct Machine
         return (this->*irq_fn)(irq);
     }
 
+    u64 cpumult_num{1};
+    u64 cpumult_denom{3};
+    i64 cpu_cycle_accum{};
+
     void fast_stuff(u64 clock)
     {
         //auto& cpu = cpu8088mc;
-        cycle_cpu();
+
+        cpu_cycle_accum += cpumult_num*3;
+        while(cpu_cycle_accum >= 0)
+        {
+            cpu_cycle_accum -= cpumult_denom;
+            cycle_cpu();
+        }
         p.pic.cycle();
         for(u8 irq=0; irq<8; ++irq)
         {
@@ -755,6 +765,38 @@ void configline(std::string line)
             mac.init_cpu(3,-1);
         else
             std::cout << "ERROR unknown cpu: " << cputype << std::endl;
+    }
+    else if (command == "cpu_multiplier")
+    {
+        std::string fraction;
+        iss >> fraction;
+        size_t slashPos = fraction.find('/');
+        if (slashPos == std::string::npos)
+        {
+            std::cout << "CPU mult: Invalid fraction format: missing '/'. don't use spaces." << std::endl;
+        }
+        else
+        {
+            std::string numeratorStr = fraction.substr(0, slashPos);
+            std::string denominatorStr = fraction.substr(slashPos + 1);
+
+            int numerator = std::stoi(numeratorStr);
+            int denominator = std::stoi(denominatorStr);
+
+            if (denominator == 0)
+            {
+                std::cout << "CPU multiplier: Invalid fraction: denominator cannot be zero" << std::endl;
+            }
+            else if (denominator < 0 || numerator < 0)
+            {
+                std::cout << "CPU multiplier: fraction cannot have negative numbers" << std::endl;
+            }
+            else
+            {
+                mac.cpumult_num = numerator;
+                mac.cpumult_denom = denominator;
+            }
+        }
     }
     else if (command == "rom")
     {
