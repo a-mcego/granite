@@ -15,7 +15,8 @@ struct CHIP8255 //PC/XT keyboard etc
         CGA40=0x10,
         CGA80=0x20,
         MDA=0x30
-    } const static VIDEO_CARD_TYPE = CGA80;
+    };
+    static const VIDEO_CARD_TYPES VIDEO_CARD_TYPE = CGA80;
 
     //onboard DIP switches
 

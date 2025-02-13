@@ -238,7 +238,7 @@ struct CPU8088MC
                 }
                 else if (index == 16)
                     registers[AX] = (data&0xFF)|(registers[AX]&0xFF00);
-                else if (index <= 6 || index >= 20 && index <= 31)
+                else if (index <= 6 || (index >= 20 && index <= 31))
                     registers[index] = data;
                 else
                 {
@@ -729,7 +729,7 @@ struct CPU8088MC
     }
 
 
-    u32 prefetch_queue_size = 6;
+    u8 prefetch_queue_size = 6;
     u8 prefetch_queue[6] = {};
     u32 prefetch_address{0xFFFFFFFF};
 

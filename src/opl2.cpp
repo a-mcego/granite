@@ -259,7 +259,9 @@ void Opl2::update_ADSR()
 					op.adsr = (op.hold_instr?S:R);
 					break;
 				}
-            [[fallthrough]]
+#if __cplusplus >= 201703L && !defined(_MSC_VER)
+            [[fallthrough]];
+#endif
 			case R:
 				if (op.DR_div <= 16)
                     op.ADSR_volume = ADSR_DR[op.DR_state]>>op.DR_div;

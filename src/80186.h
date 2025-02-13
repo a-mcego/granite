@@ -90,7 +90,7 @@ struct CPU80186
     }
 
 
-    u32 prefetch_queue_size = 6;
+    u8 prefetch_queue_size = 6;
     u8 prefetch_queue[6] = {};
     u32 prefetch_address{};
 
