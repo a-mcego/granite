@@ -176,7 +176,10 @@ struct IOSystem
         }
         else if (port >= 0x60 && port <= 0x64)
         {
-            kbd_xt.write(port-0x60, data&0xFF);
+            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+                kbd_at.write(port-0x60, data&0xFF);
+            else
+                kbd_xt.write(port-0x60, data&0xFF);
         }
         else if (port >= 0x3D0 && port <= 0x3DF)
         {
@@ -243,7 +246,10 @@ struct IOSystem
         }
         else if (port >= 0x60 && port <= 0x64)
         {
-            data = kbd_xt.read(port-0x60);
+            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+                data = kbd_at.read(port-0x60);
+            else
+                data = kbd_xt.read(port-0x60);
         }
         else if (port >= 0x3D0 && port <= 0x3DF)
         {
@@ -408,9 +414,18 @@ struct Machine
                 }*/
             }
         }
-        p.kbd_xt.cycle();
-        if (p.kbd_xt.is_reset())
-            reset_cpu();
+        if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+        {
+            p.kbd_at.cycle();
+            if (p.kbd_at.is_reset())
+                reset_cpu();
+        }
+        else
+        {
+            p.kbd_xt.cycle();
+            if (p.kbd_xt.is_reset())
+                reset_cpu();
+        }
         p.diskettecontroller.cycle();
         p.harddisk.cycle();
         if (clock%4 == 0) //we're already inside %3 so this makes for %12
@@ -422,14 +437,16 @@ struct Machine
         if (clock%8 == 0)
             p.cga.cycle();
         if (clock%12 == 0)
+        {
+            global_port0x61 ^= 0x10;
             p.pit.cycle();
+        }
         if (clock%298 == 0) //ca. 48kHz. handles sound output in general
             p.miniaudio.cycle();
         if (clock%288 == 0)
         {
             p.ym3812.cycle();
             p.ym3812.cycle_timers();
-            global_port0x61 ^= 0x10;
         }
         if (clock%GAMEPORT_CYCLE == 0)
             p.gameport.cycle();

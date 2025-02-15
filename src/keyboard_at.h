@@ -141,7 +141,7 @@ struct CHIP8042 //AT keyboard etc
             }
             else
             {
-                std::cout << "UNKNOWN command is: " << (u32)command << std::endl;
+                std::cout << "kbd_at: UNKNOWN command is: " << (u32)command << std::endl;
                 std::abort();
             }
             //std::cout << "command is: " << (u32)command << std::endl;
@@ -254,6 +254,8 @@ struct CHIP8042 //AT keyboard etc
             else if (data == 0xFE) //RESET
             {
                 P2 &= 0xFE;
+                set_output_bit = 0;
+                command = 0x100;
                 return;
             }
             else if (command == 0xAD) //disable kbd
