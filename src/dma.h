@@ -204,9 +204,6 @@ struct CHIP8237 //DMA
                 if (startprinting)
                     cout << "DMA #" << u32(chan_n) << ": dir=" << u32(c.transfer_direction) << " auto=" << u32(c.automatic) << " down=" << u32(c.down) << " mode=" << u32(c.mode) << endl;
 
-
-                print_params(chan_n);
-
                 if (chan_n == 0 && c.automatic)
                 {
                     c.device_vector = nullptr;

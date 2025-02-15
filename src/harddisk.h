@@ -277,7 +277,7 @@ struct HARDDISK
                         cout << "HD READ offset: " << offset << endl;
                         if (address_valid)
                         {
-                            dma.print_params(3);
+                            //dma.print_params(3);
                             dma.transfer(3, &disks[current_drive].data, offset);
                             dma_in_progress = true;
                         }
@@ -300,7 +300,7 @@ struct HARDDISK
                                 //cout << "----------------Transfer count: " << dma.chans[3].transfer_count << endl;
                             }
 
-                            dma.print_params(3);
+                            //dma.print_params(3);
                             dma.transfer(3, &disks[current_drive].data, offset);
                             dma_in_progress = true;
                         }
@@ -337,7 +337,7 @@ struct HARDDISK
                             cout << "sector buf write size not 512" << endl;
                             std::abort();
                         }
-                        dma.print_params(3);
+                        //dma.print_params(3);
                         dma.transfer(3, &sector_buffer, 0);
                         r1_req = false;
                         dma_in_progress = true;

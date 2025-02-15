@@ -559,8 +559,8 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             out_buffer.push_back(0);
             out_buffer.push_back(sector + (dma.chans[2].transfer_count+1)/512);
             out_buffer.push_back(2);
-            cout << "DMA COMPLETE lol. interrupt 6. did " << dma.chans[2].transfer_count << " bytes aka " << (dma.chans[2].transfer_count)/512+1 << " sectors" << endl;
-            dma.print_params(2);
+            //cout << "DMA COMPLETE lol. interrupt 6. did " << dma.chans[2].transfer_count << " bytes aka " << (dma.chans[2].transfer_count)/512+1 << " sectors" << endl;
+            //dma.print_params(2);
         }
     }
 };
