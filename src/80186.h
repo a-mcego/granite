@@ -5,23 +5,12 @@
 
 struct CPU80186
 {
-    //TODO: actually use the 186 mem mapping here, for example segment overruns etc.
     MemoryManager186& mem;
     CHIP8259& pic;
     IOSystem& iosystem;
     CPU80186(MemoryManager186& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
 
     u16 registers[16] = {};
-
-    enum struct TYPE //what instruction set?
-    {
-        i186,
-        i188,
-        V20,
-        V30,
-        i286,
-        N
-    } type{TYPE::i186};
 
     u8 segment_override{};
     u8 string_prefix{};
@@ -87,6 +76,8 @@ struct CPU80186
         for(u32 i=0; i<16; ++i)
             registers[i] = 0x0000;
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
+
+        pic.reset();
     }
 
 
@@ -403,7 +394,7 @@ struct CPU80186
             set_flag(F_TRAP, false);
             if (!forced)
             {
-                if constexpr(DEBUG_LEVEL > 0)
+                if (startprinting)
                     cout << "IRQ: CPU ACK " << u32(n-8) << endl;
                 pic.cpu_ack_irq(n-8);
             }
@@ -470,6 +461,11 @@ struct CPU80186
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
         }
+        if (registers[CS] == 0 && registers[IP] == 0x7C00)
+        {
+            //std::cout << "JAAAAAA " << registers[AX] << std::endl;
+            //startprinting = true;
+        }
         u16 original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
@@ -534,7 +530,7 @@ struct CPU80186
                 u16 upper_bound = mem._16(registers[get_segment(DS)], rm + 2);
                 if (r < lower_bound || r > upper_bound)
                 {
-                    outside_bound(type == TYPE::i286?original_ip:registers[IP]);
+                    outside_bound(registers[IP]);
                     cycles_used += 60; //TODO: correct value
                 }
                 cycles_used += 20; //TODO: correct value
@@ -738,8 +734,8 @@ struct CPU80186
             u16 frame_size = read_inst<u16>();
             u8 nesting_level = read_inst<u8>();
 
-            if (type != TYPE::V30 || type != TYPE::V20)
-                nesting_level &= 0x1F;
+            //if (type != TYPE::V30 || type != TYPE::V20)
+            //    nesting_level &= 0x1F;
 
             push(registers[BP]);
             u16 frame_temp = registers[SP];
@@ -820,8 +816,7 @@ struct CPU80186
             {
                 cycles_used += 12;
                 reg = pop();
-                if (seg_n == 2 || type != TYPE::i286) //SS
-                    inhibit_ss = true;
+                inhibit_ss = true;
             }
             else
             {
@@ -854,7 +849,6 @@ struct CPU80186
         }
         else if (instruction == 0x37) // AAA
         {
-            std::abort();
             u16 old_AX = registers[AX];
             bool add_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
             if (add_ax)
@@ -931,7 +925,7 @@ struct CPU80186
         }
         else if ((instruction&0xF8) == 0x50) // push reg
         {
-            if ((type == TYPE::i186 || type == TYPE::i188) && instruction == 0x54) //push SP
+            if (instruction == 0x54) //push SP
             {
                 push(registers[instruction&0x07]-2);
             }
@@ -1086,7 +1080,7 @@ struct CPU80186
             }
             else
             {
-                if (seg_n == (SS-8) || type != TYPE::i286) //SS
+                if (seg_n == (SS-8)) //SS
                     inhibit_ss = true;
 
                 r = rm;
@@ -1526,8 +1520,8 @@ struct CPU80186
         else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
         {
             u8 imm = read_inst<u8>();
-            if (type == TYPE::V20 || type == TYPE::V30)
-                imm = 10; //for NEC V20/V30
+            //if (type == TYPE::V20 || type == TYPE::V30)
+            //    imm = 10; //for NEC V20/V30
             u16 orig16 = registers[AX];
             u16 temp16 = (registers[AX]&0xFF) + (registers[AX]>>8)*imm;
             registers[AX] = (temp16&0xFF);

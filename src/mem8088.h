@@ -24,42 +24,51 @@ struct MemoryManager8088
     u16 rw_offsets[256] = {};
     u8 rw_word{};
 
+    bool testmode{};
+
+
     bool cga_used{};
 
     u8& _8(u16 segment, u16 index)
     {
         u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= 0xF0000)
+        if (!testmode)
         {
-            ++readonly_byte;
-            readonly_bytes[readonly_byte] = membytes.bytes[total_address];
-            return readonly_bytes[readonly_byte];
-        }
+            if (total_address >= 0xF0000)
+            {
+                ++readonly_byte;
+                readonly_bytes[readonly_byte] = membytes.bytes[total_address];
+                return readonly_bytes[readonly_byte];
+            }
 
-        if ((total_address&0xF0000) == 0xE0000)
-            return ltems._8(total_address&0xFFFF);
-        if ((total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory8(total_address&0x7FFF);
+            if ((total_address&0xF0000) == 0xE0000)
+                return ltems._8(total_address&0xFFFF);
+            if ((total_address&0xF8000) == 0xB8000)
+            {
+                cga_used = true;
+                return cga.memory8(total_address&0x7FFF);
+            }
         }
         return membytes.bytes[total_address];
     }
     u16& _16(u16 segment, u16 index)
     {
         u32 total_address = (((segment<<4)+index)&0xFFFFF);
-        if (total_address >= 0xF0000)
+        if (!testmode)
         {
-            ++readonly_word;
-            readonly_words[readonly_word] = *(u16*)(void*)(membytes.bytes+total_address);
-            return readonly_words[readonly_word];
-        }
-        if ((total_address&0xF0000) == 0xE0000)
-            return ltems._16(total_address&0xFFFF);
-        if ((total_address&0xF8000) == 0xB8000)
-        {
-            cga_used = true;
-            return cga.memory16(total_address&0x7FFF);
+            if (total_address >= 0xF0000)
+            {
+                ++readonly_word;
+                readonly_words[readonly_word] = *(u16*)(void*)(membytes.bytes+total_address);
+                return readonly_words[readonly_word];
+            }
+            if ((total_address&0xF0000) == 0xE0000)
+                return ltems._16(total_address&0xFFFF);
+            if ((total_address&0xF8000) == 0xB8000)
+            {
+                cga_used = true;
+                return cga.memory16(total_address&0x7FFF);
+            }
         }
         rw_words[rw_word] = _8(segment,index);
         rw_words[rw_word] |= (_8(segment,index+1) << 8);

@@ -21,7 +21,7 @@ struct CHIPLS612N //DMA page registers, POST card value
         }
         else
         {
-            //std::cout << "---LS612 WRITE--- " << u32(port) << ":" << u32(data) << std::endl;
+            std::cout << "---LS612 WRITE--- " << u32(port) << ":" << u32(data) << std::endl;
         }
         pages[port] = data;
     }

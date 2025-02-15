@@ -221,7 +221,7 @@ struct CPU8086
     };
     static constexpr u16 registermap[14] = //i wish we didnt need this
     {
-        AX,CX,DX,BX, SP,BP,SI,DI, FLAGS, IP
+        AX,CX,DX,BX, SP,BP,SI,DI, ES,CS,SS,DS, FLAGS, IP
     };
 
     enum FLAG
@@ -263,6 +263,8 @@ struct CPU8086
         for(u32 i=0; i<16; ++i)
             registers[i] = 0x0000;
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
+
+        pic.reset();
     }
 
 
@@ -560,7 +562,7 @@ struct CPU8086
         if (flag(F_INTERRUPT) || forced)
         {
             if (startprinting)
-                cout << "INTERRUPT " << std::hex << u32(n) << "!" << endl;
+                cout << "INTERRUPT " << std::hex << u32(n) << "!!" << endl;
             halt = false;
             cycles_used += 80;
 
@@ -1876,10 +1878,10 @@ struct CPU8086
 
         mem.update();
 
-        if (flag(F_TRAP) && !inhibit_ss)
+        /*if (flag(F_TRAP) && !inhibit_ss)
         {
             interrupt(1, true);
-        }
+        }*/
 
         if (cycles_used > 0)
         {

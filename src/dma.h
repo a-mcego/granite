@@ -69,11 +69,11 @@ struct CHIP8237 //DMA
             }
             else if (transfer_direction == DIR_TO_MEMORY)
             {
-                mem.direct8((page()<<16)+curr_addr) = (*device_vector)[curr_vector_offset];
+                mem.direct8((page()<<16U)+curr_addr) = (*device_vector)[curr_vector_offset];
             }
             else if (transfer_direction == DIR_FROM_MEMORY)
             {
-                (*device_vector)[curr_vector_offset] = mem.direct8((page()<<16)+curr_addr);
+                (*device_vector)[curr_vector_offset] = mem.direct8((page()<<16U)+curr_addr);
             }
             else if (transfer_direction == DIR_VERIFY)
             {
@@ -203,6 +203,9 @@ struct CHIP8237 //DMA
                 c.mode = Channel::MODE(data>>6);
                 if (startprinting)
                     cout << "DMA #" << u32(chan_n) << ": dir=" << u32(c.transfer_direction) << " auto=" << u32(c.automatic) << " down=" << u32(c.down) << " mode=" << u32(c.mode) << endl;
+
+
+                print_params(chan_n);
 
                 if (chan_n == 0 && c.automatic)
                 {

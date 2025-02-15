@@ -926,11 +926,13 @@ void configline(std::string line)
         u32 regs_failed[16] = {};
         while(ptr < filedata.size())
         {
-            /*
+            //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
+            //startprinting=true;
             bool test_passed = true;
-            CPU8086 testcpu;
+            CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p);
+            testcpu.mem.testmode = true;
             testcpu.reset();
-            memset(mem.memory_bytes, 0, 1<<20);
+            memset(mac.p.membytes.bytes, 0, (1<<20)+65536);
 
             u16 start_regs[14] = {};
             u16 final_regs[14] = {};
@@ -946,23 +948,31 @@ void configline(std::string line)
             {
                 u32 address = data32();
                 u32 value = data32();
-                mem.memory_bytes[address] = value;
+                mac.p.membytes.bytes[address] = value;
             }
 
+            testcpu.load_tmp_segs_for_test();
             do
             {
                 testcpu.cycle();
             } while(testcpu.is_inside_multi_part_instruction);
+            testcpu.store_tmp_segs_for_test();
 
             for(int i=0; i<14; ++i)
             {
                 final_regs[i] = data16();
             }
+
             for(int i=0; i<14; ++i)
             {
                 u16 test_reg = testcpu.registers[testcpu.registermap[i]];
                 if (final_regs[i] != test_reg)
                 {
+                    const char* const regnames[14] =
+                    {
+                        "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "ES", "CS", "SS", "DS", "FL", "IP"
+                    };
+                    //std::cout << "reg " << regnames[i] << "=" << test_reg << " but supposed=" << final_regs[i] << std::endl;
                     test_passed = false;
                     if (i==12)
                     {
@@ -985,7 +995,7 @@ void configline(std::string line)
                 u32 address = data32();
                 u32 value = data32();
 
-                if (mem.memory_bytes[address] != value)
+                if (mac.p.membytes.bytes[address] != value)
                 {
                     test_passed = false;
                     //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mem.memory_bytes[address]) << "!=" << u32(value) << std::dec << endl;
@@ -995,7 +1005,7 @@ void configline(std::string line)
             if (!test_passed)
                 tests_failed += 1, ++tests_totalfailed;
             ++test_id;
-            ++tests_totaldone;*/
+            ++tests_totaldone;
 
             //if (test_id == 1)
             //    std::abort();

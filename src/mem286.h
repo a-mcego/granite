@@ -11,6 +11,8 @@ struct MemoryManager286
     MemBytes& membytes;
     MemoryManager286(CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : cga(cga_), ltems(ltems_), membytes(membytes_) {}
 
+    bool testmode{};
+
     void dump_memory(const char* filename)
     {
         FILE* filu = fopen(filename, "wb");
@@ -31,49 +33,57 @@ struct MemoryManager286
     u16& direct16(u32 address)
     {
         //if (!kbd.A20())
-        //    address &= 0xFFEFFFFF;
-        if (address >= 0xB8000 && address <= 0xBFFFF)
-            return cga.memory16(address&0x7FFF);
-        if (address >= 0xE0000 && address <= 0xEFFFF)
-            return ltems._16(address&0xFFFF);
-        if (address >= 0xA0000 && address <= 0xFFFFF) //upper memory area, make read-only
+            address &= 0xFFEFFFFF;
+
+        if (!testmode)
         {
-            ++readonly_word;
-            readonly_words[readonly_word] = *(u16*)(void*)(membytes.bytes+address);
-            return readonly_words[readonly_word];
-        }
-        if (address >= membytes.size)
-        {
-            INVALID_ADDRESS_16[0] = 0xFFFF;
-            return INVALID_ADDRESS_16[0];
+            if (address >= 0xB8000 && address <= 0xBFFFF)
+                return cga.memory16(address&0x7FFF);
+            if (address >= 0xE0000 && address <= 0xEFFFF)
+                return ltems._16(address&0xFFFF);
+            if (address >= 0xA0000 && address <= 0xFFFFF) //upper memory area, make read-only
+            {
+                ++readonly_word;
+                readonly_words[readonly_word] = *(u16*)(void*)(membytes.bytes+address);
+                return readonly_words[readonly_word];
+            }
+            if (address >= membytes.size)
+            {
+                INVALID_ADDRESS_16[0] = 0xFFFF;
+                return INVALID_ADDRESS_16[0];
+            }
         }
         return *(u16*)(void*)(membytes.bytes+address);
     }
     u8& direct8(u32 address)
     {
+        address &= 0xFFEFFFFF;
         //std::cout << "direct8 " << std::hex << address << std::endl;
-        if (address >= 0xB8000 && address <= 0xBFFFF)
+        if (!testmode)
         {
-            //std::cout << '.';
-            return cga.memory8(address&0x7FFF);
+            if (address >= 0xB8000 && address <= 0xBFFFF)
+            {
+                //std::cout << '.';
+                return cga.memory8(address&0x7FFF);
+            }
+            if (address >= 0xE0000 && address <= 0xEFFFF)
+            {
+                return ltems._8(address&0xFFFF);
+            }
+            if (address >= 0xF0000 && address <= 0xFFFFF)
+            {
+                ++readonly_byte;
+                readonly_bytes[readonly_byte] = membytes.bytes[address];
+                return readonly_bytes[readonly_byte];
+            }
+            if (address >= membytes.size)
+            {
+                //std::cout << "invalid addr " << u32(address) << std::endl;
+                INVALID_ADDRESS_8[0] = 0xFF;
+                return INVALID_ADDRESS_8[0];
+            }
+            //std::cout << "good addr " << u32(address) << std::endl;
         }
-        if (address >= 0xE0000 && address <= 0xEFFFF)
-        {
-            return ltems._8(address&0xFFFF);
-        }
-        if (address >= 0xF0000 && address <= 0xFFFFF)
-        {
-            ++readonly_byte;
-            readonly_bytes[readonly_byte] = membytes.bytes[address];
-            return readonly_bytes[readonly_byte];
-        }
-        if (address >= membytes.size)
-        {
-            //std::cout << "invalid addr " << u32(address) << std::endl;
-            INVALID_ADDRESS_8[0] = 0xFF;
-            return INVALID_ADDRESS_8[0];
-        }
-        //std::cout << "good addr " << u32(address) << std::endl;
         return *(u8*)(void*)(membytes.bytes+address);
     }
 

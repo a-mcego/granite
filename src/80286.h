@@ -10,12 +10,11 @@ struct CPU80286
     IOSystem& iosystem;
     CPU80286(MemoryManager286& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
 
+
+    static const u16 FLAG_MASK = 0b0000'1111'1101'0101;
+    static const u16 FLAG_ON =   0b0000'0000'0000'0010;
+
     u16 registers[16] = {};
-    enum struct TYPE //what instruction set?
-    {
-        i286,
-        N
-    } type{TYPE::i286};
 
     u8 string_prefix{};
     u8 lock{};
@@ -30,9 +29,10 @@ struct CPU80286
 
     enum REG
     {
-        AX,CX,DX,BX, SP,BP,SI,DI, //normal registers
-        FLAGS,                    //flags, duh
-        IP                        //instruction pointer
+        AX,CX,DX,BX, SP,BP,SI,DI,  //normal registers
+        FLAGS,                     //flags, duh
+        IP,                        //instruction pointer
+        ESTMP, CSTMP, SSTMP, DSTMP //for tests
     };
 
     enum struct SEG
@@ -44,7 +44,7 @@ struct CPU80286
 
     static constexpr u16 registermap[14] = //i wish we didnt need this
     {
-        AX,CX,DX,BX, SP,BP,SI,DI, FLAGS, IP
+        AX,CX,DX,BX, SP,BP,SI,DI, ESTMP, CSTMP, SSTMP, DSTMP, FLAGS, IP,
     };
 
     u16 msw{};
@@ -123,6 +123,21 @@ struct CPU80286
             //std::cout << names[(int)segment_number] << ": R" << descriptor_cache[(int)segment_number].base << std::endl;
         }
     }
+    void load_tmp_segs_for_test()
+    {
+        load_segment(SEG::ES, registers[ESTMP]);
+        load_segment(SEG::CS, registers[CSTMP]);
+        load_segment(SEG::SS, registers[SSTMP]);
+        load_segment(SEG::DS, registers[DSTMP]);
+    }
+    void store_tmp_segs_for_test()
+    {
+        registers[ESTMP] = descriptor_cache[0].base>>4;
+        registers[CSTMP] = descriptor_cache[1].base>>4;
+        registers[SSTMP] = descriptor_cache[2].base>>4;
+        registers[DSTMP] = descriptor_cache[3].base>>4;
+    }
+
 
     u32 get_offset(SEG segment_name)
     {
@@ -156,7 +171,11 @@ struct CPU80286
 #undef pflag
     }
 
-    void set_flag(FLAG f_n, bool value)   { registers[FLAGS] = (registers[FLAGS]&~(1<<f_n))|(value?1<<f_n:0); }
+    void set_flag(FLAG f_n, bool value)
+    {
+        registers[FLAGS] = (registers[FLAGS]&~(1<<f_n))|(value?1<<f_n:0);
+        registers[FLAGS] = (registers[FLAGS] & FLAG_MASK) | FLAG_ON;
+    }
 
     bool flag(FLAG f_n)
     {
@@ -165,7 +184,7 @@ struct CPU80286
 
     void reset()
     {
-        std::cout << "CPU reset 80286" << std::endl;
+        //std::cout << "CPU reset 80286" << std::endl;
         halt = false;
         clear_prefix();
         for(u32 i=0; i<16; ++i)
@@ -174,12 +193,14 @@ struct CPU80286
         registers[IP] = 0xFFF0;
         msw = 0;
         cpl = 0;
-        registers[FLAGS] = 0x0002;
+        registers[FLAGS] = FLAG_ON;
 
         load_segment(SEG::ES, 0x0000);
         load_segment(SEG::CS, 0xF000);
         load_segment(SEG::SS, 0x0000);
         load_segment(SEG::DS, 0x0000);
+
+        pic.reset();
 
     }
 
@@ -192,7 +213,7 @@ struct CPU80286
     T read_inst() requires integral<T>
     {
         /*T result{};
-        u32 offset = get_offset(registers[CS]);
+        u32 offset = get_offset(SEG::CS);
         if constexpr(sizeof(T)==1)
         {
             result = mem.direct8(offset+registers[IP]);
@@ -208,7 +229,7 @@ struct CPU80286
         u32 offset = get_offset(SEG::CS);
 
         u32 position = offset+registers[IP];
-        //std::cout << "offset=" << offset << ", position=" << position << std::endl;
+        //std::cout << "read_inst offset=" << offset << ", position=" << position << std::endl;
         if (prefetch_address != position)
         {
             //std::cout << "------------------------" << position << std::endl;
@@ -278,6 +299,7 @@ struct CPU80286
     bool modrm_is_register{};
     void decode_modrm(u8 mod, u8 rm, u32& segment, u16& offset)
     {
+        //std::cout << "decode modrm: " << u16(mod) << " " << u16(rm) << " " << std::endl;
         offset = 0;
         SEG segname = SEG::DS;
 
@@ -312,6 +334,7 @@ struct CPU80286
             }
 		}
         segment = get_offset(get_segment(segname));//registers[get_segment(segment)];
+        //std::cout << "   result: " << segment << "+" << offset << "=" << segment+offset << std::endl;
     }
 
     u32 decode_modrm_fulladdr(u8 modrm)
@@ -321,6 +344,7 @@ struct CPU80286
         modrm_is_register = (mod==0x03);
 		if (mod == 0x03)
         {
+            //FIXME: ???
 			return get_r8(rm);
         }
         u16 offset{};
@@ -331,6 +355,7 @@ struct CPU80286
 
     u8& decode_modrm_u8(u8 modrm)
     {
+        //std::cout << "decodemodrm u8: " << u16(modrm) << endl;
         u8 mod = (modrm >> 6) & 0x03;
         u8 rm = modrm & 0x07;
         modrm_is_register = (mod==0x03);
@@ -508,13 +533,12 @@ struct CPU80286
 
     void interrupt(u8 n, bool forced=false, bool has_code=false, u16 code=0)
     {
-        if (n==2)
-            startprinting=true;
         if (inhibit_ss)
             return;
         if (accepts_interrupts() || forced)
         {
-            //cout << "INTERRUPT " << u32(n) << " start! orig ip=" << registers[IP] << " protmode=" << (msw&1) << endl;
+            if (startprinting)
+                cout << "INTERRUPT " << u32(n) << " start! orig ip=" << registers[IP] << " protmode=" << (msw&1) << endl;
             halt = false;
             cycles_used += 80;
 
@@ -523,7 +547,7 @@ struct CPU80286
             push(registers[FLAGS]);
             push(descriptor_cache[(int)SEG::CS].data);
             push(registers[IP]);
-            if (has_code)
+            if (has_code && (msw&1))
             {
                 push(code);
             }
@@ -541,7 +565,7 @@ struct CPU80286
             set_flag(F_TRAP, false);
             if (!forced)
             {
-                if constexpr(DEBUG_LEVEL > 0)
+                if (startprinting)
                     cout << "IRQ: CPU ACK " << u32(n-8) << endl;
                 pic.cpu_ack_irq(n-8);
             }
@@ -618,9 +642,10 @@ struct CPU80286
 
         inhibit_ss = false;
 
-        if (get_offset(SEG::CS)+registers[IP] == 0xFADC4)
+        if (get_offset(SEG::CS)+registers[IP] == 0x7C00)
         {
-            std::cout << "JAAAAAA " << registers[AX] << std::endl;
+            //std::cout << "JAAAAAA " << registers[AX] << std::endl;
+            //startprinting = true;
         }
 
         if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
@@ -632,6 +657,23 @@ struct CPU80286
 
         is_inside_multi_part_instruction = false;
         u8 instruction = read_inst<u8>();
+
+        if (instruction == 0x9c)
+        {
+            u32 totalplace = get_offset(SEG::CS) + registers[IP] - 1;
+
+            if (mem.direct8(totalplace-1) == 0x9D
+                && mem.direct8(totalplace-2) == 0x50
+                && mem.direct8(totalplace-3) == 0xC0
+                && mem.direct8(totalplace-4) == 0x33
+                && mem.direct8(totalplace-5) == 0x9C
+            )
+            {
+                std::cout << get_offset(SEG::CS) << " and " << registers[IP] << std::endl;
+                //startprinting = true;
+            }
+        }
+
         if (startprinting)
         {
             std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << get_offset(SEG::CS)+registers[IP]-1;
@@ -1057,7 +1099,7 @@ struct CPU80286
         }
         else if (instruction == 0xC9)
         {
-            cout << "BLAH: " << u32(instruction) << endl; std::abort();
+            cout << "BLARGH: " << u32(instruction) << endl; std::abort();
             //0xC9 LEAVE
             registers[SP] = registers[BP];
             registers[BP] = pop();
@@ -1150,7 +1192,6 @@ struct CPU80286
         }
         else if (instruction == 0x37) // AAA
         {
-            std::abort();
             u16 old_AX = registers[AX];
             bool add_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
             if (add_ax)
@@ -1467,8 +1508,7 @@ struct CPU80286
         else if (instruction == 0x9D) //popf
         {
             u16 newflags = pop();
-            //const u16 FLAG_MASK = 0b0000'1111'1101'0101;
-            registers[FLAGS] = newflags;//(registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) |0x0002;
+            registers[FLAGS] = (newflags&FLAG_MASK) | FLAG_ON;
             cycles_used += 12;
         }
         else if (instruction == 0x9E) //sahf
@@ -1478,12 +1518,12 @@ struct CPU80286
         }
         else if (instruction == 0x9F) //lahf
         {
-            get_r8(4) = reg8()[FLAGS*2];
+            get_r8(4) = registers[FLAGS]&0xFF;
             cycles_used += 4;
         }
         else if (instruction >= 0xA0 && instruction <= 0xA3) //AL/X=MEM  MEM=AL/X
         {
-            u16 source_segment = get_offset(get_segment(SEG::DS));
+            u32 source_segment = get_offset(get_segment(SEG::DS));
             u16 source_offset = read_inst<u16>();
             switch(instruction)
             {
@@ -1643,10 +1683,10 @@ struct CPU80286
         else if ((instruction&0xFE) == 0xC4) // LES LDS
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            u32 addr = decode_modrm_fulladdr(modrm);
             u16& r = get_r16((modrm>>3)&0x07);
-            r = rm;
-            load_segment((instruction&1)?SEG::DS:SEG::ES, *((&rm)+1)); //ES or DS, based on the opcode
+            r = mem.direct16(addr);
+            load_segment((instruction&1)?SEG::DS:SEG::ES, mem.direct16(addr+2)); //ES or DS, based on the opcode
             cycles_used += 24;
         }
         else if (instruction == 0xC6)
@@ -1694,8 +1734,7 @@ struct CPU80286
             registers[IP] = pop();
             load_segment(SEG::CS, pop());
             u16 newflags = pop();
-            const u16 FLAG_MASK = 0b0000'1111'1101'0101;
-            registers[FLAGS] = newflags;//(registers[FLAGS]&~FLAG_MASK) | (newflags&FLAG_MASK) | 0x0002;
+            registers[FLAGS] = (newflags&FLAG_MASK) | FLAG_ON;
 
             //if (startprinting)
             //    cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
@@ -2237,10 +2276,10 @@ struct CPU80286
         else if (instruction == 0xFF)
         {
             u8 modrm = read_inst<u8>();
-            u16& reg = decode_modrm_u16(modrm);
             u8 op = (modrm>>3)&0x07;
             if (op == 0 || op == 1)
             {
+                u16& reg = decode_modrm_u16(modrm);
                 u16 result = reg+1-(op<<1);
                 set_flag(F_OVERFLOW,result==(0x8000-op));
                 set_flag(F_AUX_CARRY,(result&0x0F) == ((op&0x01)?0x0F:0x00));
@@ -2252,6 +2291,7 @@ struct CPU80286
             }
             else if (op == 2) //call near
             {
+                u16& reg = decode_modrm_u16(modrm);
                 u16 address = reg;
                 push(registers[IP]);
                 registers[IP] = address; //have to do this because reg could be SP :')
@@ -2259,8 +2299,9 @@ struct CPU80286
             }
             else if (op == 3) //call far
             {
-                u16 segment = *((&reg)+1);
-                u16 address = reg;
+                u32 addr = decode_modrm_fulladdr(modrm);
+                u16 address = mem.direct16(addr);
+                u16 segment = mem.direct16(addr+2);
                 push(descriptor_cache[(int)SEG::CS].data);
                 push(registers[IP]);
                 load_segment(SEG::CS, segment);
@@ -2269,17 +2310,22 @@ struct CPU80286
             }
             else if (op == 4) //jmp near
             {
+                u16& reg = decode_modrm_u16(modrm);
                 registers[IP] = reg;
                 cycles_used += (modrm_is_register?11:18);
             }
             else if (op == 5) //jmp far
             {
-                registers[IP] = reg;
-                load_segment(SEG::CS, *((&reg)+1));
+                u32 addr = decode_modrm_fulladdr(modrm);
+                u16 address = mem.direct16(addr);
+                u16 segment = mem.direct16(addr+2);
+                registers[IP] = address;
+                load_segment(SEG::CS, segment);
                 cycles_used += (modrm_is_register?11:24);
             }
             else if (op == 6)
             {
+                u16& reg = decode_modrm_u16(modrm);
                 push(reg);
                 cycles_used += (modrm_is_register?15:24);
             }
@@ -2307,7 +2353,7 @@ struct CPU80286
             interrupt_true_cycles = 0;
         }
 
-        if (flag(F_TRAP) && !inhibit_ss)
+        if (flag(F_TRAP) && !inhibit_ss && !mem.testmode)
         {
             registers[IP] = original_ip;
             interrupt(1, true);
