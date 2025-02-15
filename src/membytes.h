@@ -8,6 +8,8 @@ struct MemBytes
     void set_size(u64 size_)
     {
         size = size_;
+        if (size < (1<<20))
+            size = 1<<20;
 
         if (bytes)
             delete [] bytes;
