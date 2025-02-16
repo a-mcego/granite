@@ -32,7 +32,7 @@ struct MemoryManager286
     u8 INVALID_ADDRESS_8[16];
     u16& direct16(u32 address)
     {
-        //if (!kbd.A20())
+        if (!globalsettings.A20)
             address &= 0xFFEFFFFF;
 
         if (!testmode)
@@ -57,7 +57,8 @@ struct MemoryManager286
     }
     u8& direct8(u32 address)
     {
-        address &= 0xFFEFFFFF;
+        if (!globalsettings.A20)
+            address &= 0xFFEFFFFF;
         //std::cout << "direct8 " << std::hex << address << std::endl;
         if (!testmode)
         {

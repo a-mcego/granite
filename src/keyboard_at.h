@@ -194,6 +194,7 @@ struct CHIP8042 //AT keyboard etc
             else if (command == 0xD1) //write P2
             {
                 P2 = (P2&0xF0) | (data&0x0F);
+                globalsettings.A20 = bool(P2&0x02);
             }
             else if (command == 0xAE); //enable kbd
             else if (command == 0xAD); //disable kbd
@@ -205,10 +206,12 @@ struct CHIP8042 //AT keyboard etc
             else if (command == 0xDF) //enable A20 (hp vectra) / (quadtel?)
             {
                 P2 |= 0x02;
+                globalsettings.A20 = bool(P2&0x02);
             }
             else if (command == 0xDD) //disable A20 (hp vectra) / (quadtel?)
             {
                 P2 &= ~0x02;
+                globalsettings.A20 = bool(P2&0x02);
             }
             else
             {
