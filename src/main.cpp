@@ -62,6 +62,7 @@ struct GlobalSettings
     bool sound_on{true};
     bool entertrace{false};
     bool A20{false};
+    u32 current_IP{};
 
     enum MACHINE
     {
@@ -223,7 +224,7 @@ struct IOSystem
     }
     u16 io_in(u16 port)
     {
-        u16 data = 0;
+        u16 data = 0xff;
         if (false);
         else if (port >= 0x40 && port <= 0x43)
         {
@@ -437,9 +438,13 @@ struct Machine
     {
         if (clock%8 == 0)
             p.cga.cycle();
-        if (clock%12 == 0)
+
+        if (clock%215 == 0) //ca. every 15 microseconds.
         {
             global_port0x61 ^= 0x10;
+        }
+        if (clock%12 == 0)
+        {
             p.pit.cycle();
         }
         if (clock%298 == 0) //ca. 48kHz. handles sound output in general
@@ -1046,7 +1051,7 @@ void configline(std::string line)
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
             //startprinting=true;
             bool test_passed = true;
-            CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p);
+            CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p);
             testcpu.mem.testmode = true;
             testcpu.reset();
             memset(mac.p.membytes.bytes, 0, (1<<20)+65536);
@@ -1068,12 +1073,12 @@ void configline(std::string line)
                 mac.p.membytes.bytes[address] = value;
             }
 
-            testcpu.load_tmp_segs_for_test();
+            //testcpu.load_tmp_segs_for_test();
             do
             {
                 testcpu.cycle();
             } while(testcpu.is_inside_multi_part_instruction);
-            testcpu.store_tmp_segs_for_test();
+            //testcpu.store_tmp_segs_for_test();
 
             for(int i=0; i<14; ++i)
             {

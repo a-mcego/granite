@@ -656,6 +656,9 @@ struct CPU80286
         original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
+
+        globalsettings.current_IP = get_offset(SEG::CS)+registers[IP];
+
         u8 instruction = read_inst<u8>();
 
         if (instruction == 0x9c)

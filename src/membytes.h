@@ -14,5 +14,6 @@ struct MemBytes
         if (bytes)
             delete [] bytes;
         bytes = new u8[size];
+        memset(bytes, 0xFF, size);
     }
 };

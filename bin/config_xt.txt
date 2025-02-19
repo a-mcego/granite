@@ -26,7 +26,9 @@ rom fe000 rom/GLABIOS_0.2.5_8X.ROM
 #rom f0000 rom/xtbios/BIOS_5160_10JAN86_U19_62X0854_27256_F000.BIN
 #rom f8000 rom/xtbios/BIOS_5160_10JAN86_U18_62X0851_27256_F800.BIN
 rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
+#rom f8000 rom/ruuds_diagnostic_rom_v5.4_32kb.bin
 
+load a disk/FD13-D1.IMG
 #load a disk/pcdos5.02/DISK01.img
 #load a disk/pcdos3.3/Disk01.img
 #load a disk/msdos5.0/Disk01.img
