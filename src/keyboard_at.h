@@ -141,23 +141,24 @@ struct CHIP8042 //AT keyboard etc
             }
             else
             {
-                std::cout << "kbd_at: UNKNOWN command is: " << (u32)command << std::endl;
+                std::cout << globalsettings.current_IP << ": kbd_at: UNKNOWN command is: " << (u32)command << std::endl;
                 std::abort();
             }
             //std::cout << "command is: " << (u32)command << std::endl;
-            std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
+            std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
             status_byte &= 0xFE; //clear "output byte available" bit
             command = 0x100;
             return result;
         }
         if (port == 1)
         {
-            //std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(global_port0x61) << std::endl;
+            //std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(global_port0x61) << std::endl;
             return global_port0x61;
         }
         if (port == 4)
         {
-            std::cout << "keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte & (set_output_bit?0xFE:0xFF)) << " ," << u32(clear_input_bit) << std::endl;
+            if (globalsettings.current_IP != 0xF9407)
+            std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte & (set_output_bit?0xFE:0xFF)) << " ," << u32(clear_input_bit) << std::endl;
             return status_byte;
         }
 
@@ -168,8 +169,8 @@ struct CHIP8042 //AT keyboard etc
 
     void write(u8 port, u8 data) //port from 0 to 4! inclusive. 0 is port 0x80, 4 is port 0x84 etc.
     {
-        //if (port != 1)
-        std::cout << std::hex << "keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
+        if (port != 1)
+            std::cout << std::hex << globalsettings.current_IP << ": keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
         if (port == 0)
         {
             status_byte &= ~0x08;
@@ -189,18 +190,22 @@ struct CHIP8042 //AT keyboard etc
             }
             else if (command == 0xC1) //write P1
             {
-                P1 = (P1&0xF0) | (data&0x0F);
+                //P1 = (P1&~0x0F) | (data&0x0F);
             }
             else if (command == 0xD1) //write P2
             {
-                P2 = (P2&0xF0) | (data&0x0F);
+                //P2 = (P2&~0x0F) | (data&0x0F);
+                P2 = data;
                 globalsettings.A20 = bool(P2&0x02);
             }
             else if (command == 0xAE); //enable kbd
             else if (command == 0xAD); //disable kbd
             else if (command == 0x100) //no cmd
             {
-                result = 0xFA; //ACK
+                if (data == 0xF2)
+                    result = 0xFE;
+                else
+                    result = 0xFA; //ACK
                 status_byte |= 0x01; //output byte available!
             }
             else if (command == 0xDF) //enable A20 (hp vectra) / (quadtel?)
@@ -233,55 +238,53 @@ struct CHIP8042 //AT keyboard etc
             status_byte |= 0x02; //input byte done - don't do more!
             clear_input_bit = 128;
             set_output_bit = 192;
-            if (data == 0xAA)
+            if (false);
+            else if (data >= 0x00 && data <= 0x7F) // write kbd ctrl ram
+            {
+            }
+            else if (data == 0xA1) //read firmware version (unimplemented)
+            {
+            }
+            else if (data == 0xAA)
             {
                 result = 0x55;
                 status_byte |= 0x04; //self-test done
                 std::cout << "Keyboard self-test done!" << std::endl;
                 is_initialized = true;
-                return;
             }
-            else if (data >= 0x00 && data <= 0x7F) // write kbd ctrl ram
-                return;
-            else if (data == 0xC0) //read P1
+            else if (command == 0xAB) // interface test - return 0 for success
             {
-                result = 0b0000'0000;
-                return;
-            }
-            else if (data == 0xA1) //read firmware version (unimplemented)
-            {
-                return;
-            }
-            else if (data == 0xD1) //write P2
-                return;
-            else if (data == 0xFE) //RESET
-            {
-                P2 &= 0xFE;
-                set_output_bit = 0;
-                command = 0x100;
-                return;
-            }
-            else if (command == 0xAD) //disable kbd
-            {
-                ram[0] |= 0x10; //set bit 4 -> disable kbd
-                return;
             }
             else if (command == 0xAE) //enable kbd
             {
                 ram[0] &= 0xEF; //clear bit 4 -> enable kbd
-                return;
             }
-            else if (command == 0xAB) // interface test - return 0 for success
+            else if (data == 0xC0) //read P1
             {
-                return;
+                result = 0b0000'0000;
+            }
+            else if (data == 0xD1) //write P2
+            {
+            }
+            else if (command == 0xAD) //disable kbd
+            {
+                ram[0] |= 0x10; //set bit 4 -> disable kbd
             }
             else if (command == 0xE0) // show keyboard clock (bit0) and data (bit1) ???
             {
-                return;
+            }
+            else if (data >= 0xF0 && data <= 0xFF && !(data&1)) //RESET
+            {
+                P2 &= ~0x01;
+                set_output_bit = 0;
+                command = 0x100;
+            }
+            else
+            {
+                std::cout << "unknown kbd: " << std::hex << "0x6" << u16(port) << ", with data " << u16(data) << std::endl;
+
             }
         }
-        std::cout << "unknown kbd: " << std::hex << "0x6" << u16(port) << ", with data " << u16(data) << std::endl;
-        //std::abort();
     }
 
     u32 printer{};
@@ -313,7 +316,7 @@ struct CHIP8042 //AT keyboard etc
 
         if (!scancode_queue.empty())
         {
-            if (set_output_bit == 0 && clear_input_bit == 0 && (status_byte&1) == 0 && kbd_wait == 0 && current_scancode == 0 && !(ram[0] & 0x10))
+            //if (set_output_bit == 0 && clear_input_bit == 0 && (status_byte&1) == 0 && kbd_wait == 0 && current_scancode == 0 && !(ram[0] & 0x10))
             {
                 current_scancode = scancode_queue.front();
                 //status_byte |= 1;
@@ -321,11 +324,13 @@ struct CHIP8042 //AT keyboard etc
                 std::cout << "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
                 std::cout << "keyboard! " << u32(current_scancode) << " ";
 
-                if (ram[0]&0x01) //IRQ enabled?
+                //if (ram[0]&0x01) //IRQ enabled?
+                if (P2&0x10)
                 {
                     P2 |= 0x10;
                     pic.request_interrupt(1);
                     std::cout << " int 1" << std::endl;
+                    status_byte |= 1;
                 }
                 else
                 {
