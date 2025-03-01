@@ -76,6 +76,8 @@ struct CPU80286
     {
         if (msw&1) // protected mode
         {
+            if(startprinting)
+                std::cout << "Load segment from data: " << segment_data << std::endl;
             // Extract fields from segment_data
             u16 index = segment_data >> 3;        // Bits 15-3
             bool is_ldt = segment_data & 0x4;     // Bit 2 (TI)
@@ -107,8 +109,22 @@ struct CPU80286
                 descriptor_cache[(int)segment_number].limit = word1;
                 descriptor_cache[(int)segment_number].flags = (word3 >> 8) & 0xFF;
                 descriptor_cache[(int)segment_number].data = segment_data;
-                //const char* names[4] = {"ES", "CS", "SS", "DS"};
-                //std::cout << names[(int)segment_number] << ": Protected base=" << descriptor_cache[(int)segment_number].base << std::endl;
+                const char* names[4] = {"ES", "CS", "SS", "DS"};
+                if (startprinting)
+                {
+                    std::cout << names[(int)segment_number] << ": Protected base=" << descriptor_cache[(int)segment_number].base << std::endl;
+                    std::cout << "words: " << word1 << " " << word2 << " " << word3 << std::endl;
+                    std::cout << "table base: " << table.base << std::endl;
+
+                    std::cout << "first 16 entries: " << std::endl;
+                    for(int i=0; i<16; ++i)
+                    {
+                        u16 word1 = mem.direct16(table.base+(i*8));
+                        u16 word2 = mem.direct16(table.base+(i*8+2));
+                        u16 word3 = mem.direct16(table.base+(i*8+4));
+                        std::cout << "entry " << i << " words: " << word1 << " " << word2 << " " << word3 << std::endl;
+                    }
+                }
             }
 
         }
@@ -120,7 +136,8 @@ struct CPU80286
             descriptor_cache[(int)segment_number].data = segment_data;
 
             const char* names[4] = {"ES", "CS", "SS", "DS"};
-            //std::cout << names[(int)segment_number] << ": R" << descriptor_cache[(int)segment_number].base << std::endl;
+            if (startprinting)
+                std::cout << names[(int)segment_number] << ": R" << descriptor_cache[(int)segment_number].base << std::endl;
         }
     }
     void load_tmp_segs_for_test()
@@ -289,11 +306,11 @@ struct CPU80286
         set_flag(F_CARRY, result < a);
     }
 
-    const u8 effective_address_cycles[32] =
+    const u8 effective_address_cycles[32] = //verify this still!
     {
-         1, 1, 1, 1, 1, 1, 1, 1,
-         1, 1, 1, 1, 1, 1, 1, 1,
-         1, 1, 1, 1, 1, 1, 1, 1,
+         0, 0, 0, 0, 0, 0, 0, 0,
+         1, 1, 1, 1, 0, 0, 0, 0,
+         1, 1, 1, 1, 0, 0, 0, 0,
          0, 0, 0, 0, 0, 0, 0, 0, //reg
     };
     bool modrm_is_register{};
@@ -429,6 +446,12 @@ struct CPU80286
         //    std::cout << " " << seg_names[i] << "=" << std::setw(4) << std::setfill('0') << registers[i+8];
         std::cout << " FL=" << std::setw(4) << std::setfill('0') << registers[FLAGS] << " IP=" << std::setw(4) << std::setfill('0') << registers[IP]-1;
 
+        std::cout << " ES=" << descriptor_cache[0].base << "=" << descriptor_cache[0].data;
+        std::cout << " CS=" << descriptor_cache[1].base << "=" << descriptor_cache[1].data;
+        std::cout << " SS=" << descriptor_cache[2].base << "=" << descriptor_cache[2].data;
+        std::cout << " DS=" << descriptor_cache[3].base << "=" << descriptor_cache[3].data;
+        std::cout << " A20=" << globalsettings.A20;
+
         /*std::cout << " S ";
         std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]) << ' ';
         std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+2) << ' ';
@@ -501,20 +524,20 @@ struct CPU80286
     {
         if ((instruction&0xE7) == 0x26) // segment override:
         {
-            cycles_used += 2;
+            cycles_used += 0; //286
             segment_override = SEG((instruction>>3)&0x3);
             return true;
         }
         if ((instruction&0xFE) == 0xF2)
         {
-            cycles_used += 2;
+            cycles_used += 0; //286, CHECK!
             string_prefix = 1+(instruction&0x01); //REPNZ REPZ
             return true;
         }
         if (instruction == 0xF0) // LOCK
         {
             lock = 1;
-            cycles_used += 2;
+            cycles_used += 0; //286
             return true;
         }
         return false;
@@ -540,7 +563,7 @@ struct CPU80286
             if (startprinting)
                 cout << "INTERRUPT " << u32(n) << " start! orig ip=" << registers[IP] << " protmode=" << (msw&1) << endl;
             halt = false;
-            cycles_used += 80;
+            cycles_used += 23; //286
 
             ++interrupt_table[n];
 
@@ -652,6 +675,7 @@ struct CPU80286
         {
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
+            std::abort();
         }
         original_ip = registers[IP];
 
@@ -679,7 +703,7 @@ struct CPU80286
 
         if (startprinting)
         {
-            std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << get_offset(SEG::CS)+registers[IP]-1;
+            std::cout << (msw&1?"&":"#") << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << get_offset(SEG::CS)+registers[IP]-1;
             print_regs();
         }
 
@@ -689,7 +713,7 @@ struct CPU80286
             ++prefix_byte_n;
             instruction = read_inst<u8>();
             if (startprinting || DEBUG_LEVEL > 1)
-                std::cout << "prefix read. #" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS+IP = " << get_offset(SEG::CS) << ":" << registers[IP]-1 << " = " << get_offset(SEG::CS)+registers[IP]-1 << std::endl;
+                std::cout << "prefix read. " << (msw&1?"&":"#") << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS+IP = " << get_offset(SEG::CS) << ":" << registers[IP]-1 << " = " << get_offset(SEG::CS)+registers[IP]-1 << std::endl;
         }
         if (false);
         else if (instruction == 0x0F) // pop cs :-)
@@ -799,7 +823,7 @@ struct CPU80286
             cycles_used += 10; //TODO: right values
             //invalid_instruction(original_ip); //TODO: v20, 286
         }
-        else if ((instruction&0xF0) == 0x60)
+        else if ((instruction&0xF0) == 0x60) //PUSHA/POPA
         {
             //cout << "BLAH: " << u32(instruction) << endl; std::abort();
             if (instruction == 0x60)
@@ -814,7 +838,7 @@ struct CPU80286
                 push(registers[BP]);
                 push(registers[SI]);
                 push(registers[DI]);
-                cycles_used += 30; //TODO: correct value
+                cycles_used += 17; //286
             }
             else if (instruction == 0x61)
             {
@@ -827,7 +851,7 @@ struct CPU80286
                 registers[DX] = pop();
                 registers[CX] = pop();
                 registers[AX] = pop();
-                cycles_used += 30; //TODO: correct value
+                cycles_used += 19; //286
             }
             else if (instruction == 0x62) // BOUND
             {
@@ -839,16 +863,15 @@ struct CPU80286
                 if (r < lower_bound || r > upper_bound)
                 {
                     outside_bound(original_ip);
-                    cycles_used += 60; //TODO: correct value
                 }
-                cycles_used += 20; //TODO: correct value
+                cycles_used += 13; //286, TODO: check!
             }
             else if (instruction == 0x68)
             {
                 //0x68 push immed word
                 u16 imm = read_inst<u16>();
                 push(imm);
-                cycles_used += 4;
+                cycles_used += 3; //286
             }
             else if (instruction == 0x69)
             {
@@ -866,14 +889,14 @@ struct CPU80286
 
                 registers[AX] = result&0xFFFF;
                 registers[DX] = result >> 16;
-                cycles_used += (modrm_is_register?128:134); //TODO: make this more accurate, it's actually 128-154, 134-160
+                cycles_used += (modrm_is_register?21:24); //286
             }
             else if (instruction == 0x6A)
             {
                 //0x6A push immed byte, sign extension!
                 i8 imm = read_inst<u8>();
                 push(i16(imm));
-                cycles_used += 4;
+                cycles_used += 3; //286
             }
             else if (instruction == 0x6B)
             {
@@ -890,7 +913,7 @@ struct CPU80286
                 set_flag(F_AUX_CARRY,false);
                 set_flag(F_ZERO,(result&0xFFFF)==0);
                 registers[AX] = u16(result);
-                cycles_used += (modrm_is_register?80:86); //TODO: make this more accurate, it's actually 80-98, 86-104
+                cycles_used += (modrm_is_register?21:24); //286
             }
             else if (instruction == 0x6C) // INS, byte from DX port
             {
@@ -899,7 +922,7 @@ struct CPU80286
                 {
                     mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in(port);
                     registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
-                    cycles_used += 14;
+                    cycles_used += 5; //286
                 }
                 else
                 {
@@ -908,7 +931,7 @@ struct CPU80286
                         mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in(port);
                         registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
-                        cycles_used += 14;
+                        cycles_used += 5; //286
                     }
                 }
             }
@@ -921,7 +944,7 @@ struct CPU80286
                     u8 high = iosystem.io_in(port + 1);
                     mem.direct16(get_offset(SEG::ES) + registers[DI]) = (high << 8) | low;
                     registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
-                    cycles_used += 14;
+                    cycles_used += 5; //286
                 }
                 else
                 {
@@ -932,7 +955,7 @@ struct CPU80286
                         mem.direct16(get_offset(SEG::ES) + registers[DI]) = (high << 8) | low;
                         registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
-                        cycles_used += 14;
+                        cycles_used += 5; //286
                     }
                 }
             }
@@ -943,7 +966,7 @@ struct CPU80286
                 {
                     iosystem.io_out(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                     registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
-                    cycles_used += 14;
+                    cycles_used += 5; //286
                 }
                 else
                 {
@@ -952,7 +975,7 @@ struct CPU80286
                         iosystem.io_out(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                         registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
-                        cycles_used += 14;
+                        cycles_used += 5; //286
                     }
                 }
             }
@@ -965,7 +988,7 @@ struct CPU80286
                     iosystem.io_out(port, value & 0xFF);
                     iosystem.io_out(port + 1, value >> 8);
                     registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
-                    cycles_used += 14;
+                    cycles_used += 5; //286
                 }
                 else
                 {
@@ -976,7 +999,7 @@ struct CPU80286
                         iosystem.io_out(port + 1, value >> 8);
                         registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
-                        cycles_used += 14;
+                        cycles_used += 5; //286
                     }
                 }
             }
@@ -994,10 +1017,11 @@ struct CPU80286
             u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
 
             u8 inst_type = (modrm >> 3) & 0x07;
-            cycles_used += (modrm_is_register ? 15 : 23); // Assuming 15 cycles for register and 23 for memory
+            cycles_used += (modrm_is_register ? 5 : 8); //286
 
             for (u32 i = 0; i < amount; ++i)
             {
+                cycles_used += 1; //286
                 u8 original = rm;
                 u8 result = 0;
 
@@ -1041,10 +1065,11 @@ struct CPU80286
             u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
 
             u8 inst_type = (modrm >> 3) & 0x07;
-            cycles_used += (modrm_is_register ? 15 : 23); // Assuming 15 cycles for register and 23 for memory
+            cycles_used += (modrm_is_register ? 5 : 8); //286
 
             for (u32 i = 0; i < amount; ++i)
             {
+                cycles_used += 1;
                 u16 original = rm;
                 u16 result = 0;
 
@@ -1098,7 +1123,7 @@ struct CPU80286
             }
             registers[BP] = frame_temp;
             registers[SP] -= frame_size;
-            cycles_used += 20 + 4 * nesting_level; // Assuming 20 cycles base + 4 cycles per nesting level
+            cycles_used += 11 + 4 * nesting_level + (nesting_level>1?1:0); //286
         }
         else if (instruction == 0xC9)
         {
@@ -1106,12 +1131,12 @@ struct CPU80286
             //0xC9 LEAVE
             registers[SP] = registers[BP];
             registers[BP] = pop();
-            cycles_used += 8; // Assuming 8 cycles for LEAVE
+            cycles_used += 5; //286
         }
         else if (instruction < 0x40 && (instruction&0x07) < 6)
         {
             u8 instr_choice = (instruction&0x38)>>3;
-            if (instruction&0x04)
+            if (instruction&0x04) //AX,imm
             {
                 if (instruction&0x01)//16bit
                 {
@@ -1125,9 +1150,9 @@ struct CPU80286
                     u8 imm = read_inst<u8>();
                     r = run_arith(r, imm, instr_choice);
                 }
-                cycles_used += 4;
+                cycles_used += 3; //286
             }
-            else
+            else //reg, r/m
             {
                 u8 modrm = read_inst<u8>();
                 if (instruction&0x01)//16bit
@@ -1146,14 +1171,7 @@ struct CPU80286
                     u8& rin = (instruction&0x02?rm:r);
                     rout = run_arith(rout, rin, instr_choice);
                 }
-                if (instruction&0x02) //towards general reg
-                {
-                    cycles_used += (modrm_is_register?3:13);
-                }
-                else //towards modrm byte
-                {
-                    cycles_used += (modrm_is_register?3:24);
-                }
+                cycles_used += (modrm_is_register?2:7); //286
             }
         }
         else if ((instruction&0xE6) == 0x06) // push/pop SEG
@@ -1161,12 +1179,14 @@ struct CPU80286
             u8 seg_n = (instruction>>3)&0x03;
             if (instruction&0x01)
             {
-                cycles_used += 12;
+                cycles_used += ((msw&1)?20:3); //286
                 load_segment(SEG(seg_n), pop());
             }
             else
             {
-                cycles_used += 14;
+                cycles_used += 3; //286
+                if (startprinting)
+                    std::cout << "push seg " << u32(seg_n) << " = " << descriptor_cache[seg_n].data << std::endl;
                 push(descriptor_cache[seg_n].data);
             }
         }
@@ -1191,7 +1211,7 @@ struct CPU80286
             set_flag(F_SIGN, (registers[AX] & 0x80));
             set_flag(F_PARITY, byte_parity[registers[AX]&0xFF]);
             set_flag(F_OVERFLOW, (old_AL ^ registers[AX]) & (added ^ registers[AX])&0x80);
-            cycles_used += 4;
+            cycles_used += 3; //286
         }
         else if (instruction == 0x37) // AAA
         {
@@ -1212,7 +1232,7 @@ struct CPU80286
             set_flag(F_OVERFLOW, (old_AX ^ registers[AX]) & (added ^ registers[AX])&0x80);
 
             get_r8(0) &= 0x0F;
-            cycles_used += 8;
+            cycles_used += 3; //286
         }
         else if (instruction == 0x2F) // DAS
         {
@@ -1236,7 +1256,7 @@ struct CPU80286
             set_flag(F_SIGN, (registers[AX] & 0x80));
             set_flag(F_PARITY, byte_parity[registers[AX] & 0xFF]);
             set_flag(F_OVERFLOW, ((old_AL ^ subtracted) & (old_AL ^ registers[AX]))&0x80);
-            cycles_used += 4;
+            cycles_used += 3; //286
         }
         else if (instruction == 0x3F) // AAS
         {
@@ -1256,7 +1276,7 @@ struct CPU80286
             set_flag(F_OVERFLOW, (old_AX ^ subtracted) & (old_AX ^ registers[AX])&0x80);
 
             get_r8(0) &= 0x0F;
-            cycles_used += 8;
+            cycles_used += 3; //286
         }
         else if ((instruction&0xF0) == 0x40) //INC/DEC register
         {
@@ -1267,17 +1287,17 @@ struct CPU80286
             set_flag(F_PARITY, byte_parity[result&0xFF]);
             set_flag(F_OVERFLOW, result==0x8000-((instruction&0x08)?1:0));
             registers[instruction&0x07] = result;
-            cycles_used += 3;
+            cycles_used += 2; //286
         }
         else if ((instruction&0xF8) == 0x50) // push reg
         {
             push(registers[instruction&0x07]);
-            cycles_used += 15;
+            cycles_used += 3; //286
         }
         else if ((instruction&0xF8) == 0x58) //pop reg
         {
             registers[instruction&0x07] = pop();
-            cycles_used += 12;
+            cycles_used += 5; //286
         }
         else if ((instruction&0xF0) == 0x70) //various short jumps
         {
@@ -1288,11 +1308,11 @@ struct CPU80286
                 0x800,0x001,0x040,0x041,0x080,0x004,0x002,0x042
             };
             i8 offset = read_inst<i8>();
-            cycles_used += 4;
+            cycles_used += 3; //286
             if (bool(f&masks[type])^(instruction&0x01))
             {
                 registers[IP] += offset;
-                cycles_used += 12;
+                cycles_used += 4; //286
             }
         }
         else if (instruction == 0x80 || instruction == 0x82)
@@ -1301,7 +1321,7 @@ struct CPU80286
             u8& rm = decode_modrm_u8(modrm);
             u8 imm = read_inst<u8>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
-            cycles_used += (modrm_is_register?4:23);
+            cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x81)
         {
@@ -1309,7 +1329,7 @@ struct CPU80286
             u16& rm = decode_modrm_u16(modrm);
             u16 imm = read_inst<u16>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
-            cycles_used += (modrm_is_register?4:23);
+            cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x83)
         {
@@ -1317,25 +1337,25 @@ struct CPU80286
             u16& rm = decode_modrm_u16(modrm);
             u16 imm = i16(read_inst<i8>());
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
-            cycles_used += (modrm_is_register?4:23);
+            cycles_used += (modrm_is_register?3:7); //286
         }
-        else if (instruction == 0x84)
+        else if (instruction == 0x84) //TEST
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
             u8& r = get_r8((modrm>>3)&0x07);
             test_flags(u8(rm&r));
-            cycles_used += (modrm_is_register?5:11);
+            cycles_used += (modrm_is_register?2:6); //286
         }
-        else if (instruction == 0x85)
+        else if (instruction == 0x85) //TEST
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             u16& r = get_r16((modrm>>3)&0x07);
             test_flags(u16(rm&r));
-            cycles_used += (modrm_is_register?5:11);
+            cycles_used += (modrm_is_register?2:6); //286
         }
-        else if (instruction == 0x86)
+        else if (instruction == 0x86) //XCHG
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
@@ -1343,9 +1363,9 @@ struct CPU80286
             u8 temp = rm;
             rm = r;
             r = temp;
-            cycles_used += (modrm_is_register?4:25);
+            cycles_used += (modrm_is_register?3:5); //286
         }
-        else if (instruction == 0x87)
+        else if (instruction == 0x87) //XCHG
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
@@ -1353,7 +1373,7 @@ struct CPU80286
             u16 temp = rm;
             rm = r;
             r = temp;
-            cycles_used += (modrm_is_register?4:25);
+            cycles_used += (modrm_is_register?3:5); //286
         }
         else if ((instruction&0xFC) == 0x88) // MOV EbGb, EvGv, GbEb, GvEv
         {
@@ -1377,17 +1397,17 @@ struct CPU80286
 
             if (modrm_is_register)
             {
-                cycles_used += 2;
+                cycles_used += 2; //286
             }
             else
             {
                 if (instruction&0x02) // towards general register
                 {
-                    cycles_used += 12;
+                    cycles_used += 5; //286
                 }
                 else //towards modrm
                 {
-                    cycles_used += 13;
+                    cycles_used += 3; //286
                 }
             }
         }
@@ -1403,7 +1423,7 @@ struct CPU80286
             {
                 invalid_instruction(original_ip);
             }
-            cycles_used += (modrm_is_register?2:13);
+            cycles_used += (modrm_is_register?2:3); //286
         }
         else if (instruction == 0x8E) // MOV SwEw
         {
@@ -1450,7 +1470,10 @@ struct CPU80286
             {
                 load_segment(SEG(seg_n), rm);
             }
-            cycles_used += (modrm_is_register?2:12);
+            if (msw&1)
+                cycles_used += (modrm_is_register?17:19); //286
+            else
+                cycles_used += (modrm_is_register?2:5); //286
 
         }
         else if (instruction == 0x8D) // LEA Gv M
@@ -1458,14 +1481,14 @@ struct CPU80286
             u8 modrm = read_inst<u8>();
             u16& r = get_r16((modrm>>3)&0x07);
             r = effective_address(modrm);
-            cycles_used += 2;
+            cycles_used += 3; //286
         }
         else if (instruction == 0x8F) //POP modrm
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             rm = pop();
-            cycles_used += 25;
+            cycles_used += 5; //286
         }
         else if ((instruction&0xF8) == 0x90) // XCHG AX, r16 - note how 0x90 is effectively NOP :-)
         {
@@ -1473,19 +1496,19 @@ struct CPU80286
             u16 tmp = registers[AX];
             registers[AX] = registers[reg_id];
             registers[reg_id] = tmp;
-            cycles_used += 3;
+            cycles_used += 3; //286
         }
         else if (instruction == 0x98) //CBW
         {
             u16 r = (registers[AX])&0xFF;
             r |= (r&0x80)?0xFF00:0x0000;
             registers[AX] = r;
-            cycles_used += 2;
+            cycles_used += 2; //286
         }
         else if (instruction == 0x99) //CWD
         {
             registers[DX] = (registers[AX]&0x8000)?0xFFFF:0x0000;
-            cycles_used += 5;
+            cycles_used += 2; //286
         }
         else if (instruction == 0x9A) //call Ap
         {
@@ -1495,34 +1518,34 @@ struct CPU80286
             push(registers[IP]);
             load_segment(SEG::CS, segment);
             registers[IP] = pointer;
-            cycles_used += 28;
+            cycles_used += 13; //286, TODO: protected mode
         }
         else if (instruction == 0x9B) // WAIT/FWAIT
         {
             // waits for floating point exceptions.
             // basically a NOP because I don't have a FPU yet
-            cycles_used += 4;
+            cycles_used += 3; //286
         }
         else if (instruction == 0x9C) //pushf
         {
             push(registers[FLAGS]);
-            cycles_used += 14;
+            cycles_used += 3; //286
         }
         else if (instruction == 0x9D) //popf
         {
             u16 newflags = pop();
             registers[FLAGS] = (newflags&FLAG_MASK) | FLAG_ON;
-            cycles_used += 12;
+            cycles_used += 5; //286
         }
         else if (instruction == 0x9E) //sahf
         {
             reg8()[FLAGS*2] = (get_r8(4)&0xD5) | 0x02;
-            cycles_used += 4;
+            cycles_used += 2; //286
         }
         else if (instruction == 0x9F) //lahf
         {
             get_r8(4) = registers[FLAGS]&0xFF;
-            cycles_used += 4;
+            cycles_used += 2; //286
         }
         else if (instruction >= 0xA0 && instruction <= 0xA3) //AL/X=MEM  MEM=AL/X
         {
@@ -1535,7 +1558,7 @@ struct CPU80286
                 case 0xA2: mem.direct8(source_segment + source_offset) = get_r8(0); break;
                 case 0xA3: mem.direct16(source_segment + source_offset) = registers[AX]; break;
             }
-            cycles_used += 14;
+            cycles_used += (instruction&0x02)?3:5; //286
         }
         else if (instruction >= 0xA8 && instruction <= 0xA9) //TEST AL/X,imm8/16
         {
@@ -1549,9 +1572,9 @@ struct CPU80286
                 u8 value1 = read_inst<u8>();
                 test_flags<u8>(u8(value1&registers[AX]));
             }
-            cycles_used += 4;
+            cycles_used += 3; //286
         }
-        else if (instruction >= 0xA0 && instruction <= 0xAF) //MOVSB/W CMPSB/W --- STOSB/W LODSB/W SCASB/W
+        else if (instruction >= 0xA4 && instruction <= 0xAF) //MOVSB/W CMPSB/W --- STOSB/W LODSB/W SCASB/W
         {
             bool big = (instruction&0x01); //word-sized?
             i8 size = i8(big)+1;
@@ -1564,14 +1587,14 @@ struct CPU80286
 
             const u8 cycles_single[16] =
             {
-                 0,  0,  0,  0, 18, 26, 30, 30,
-                 0,  0, 11, 15, 16, 16, 19, 19,
-            };
+                 0,  0,  0,  0, 5, 5, 8, 8,
+                 0,  0,  3,  3, 5, 5, 7, 7,
+            }; //286
             const u8 cycles_rep_mult[16] =
             {
-                0, 0, 0, 0,17,25,30,30,
-                0, 0,10,14,15,15,15,19,//check LOD
-            };
+                 0,  0,  0,  0, 5, 5, 8, 8,
+                 0,  0,  3,  3, 5, 5, 7, 7,
+            }; //286 TODO: check!
 
             //u16 source_segment = registers[get_segment(DS)];
 
@@ -1629,18 +1652,18 @@ struct CPU80286
                 {
                     if (string_prefix == SP_REPNZ && flag(F_ZERO))
                     {
-                        cycles_used += 9;
+                        cycles_used += 5; //286 todo: check this?
                         break;
                     }
                     if (string_prefix == SP_REPZ && !flag(F_ZERO))
                     {
-                        cycles_used += 9;
+                        cycles_used += 5; //286 todo: check this?
                         break;
                     }
                 }
                 if (registers[CX] == 0)
                 {
-                    cycles_used += 9;
+                    cycles_used += 5; //286 todo: check this?
                     break;
                 }
                 registers[IP] = original_ip;
@@ -1650,24 +1673,24 @@ struct CPU80286
         else if ((instruction&0xF8) == 0xB0) //mov reg8, Ib
         {
             get_r8(instruction&0x07) = read_inst<u8>();
-            cycles_used += 4;
+            cycles_used += 2; //286
         }
         else if ((instruction&0xF8) == 0xB8) //mov reg16, Iv
         {
             get_r16(instruction&0x07) = read_inst<u16>();
-            cycles_used += 4;
+            cycles_used += 2; //286
         }
         else if (instruction == 0xC2) // near return w/imm
         {
             u16 imm = read_inst<u16>();
             registers[IP] = pop();
             registers[SP] += imm;
-            cycles_used += 24;
+            cycles_used += 11; //286
         }
         else if (instruction == 0xC3) // near return
         {
             registers[IP] = pop();
-            cycles_used += 20;
+            cycles_used += 11; //286
         }
         else if (instruction == 0xCA) // far return w/imm
         {
@@ -1675,13 +1698,13 @@ struct CPU80286
             registers[IP] = pop();
             load_segment(SEG::CS, pop());
             registers[SP] += imm;
-            cycles_used += 33;
+            cycles_used += (msw&1)?25:15; //286 TODO: 55 if lesser privilege
         }
         else if (instruction == 0xCB) // far return
         {
             registers[IP] = pop();
             load_segment(SEG::CS, pop());
-            cycles_used += 34;
+            cycles_used += (msw&1)?25:15; //286 TODO: 55 if lesser privilege
         }
         else if ((instruction&0xFE) == 0xC4) // LES LDS
         {
@@ -1690,28 +1713,27 @@ struct CPU80286
             u16& r = get_r16((modrm>>3)&0x07);
             r = mem.direct16(addr);
             load_segment((instruction&1)?SEG::DS:SEG::ES, mem.direct16(addr+2)); //ES or DS, based on the opcode
-            cycles_used += 24;
+            cycles_used += (msw&1)?21:7; //286
         }
-        else if (instruction == 0xC6)
+        else if (instruction == 0xC6) //MOV
         {
             u8 modrm = read_inst<u8>();
             u8& rm = decode_modrm_u8(modrm);
             rm = read_inst<u8>();
-            cycles_used += (modrm_is_register?4:14);
+            cycles_used += (modrm_is_register?2:3); //286
         }
-        else if (instruction == 0xC7)
+        else if (instruction == 0xC7) //MOV
         {
             u8 modrm = read_inst<u8>();
             u16& rm = decode_modrm_u16(modrm);
             rm = read_inst<u16>();
-            cycles_used += (modrm_is_register?4:14);
+            cycles_used += (modrm_is_register?2:3); //286
         }
         else if (instruction == 0xCC) // INT 3
         {
             if (startprinting)
                 cout << "Calling interrupt 3... AX=" << registers[AX] << endl;
             interrupt(3, true);
-            //cycles_used += 72;
         }
         else if (instruction == 0xCD) // INT imm8
         {
@@ -1719,7 +1741,6 @@ struct CPU80286
             if (startprinting)
                 cout << "Calling interrupt... " << u32(int_num) << " AX=" << registers[AX] << endl;
             interrupt(int_num, true);
-            //cycles_used += 71;
         }
         else if (instruction == 0xCE) // INTO
         {
@@ -1728,20 +1749,23 @@ struct CPU80286
                 if (startprinting)
                     cout << "Calling int 4... AX=" << registers[AX] << endl;
                 interrupt(4, true);
-                //cycles_used += 69;
+                cycles_used += 1; //286
             }
-            cycles_used += 4;
+            else
+            {
+                cycles_used += 3; //286
+            }
         }
         else if (instruction == 0xCF) // IRET!
         {
             registers[IP] = pop();
-            load_segment(SEG::CS, pop());
+            u16 newcs = pop();
             u16 newflags = pop();
             registers[FLAGS] = (newflags&FLAG_MASK) | FLAG_ON;
-
-            //if (startprinting)
-            //    cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
-            cycles_used += 44;
+            if (startprinting)
+                cout << "RETURN FROM INTERRUPT to " << newcs << ":" << registers[IP] << "|" << newflags << endl;
+            load_segment(SEG::CS, newcs);
+            cycles_used += (msw&1)?31:17; //286, TODO: return to lesser privilege, return to different task
         }
         else if (instruction == 0xD0 || instruction == 0xD2)
         {
@@ -1761,11 +1785,11 @@ struct CPU80286
 
                 if ((instruction&0x02) == 0)
                 {
-                    cycles_used += (modrm_is_register?23:2);
+                    cycles_used += (modrm_is_register?2:7); //286
                 }
                 else
                 {
-                    cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0x1F);
+                    cycles_used += (modrm_is_register?5:8) + (registers[CX]&0x1F); //286
                 }
 
                 for(u32 i=0; i<amount; ++i)
@@ -1818,11 +1842,11 @@ struct CPU80286
 
                 if ((instruction&0x02) == 0)
                 {
-                    cycles_used += (modrm_is_register?23:2);
+                    cycles_used += (modrm_is_register?2:7); //286
                 }
                 else
                 {
-                    cycles_used += (modrm_is_register?28:8) + 4*(registers[CX]&0x1F);
+                    cycles_used += (modrm_is_register?5:8) + (registers[CX]&0x1F); //286
                 }
 
                 for(u32 i=0; i<amount; ++i)
@@ -1885,7 +1909,7 @@ struct CPU80286
                 set_flag(F_CARRY,false);
                 divide_by_zero(original_ip);
             }
-            cycles_used += 83;
+            cycles_used += 16; //286
         }
         else if (instruction == 0xD5) // AAD TODO: neaten this code up, also still F_ZERO is wrong sometimes ?!
         {
@@ -1908,18 +1932,18 @@ struct CPU80286
             bool af = ((a ^ b ^ result) & 0x10);
             set_flag(F_OVERFLOW,of);
             set_flag(F_AUX_CARRY,af);
-            cycles_used += 60;
+            cycles_used += 14; //286
         }
-        else if (instruction == 0xD6) // SALC (undocumented!), doesnt exist on V20, is XLAT
+        else if (instruction == 0xD6) // SALC (undocumented!), doesnt exist on V20, is XLAT. TODO: does it exist on 286?
         {
             get_r8(0) = flag(F_CARRY)?0xFF:0x00;
-            cycles_used += 4; //TODO: make sure this is correct!
+            cycles_used += 4; //TODO: make sure this SALC instruction exists on 286!
         }
         else if (instruction == 0xD7) // XLAT
         {
             u8 result = mem.direct8(get_offset(get_segment(SEG::DS))+registers[BX]+(registers[AX]&0xFF));
             get_r8(0) = result;
-            cycles_used += 11;
+            cycles_used += 5; //286
         }
         else if (instruction >= 0xD8 && instruction <= 0xDF)
         {
@@ -1927,8 +1951,8 @@ struct CPU80286
             u8 modrm = read_inst<u8>(); //read modrm data anyway to sync up
             decode_modrm_u8(modrm);
 
-            //FLOATING POINT INSTRUCTIONS! 8087! we don't have this. yet?
-            cycles_used += 4; //TODO: check that this is right!
+            //FLOATING POINT INSTRUCTIONS! 80287! we don't have this. yet?
+            cycles_used += 3; //TODO: check that this is right!
         }
         else if ((instruction & 0xFC) == 0xE0) // LOOPNZ LOOPZ LOOP JCXZ
         {
@@ -1937,16 +1961,16 @@ struct CPU80286
             if ((registers[CX] != 0) == ((instruction&0x03) != 3) && (instruction&0x02 ? true:(flag(F_ZERO) == (instruction&0x01))))
             {
                 registers[IP] = i16(registers[IP]) + offset;
-                cycles_used += 12 + ((instruction&3)?0:2);
+                cycles_used += 4; //286
             }
-            //not taken:  5  6  5  6
-            //taken:     19 18 17 18 (delta: 14 12 12 12)
-            cycles_used += 5 + (instruction&1);
+            //not taken:  4  4  4  4
+            //taken:      8  8  8  8 (delta: 4 4 4 4)
+            cycles_used += 4; //286
         }
         else if (instruction == 0xE4) // IN
         {
             get_r8(0) = iosystem.io_in(read_inst<u8>());
-            cycles_used += 14;
+            cycles_used += 5; //286
         }
         else if (instruction == 0xE5) // IN
         {
@@ -1954,32 +1978,32 @@ struct CPU80286
             u8 low = iosystem.io_in(port);
             u8 high = iosystem.io_in(port+1);
             registers[AX] = (high<<8)|low;
-            cycles_used += 14;
+            cycles_used += 5; //286
         }
         else if (instruction == 0xE6) // OUT
         {
             iosystem.io_out(read_inst<u8>(), registers[AX]&0xFF);
-            cycles_used += 14;
+            cycles_used += 3; //286
         }
         else if (instruction == 0xE7) // OUT
         {
             u8 port = read_inst<u8>();
             iosystem.io_out(port, registers[AX]&0xFF);
             iosystem.io_out(port+1, registers[AX]>>8);
-            cycles_used += 14;
+            cycles_used += 3; //286
         }
         else if (instruction == 0xE8)
         {
             i16 ip_offset = read_inst<i16>();
             push(registers[IP]);
             registers[IP] = i16(registers[IP])+ip_offset;
-            cycles_used += 23; //TODO: check that this is the correct one
+            cycles_used += 7; //286
         }
         else if (instruction == 0xE9)
         {
             i16 ip_offset = read_inst<i16>();
             registers[IP] = i16(registers[IP])+ip_offset;
-            cycles_used += 15;
+            cycles_used += 7; //286
         }
         else if (instruction == 0xEA) //far jump
         {
@@ -1988,18 +2012,18 @@ struct CPU80286
 
             registers[IP] = new_ip;
             load_segment(SEG::CS, new_cs);
-            cycles_used += 15;
+            cycles_used += (msw&1)?23:11; //286, TODO: missing task stuff
         }
         else if (instruction == 0xEB)
         {
             i8 ip_offset = read_inst<i8>();
             registers[IP] = i16(registers[IP])+ip_offset;
-            cycles_used += 15;
+            cycles_used += 7; //286
         }
         else if (instruction == 0xEC) // IN
         {
             get_r8(0) = iosystem.io_in(registers[DX]);
-            cycles_used += 12;
+            cycles_used += 5; //286
         }
         else if (instruction == 0xED) // IN
         {
@@ -2007,18 +2031,18 @@ struct CPU80286
             u8 low = iosystem.io_in(port);
             u8 high = iosystem.io_in(port+1);
             registers[AX] = (high<<8)|low;
-            cycles_used += 12;
+            cycles_used += 5; //286
         }
         else if (instruction == 0xEE) // OUT
         {
             iosystem.io_out(registers[DX], registers[AX]&0xFF);
-            cycles_used += 12;
+            cycles_used += 3; //286
         }
         else if (instruction == 0xEF) // OUT
         {
             iosystem.io_out(registers[DX], registers[AX]&0xFF);
             iosystem.io_out(registers[DX]+1, registers[AX]>>8);
-            cycles_used += 12;
+            cycles_used += 3; //286
         }
         else if (instruction == 0xF1)
         {
@@ -2027,13 +2051,13 @@ struct CPU80286
         else if (instruction == 0xF4) // HALT / HLT
         {
             halt = true;
-            cycles_used += 2;
+            cycles_used += 2; //286
             set_flag(F_INTERRUPT, true);
         }
         else if (instruction == 0xF5) // cmc
         {
             set_flag(F_CARRY, !flag(F_CARRY));
-            cycles_used += 2;
+            cycles_used += 2; //286
         }
         else if(instruction == 0xF6) //byte param
         {
@@ -2044,7 +2068,7 @@ struct CPU80286
             {
                 u8 imm = read_inst<u8>();
                 test_flags(u8(rm&imm));
-                cycles_used += (modrm_is_register?5:11);
+                cycles_used += (modrm_is_register?3:6); //286
             }
             else if (op == 1) //invalid!!!
             {
@@ -2053,14 +2077,14 @@ struct CPU80286
             else if (op==2) // NOT
             {
                 rm = ~rm;
-                cycles_used += (modrm_is_register?3:24);
+                cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op == 3) // NEG
             {
                 cmp_flags(u8(0),rm,u8(-rm));
                 set_flag(F_CARRY,rm!=0);
                 rm = -rm;
-                cycles_used += (modrm_is_register?3:24);
+                cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op==4) // MUL
             {
@@ -2074,7 +2098,7 @@ struct CPU80286
                 set_flag(F_ZERO,(result&0xFF00)==0);
                 //set_flag(F_ZERO,true); //V20/V30!
                 registers[AX] = result;
-                cycles_used += (modrm_is_register?70:76); //TODO: make this more accurate, it's actually 70-77, 76-83
+                cycles_used += (modrm_is_register?13:16); //286, TODO: accurate?
             }
             else if (op==5) // IMUL
             {
@@ -2088,16 +2112,15 @@ struct CPU80286
                 set_flag(F_AUX_CARRY,false);
                 set_flag(F_ZERO,(result&0xFFFF)==0);
                 registers[AX] = u16(result);
-                cycles_used += (modrm_is_register?80:86); //TODO: make this more accurate, it's actually 80-98, 86-104
+                cycles_used += (modrm_is_register?13:16); //286, TODO: accurate?
             }
             else if (op==6 || op == 7) //DIV IDIV
             {
                 if (rm == 0)
                 {
                     divide_by_zero(original_ip);
-                    cycles_used += 80; //FIXME: this is made up
                 }
-                else if (op == 6)
+                else if (op == 6) //DIV
                 {
                     //std::cout << "DIVISIO PIQ 1" << std::endl;
 
@@ -2117,9 +2140,9 @@ struct CPU80286
                         set_flag(F_PARITY,false);
                         set_flag(F_SIGN, remainder^0x80);
                     }
-                    cycles_used += (modrm_is_register?80:86); //TODO: 80-90, 86-96
+                    cycles_used += (modrm_is_register?14:17); //286
                 }
-                else if (op == 7)
+                else if (op == 7) //IDIV
                 {
                     //std::cout << "DIVISIO PIQ 2" << std::endl;
 
@@ -2136,7 +2159,7 @@ struct CPU80286
                         registers[AX] = (remainder<<8)|u8(quotient);
                         set_flag(F_PARITY,false);
                     }
-                    cycles_used += (modrm_is_register?101:107); //TODO: 101-112, 107-118
+                    cycles_used += (modrm_is_register?17:20); //286
                 }
             }
         }
@@ -2149,7 +2172,7 @@ struct CPU80286
             {
                 u16 imm = read_inst<u16>();
                 test_flags(u16(rm&imm));
-                cycles_used += (modrm_is_register?5:11);
+                cycles_used += (modrm_is_register?3:6); //286
             }
             else if (op == 1) //invalid!!!
             {
@@ -2158,14 +2181,14 @@ struct CPU80286
             else if (op==2) // NOT
             {
                 rm = ~rm;
-                cycles_used += (modrm_is_register?3:24);
+                cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op == 3) // NEG
             {
                 cmp_flags(u16(0),rm,u16(-rm));
                 set_flag(F_CARRY,rm!=0);
                 rm = -rm;
-                cycles_used += (modrm_is_register?3:24);
+                cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op==4) // MUL
             {
@@ -2180,7 +2203,7 @@ struct CPU80286
 
                 registers[AX] = result&0xFFFF;
                 registers[DX] = result >> 16;
-                cycles_used += (modrm_is_register?118:124); //TODO: make this more accurate, it's actually 118-133, 124-139
+                cycles_used += (modrm_is_register?21:24); //286 TODO: accurate?
             }
             else if (op==5) //IMUL
             {
@@ -2195,7 +2218,7 @@ struct CPU80286
 
                 registers[AX] = result&0xFFFF;
                 registers[DX] = result >> 16;
-                cycles_used += (modrm_is_register?128:134); //TODO: make this more accurate, it's actually 128-154, 134-160
+                cycles_used += (modrm_is_register?22:25); //286 TODO: accurate?
             }
             else if (op == 6 || op == 7) //DIV IDIV
             {
@@ -2218,7 +2241,7 @@ struct CPU80286
                         registers[AX] = result;
                         registers[DX] = numerator % denominator;
                     }
-                    cycles_used += (modrm_is_register?144:150); //TODO: 144-162, 150-168
+                    cycles_used += (modrm_is_register?25:28); //286, TODO: accurate?
                 }
                 else if (op == 7)
                 {
@@ -2241,17 +2264,17 @@ struct CPU80286
         else if ((instruction&0xFE) == 0xF8) //CLC STC carry flag bit 0
         {
             set_flag(F_CARRY, instruction&0x01);
-            cycles_used += 2;
+            cycles_used += 2; //286
         }
         else if ((instruction&0xFE) == 0xFA) //CLI STI interrupt flag bit 9
         {
             set_flag(F_INTERRUPT, instruction&0x01);
-            cycles_used += 2;
+            cycles_used += 3; //286
         }
         else if ((instruction&0xFE) == 0xFC) //CLD STD direction flag bit 10
         {
             set_flag(F_DIRECTIONAL, instruction&0x01);
-            cycles_used += 2;
+            cycles_used += 2; //286
         }
         else if (instruction == 0xFE)
         {
@@ -2273,7 +2296,7 @@ struct CPU80286
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
                 //no carry!
                 reg = result;
-                cycles_used = (modrm_is_register?3:23);
+                cycles_used = (modrm_is_register?2:7); //286
             }
         }
         else if (instruction == 0xFF)
@@ -2290,7 +2313,7 @@ struct CPU80286
                 set_flag(F_SIGN,result&0x8000);
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
                 reg = result;
-                cycles_used = (modrm_is_register?3:23);
+                cycles_used = (modrm_is_register?2:7); //286
             }
             else if (op == 2) //call near
             {
@@ -2298,7 +2321,7 @@ struct CPU80286
                 u16 address = reg;
                 push(registers[IP]);
                 registers[IP] = address; //have to do this because reg could be SP :')
-                cycles_used += (modrm_is_register?20:29);
+                cycles_used += (modrm_is_register?7:11); //286
             }
             else if (op == 3) //call far
             {
@@ -2309,13 +2332,13 @@ struct CPU80286
                 push(registers[IP]);
                 load_segment(SEG::CS, segment);
                 registers[IP] = address;
-                cycles_used += (modrm_is_register?20:53);
+                cycles_used += (modrm_is_register?16:29); //286, TODO: protected mode
             }
             else if (op == 4) //jmp near
             {
                 u16& reg = decode_modrm_u16(modrm);
                 registers[IP] = reg;
-                cycles_used += (modrm_is_register?11:18);
+                cycles_used += (modrm_is_register?7:11); //286
             }
             else if (op == 5) //jmp far
             {
@@ -2324,13 +2347,13 @@ struct CPU80286
                 u16 segment = mem.direct16(addr+2);
                 registers[IP] = address;
                 load_segment(SEG::CS, segment);
-                cycles_used += (modrm_is_register?11:24);
+                cycles_used += (modrm_is_register?15:26); //286, TODO: protected mode
             }
             else if (op == 6)
             {
                 u16& reg = decode_modrm_u16(modrm);
                 push(reg);
-                cycles_used += (modrm_is_register?15:24);
+                cycles_used += 5; //286
             }
             else
             {
