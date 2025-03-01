@@ -196,7 +196,7 @@ struct CGA
             }
             else
             {
-                cout << "CGA current register bad: " << u32(current_register) << endl;
+                cout << "read 0x05, CGA current register bad: 0x" << std::hex << u32(current_register) << endl;
                 std::abort();
             }
         }
@@ -230,7 +230,7 @@ struct CGA
             }
             else
             {
-                cout << "CGA current register bad: " << u32(current_register) << endl;
+                cout << "write 0x05, CGA current register bad: " << u32(current_register) << endl;
                 std::abort();
             }
         }
@@ -284,6 +284,97 @@ struct CGA
         blue = static_cast<u8>(b * 255.0f);
     }
 
+    //pinout the same as cga but without the first ground:
+    //bit 0: NC
+    //bit 1: red
+    //bit 2: green
+    //bit 3: blue
+    //bit 4: intensity
+    //bit 5: NC
+    //bit 6: hsync
+    //bit 7: vsync
+
+    enum struct MONITOR
+    {
+        NC1,
+        RED,
+        GREEN,
+        BLUE,
+        INTENSITY,
+        NC2,
+        HSYNC,
+        VSYNC
+    };
+
+    struct MegaCounter
+    {
+        u32 length[2] = {};
+        u32 count = {};
+        bool prev = {};
+
+        bool cycle(bool data)
+        {
+            bool change{};
+            if (prev != data)
+            {
+                length[data] = count;
+                count = 0;
+                change = true;
+            }
+            ++count;
+            prev = data;
+            return change;
+        }
+    };
+
+    MegaCounter vsync_ctr, hsync_ctr;
+    u32 linepos{};
+    u32 colpos{};
+    u32 prev_line_amount{};
+    u32 prev_col_amount{};
+    void monitor_cycle(u8 pins)
+    {
+        bool vc = vsync_ctr.cycle(pins & (1 << int(MONITOR::VSYNC)));
+        bool hc = hsync_ctr.cycle(pins & (1 << int(MONITOR::HSYNC)));
+
+        if ((vc && !vsync_ctr.prev))
+        {
+            if (linepos >= 100)
+            {
+                prev_line_amount = linepos;
+                linepos = 0;
+                render();
+            }
+        }
+        if (hc && !hsync_ctr.prev && !vsync_ctr.prev)
+        {
+            if (colpos >= 400)
+            {
+                prev_col_amount = colpos;
+                colpos = 0;
+                ++linepos;
+            }
+        }
+        if (!hsync_ctr.prev)
+        {
+            ++colpos;
+        }
+
+        u32 color = (pins>>1)&0x0F;
+        if (vc || hc)
+        {
+            color = 0;
+        }
+
+
+        u32 renderline = screen.Y/2-prev_line_amount/2 + linepos;
+        u32 rendercol = screen.X/2-prev_col_amount/2 + colpos;
+        if (renderline < screen.Y && rendercol < screen.X)
+        {
+            screen.pixels[renderline * screen.X + rendercol] = getpalette(color);
+        }
+    }
+
     u32 column{};
     u32 logical_line{};
     u32 scan_line{};
@@ -291,7 +382,9 @@ struct CGA
     u32 line_inside_character{};
     u32 vsyncadjust{};
     bool hsync{}, vsync{};
-    void cycle()
+    u32 hsync_monitor_ctr{}; //32-96 hdots
+    u32 vsync_monitor_ctr{};
+    void cycle() //8 hdots per cycle
     {
         u8 textmode_40_80 = (mode_select>>0)&0x01;
         u8 is_graphics_mode = ((mode_select>>1)&0x01);
@@ -303,10 +396,7 @@ struct CGA
         }
 
         column += 8;
-        column = (column>=(registers[H_TOTAL]+1)*hsync_mult?0:column);
-
-        scan_column += 8;
-        scan_column = (scan_column>=912?0:scan_column);
+        column = (column>=(registers[H_TOTAL])*hsync_mult?0:column);
 
         if (column == 0) //new line
         {
@@ -336,32 +426,25 @@ struct CGA
             }
         }
 
-        bool old_vsync = vsync;
-        vsync = (logical_line >= registers[V_SYNC_POS] && logical_line <= registers[V_SYNC_POS]+2);
+        vsync = (logical_line >= registers[V_SYNC_POS]+1 && logical_line <= registers[V_SYNC_POS]+1);
 
-        u16 hsync_start = (registers[H_SYNC_POS])*hsync_mult;
-        u16 hsync_end = (registers[H_SYNC_POS]+registers[H_SYNC_WIDTH])*hsync_mult;
+        if (!vsync)
+            vsync_monitor_ctr = 0;
+        else
+            ++vsync_monitor_ctr;
 
-        bool old_hsync = hsync;
+        bool monitor_vsync = (vsync_monitor_ctr > 0 && vsync_monitor_ctr <= 912*3/8);
+        vsync = (vsync_monitor_ctr > 0 && vsync_monitor_ctr <= 912*16/8);
 
-        hsync = (column >= hsync_start && column <= hsync_end);
+        u16 hsync_start = (registers[H_SYNC_POS]-1)*hsync_mult;
+        u16 hsync_end = (registers[H_SYNC_POS]-1+registers[H_SYNC_WIDTH])*hsync_mult;
+        hsync = (column >= hsync_start && column < hsync_end);
+        if (!hsync)
+            hsync_monitor_ctr = 0;
+        else
+            ++hsync_monitor_ctr;
 
-        //if (old_hsync && !hsync && (scan_column == 0 || scan_column >= 656))
-        if (hsync && (scan_column == 0 || scan_column >= 800))
-        {
-            scan_column = 0;
-        }
-        if (scan_column == 0)
-        {
-            scan_line += (scan_line>=261?-261:1);
-        }
-        if (!old_vsync && vsync)
-        {
-            render();
-            ++totalvsync;
-            scan_line = 0;
-            scan_column = 0;
-        }
+        bool monitor_hsync = (hsync_monitor_ctr >= 5 && hsync_monitor_ctr < 13);
 
         vertical_retrace = (logical_line >= registers[V_DISPLAYED]);
         horizontal_retrace = (column >= (registers[H_DISPLAYED])*hsync_mult);
@@ -381,7 +464,7 @@ struct CGA
             if (is_graphics_mode && !textmode_40_80)
             {
                 int x = column>>3;
-                u32 offset = current_startaddress + (scan_line&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
+                u32 offset = current_startaddress + (line_inside_character&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
                 u8 gfx_byte = memory8_internal(offset);
 
                 for(int i=0; i<8; i+=2)
@@ -392,15 +475,19 @@ struct CGA
                     if (draw_bg)
                     {
                         if (!resolution)
-                            p1 = palette[0], p2 = palette[0];
+                            //p1 = palette[0], p2 = palette[0];
+                            p1 = 1, p2 = 1;
                         else
                             p1 = 0, p2 = 0;
                     }
-                    if (vsync|hsync)
+                    if (hsync|vsync)
                         p1 = 0, p2 = 0;
 
-                    screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
-                    screen.pixels[scan_line*screen.X + scan_column + i+1] = getpalette(p2);
+                    monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                    monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+
+                    //screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
+                    //screen.pixels[scan_line*screen.X + scan_column + i+1] = getpalette(p2);
                     gfx_byte <<= 2;
                 }
             }
@@ -413,18 +500,20 @@ struct CGA
                 u8 attribute = memory8_internal(offset+1);
                 u8 fg_color = attribute & 0x0F;
                 u8 bg_color = (attribute >> 4) & 0x0F;
-                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+                u8 char_row = CGABIOS[((char_code<<3)+line_inside_character)|0x800];
 
                 for (u32 x_off = 0; x_off < 8; x_off++)
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
                     if (draw_bg || is_graphics_mode)
-                        color = palette[0];
-                    if (vsync|hsync)
+                        color = 1;//palette[0];
+                    if (hsync|vsync)
                         color = 0;
 
-                    screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
+                    monitor_cycle(((color&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+
+                    //screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
                 }
             }
         }
@@ -450,9 +539,9 @@ struct CGA
                     }
                     if (vsync|hsync)
                         p1 = 0, p2 = 0;
-
-                    screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get((i)&0x03, p1);
-                    screen.pixels[scan_line*screen.X + scan_column + i+1] = compositecolor.Get((i+1)&0x03, p2);
+                    //todo: make composite_cycle()
+                    //screen.pixels[scan_line*screen.X + scan_column + i] = compositecolor.Get((i)&0x03, p1);
+                    //screen.pixels[scan_line*screen.X + scan_column + i+1] = compositecolor.Get((i+1)&0x03, p2);
                     gfx_byte <<= 2;
                 }
             }
@@ -465,7 +554,7 @@ struct CGA
                 u8 attribute = memory8_internal(offset+1);
                 u8 fg_color = attribute & 0x0F;
                 u8 bg_color = (attribute >> 4) & 0x0F;
-                u8 char_row = CGABIOS[(char_code<<3)+line_inside_character];
+                u8 char_row = CGABIOS[((char_code<<3)+line_inside_character)|0x800];
 
                 for (u32 x_off = 0; x_off < 8; x_off++)
                 {
@@ -476,7 +565,8 @@ struct CGA
                     if (vsync|hsync)
                         color = 0;
 
-                    screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get(x_off&0x03, color);
+                    //todo: make composite_cycle()
+                    //screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get(x_off&0x03, color);
                 }
             }
         }
