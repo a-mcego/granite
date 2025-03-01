@@ -2,6 +2,7 @@
 
 #include "shader.h"
 #include "palette.h"
+#include <ctime>
 
 struct SCREEN
 {
@@ -42,9 +43,20 @@ struct SCREEN
 
     void SCREEN_start()
     {
+        const char*const taglines[] =
+        {
+            "Granite - simply the best way to emulate a PC",
+            "Granite - simply the best way to emulate a light pen",
+            "Granite - simply the best way to emulate CGA",
+            "Granite - simply the best way to emulate a CRT",
+            "Granite - simply the best way to emulate AdLib",
+            "Granite - simply the best way to emulate an XT keyboard",
+            "Granite - simply the best way to emulate a RTC",
+        };
+        srand(time(nullptr));
         auto result = glfwInit();
         cout << "GLFWINIT result: " << result << endl;
-        window = glfwCreateWindow(SCREEN_X, SCREEN_Y, "Granite - simply the best way to emulate a PC", nullptr, nullptr);
+        window = glfwCreateWindow(SCREEN_X, SCREEN_Y, taglines[rand()%7], nullptr, nullptr);
         glfwMakeContextCurrent(window);
         gladLoadGL((GLADloadfunc)glfwGetProcAddress);
 
