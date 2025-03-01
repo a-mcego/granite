@@ -723,7 +723,7 @@ struct CPU8088MC
         for(u32 i=0; i<32; ++i)
             registers[i] = 0x0000;
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
-        registers[unk13] = ~registers[unk13];
+        registers[unk13] = ~registers[unk13]; //uh, what is this?
 
         pic.reset();
     }

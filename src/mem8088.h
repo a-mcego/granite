@@ -34,15 +34,15 @@ struct MemoryManager8088
         u32 total_address = (((segment<<4)+index)&0xFFFFF);
         if (!testmode)
         {
-            if (total_address >= 0xF0000)
+            if ((total_address&0xF0000) == 0xE0000)
+                return ltems._8(total_address&0xFFFF);
+            if (total_address >= 0xC0000)
             {
                 ++readonly_byte;
                 readonly_bytes[readonly_byte] = membytes.bytes[total_address];
                 return readonly_bytes[readonly_byte];
             }
 
-            if ((total_address&0xF0000) == 0xE0000)
-                return ltems._8(total_address&0xFFFF);
             if ((total_address&0xF8000) == 0xB8000)
             {
                 cga_used = true;

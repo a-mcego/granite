@@ -61,7 +61,14 @@ struct GlobalSettings
     bool functionkeypress{false};
     bool sound_on{true};
     bool entertrace{false};
-    bool A20{false};
+    bool A20{true};
+
+    void SetA20(bool value)
+    {
+        A20 = value;
+        std::cout << "A20 is now: " << A20 << std::endl;
+    }
+
     u32 current_IP{};
 
     enum MACHINE
@@ -387,55 +394,47 @@ struct Machine
 
     void fast_stuff(u64 clock)
     {
-        //auto& cpu = cpu8088mc;
-
-        cpu_cycle_accum += cpumult_num*3;
+        cpu_cycle_accum += cpumult_num;
         while(cpu_cycle_accum >= 0)
         {
             cpu_cycle_accum -= cpumult_denom;
             cycle_cpu();
         }
-        p.pic.cycle();
-        for(u8 irq=0; irq<8; ++irq)
-        {
-            if (p.pic.isr&(1<<irq))
-            {
-                //if constexpr(DEBUG_LEVEL > 0)
-                    //cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
-                if (irq_if_accept(irq))
-                {
-                    break;
-                }
-
-                /*if (cpu.accepts_interrupts())
-                {
-                    if constexpr(DEBUG_LEVEL > 0)
-                        cout << "IRQ: SENT TO CPU " << u32(irq) << endl;
-                    cpu.irq(irq);
-                    break;
-                }*/
-            }
-        }
-        if (globalsettings.machine == GlobalSettings::MACHINE_AT)
-        {
-            p.kbd_at.cycle();
-            if (p.kbd_at.is_reset())
-                reset_cpu();
-        }
-        else
-        {
-            p.kbd_xt.cycle();
-            if (p.kbd_xt.is_reset())
-                reset_cpu();
-        }
-        p.diskettecontroller.cycle();
-        p.harddisk.cycle();
-        if (clock%4 == 0) //we're already inside %3 so this makes for %12
-            p.dma.cycle();
     }
 
     void real_stuff(u64 clock)
     {
+        if (clock%3 == 0)
+        {
+            p.pic.cycle();
+            for(u8 irq=0; irq<8; ++irq)
+            {
+                if (p.pic.isr&(1<<irq))
+                {
+                    //if constexpr(DEBUG_LEVEL > 0)
+                        //cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
+                    if (irq_if_accept(irq))
+                    {
+                        break;
+                    }
+                }
+            }
+            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+            {
+                p.kbd_at.cycle();
+                if (p.kbd_at.is_reset())
+                    reset_cpu();
+            }
+            else
+            {
+                p.kbd_xt.cycle();
+                if (p.kbd_xt.is_reset())
+                    reset_cpu();
+            }
+            p.diskettecontroller.cycle();
+            p.harddisk.cycle();
+            p.dma.cycle();
+        }
         if (clock%8 == 0)
             p.cga.cycle();
 
@@ -1361,10 +1360,7 @@ int main(int argc, char* argv[])
         {
             ++clockgen_fast;
 
-            if (clockgen_fast%3 == 0)
-            {
-                mac.fast_stuff(clockgen_fast);
-            }
+            mac.fast_stuff(clockgen_fast);
 
             //realtime stuff
             if (lockstep) //implies turbo==true
@@ -1392,10 +1388,7 @@ int main(int argc, char* argv[])
                 //fast stuff
                 if (lockstep)
                 {
-                    if (clockgen_real%3 == 0)
-                    {
-                        mac.fast_stuff(clockgen_real);
-                    }
+                    mac.fast_stuff(clockgen_real);
                 }
                 //realtime stuff
                 mac.real_stuff(clockgen_real);

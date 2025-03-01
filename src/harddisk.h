@@ -67,7 +67,7 @@ struct HARDDISK
             if (data.size() != filesize)
             {
                 cout << "Data size " << data.size() << " is not file size " << filesize << endl;
-                std::abort();
+                //std::abort();
             }
             fseek(filu, 0, SEEK_SET);
 
@@ -335,7 +335,7 @@ struct HARDDISK
                         if (dma.chans[3].transfer_count != 0x1FF)
                         {
                             cout << "sector buf write size not 512" << endl;
-                            std::abort();
+                            //std::abort();
                         }
                         //dma.print_params(3);
                         dma.transfer(3, &sector_buffer, 0);
@@ -344,7 +344,7 @@ struct HARDDISK
                     }
                     else if (data_in[0] == SEEK)
                     {
-                        //do nothing(?)
+                        //todo: emulate seek behavior
                         interrupttime = 0x300;
                         r1_req = false;
                     }
@@ -378,10 +378,52 @@ struct HARDDISK
                         interrupttime = 0x300;
                         r1_req = false;
                     }
+                    else if (data_in[0] == READ_LONG)
+                    {
+                        set_current_params();
+                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        cout << "HD READ LONG offset: " << offset << ", transfercount=" << dma.chans[3].transfer_count << endl;
+                        if (address_valid)
+                        {
+                            //dma.print_params(3);
+                            dma.transfer(3, &disks[current_drive].data, offset);
+                            dma_in_progress = true;
+                        }
+                        else
+                        {
+                            interrupttime = 0x300;
+                        }
+                        error = !address_valid;
+                        r1_req = false;
+                    }
+                    else if (data_in[0] == WRITE_LONG)
+                    {
+                        set_current_params();
+                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        cout << "HD WRITE LONG offset: " << offset << ", transfercount=" << dma.chans[3].transfer_count << endl;
+                        if (address_valid)
+                        {
+                            if (dma.chans[3].transfer_count != 0x1FF)
+                            {
+                                //cout << "----------------Transfer count: " << dma.chans[3].transfer_count << endl;
+                            }
+
+                            //dma.print_params(3);
+                            dma.transfer(3, &disks[current_drive].data, offset);
+                            dma_in_progress = true;
+                        }
+                        else
+                        {
+                            interrupttime = 0x300;
+                            errorcode = NO_READY_AFTER_SELECT;
+                        }
+                        error = !address_valid;
+                        r1_req = false;
+                    }
                     else
                     {
                         cout << "idk command " << u32(data_in[0]) << endl;
-                        std::abort();
+                        //std::abort();
                     }
 
                     current_data_in_index = 0;

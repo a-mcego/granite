@@ -95,6 +95,7 @@ struct CHIP8042 //AT keyboard etc
         {
             if (set_output_bit)
                 return 0;
+            status_byte &= ~0x08;
             if (command == 0x100)
             {
                 result = current_scancode;
@@ -145,7 +146,7 @@ struct CHIP8042 //AT keyboard etc
                 std::abort();
             }
             //std::cout << "command is: " << (u32)command << std::endl;
-            std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
+            //std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(result) << std::endl;
             status_byte &= 0xFE; //clear "output byte available" bit
             command = 0x100;
             return result;
@@ -158,7 +159,7 @@ struct CHIP8042 //AT keyboard etc
         if (port == 4)
         {
             if (globalsettings.current_IP != 0xF9407)
-            std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte & (set_output_bit?0xFE:0xFF)) << " ," << u32(clear_input_bit) << std::endl;
+            //std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(status_byte & (set_output_bit?0xFE:0xFF)) << " ," << u32(clear_input_bit) << std::endl;
             return status_byte;
         }
 
@@ -169,15 +170,15 @@ struct CHIP8042 //AT keyboard etc
 
     void write(u8 port, u8 data) //port from 0 to 4! inclusive. 0 is port 0x80, 4 is port 0x84 etc.
     {
-        if (port != 1)
+        //if (port != 1)
             std::cout << std::hex << globalsettings.current_IP << ": keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
         if (port == 0)
         {
-            status_byte &= ~0x08;
+            status_byte &= ~0x0B;
             //status_byte = (status_byte&0b1111'1110);
-            status_byte |= 0x03; //input byte done - don't do more!
-            clear_input_bit = 128;
-            set_output_bit = 192;
+            //status_byte |= 0x03; //input byte done - don't do more!
+            //clear_input_bit = 128;
+            //set_output_bit = 192;
             std::cout << "command is: " << (u32)command << std::endl;
             if (command >= 0x00 && command <= 0x3F); //read keyboard RAM???
             else if (command >= 0x40 && command <= 0x7F) //write keyboard RAM
@@ -196,7 +197,7 @@ struct CHIP8042 //AT keyboard etc
             {
                 //P2 = (P2&~0x0F) | (data&0x0F);
                 P2 = data;
-                globalsettings.A20 = bool(P2&0x02);
+                globalsettings.SetA20(bool(P2&0x02));
             }
             else if (command == 0xAE); //enable kbd
             else if (command == 0xAD); //disable kbd
@@ -211,12 +212,16 @@ struct CHIP8042 //AT keyboard etc
             else if (command == 0xDF) //enable A20 (hp vectra) / (quadtel?)
             {
                 P2 |= 0x02;
-                globalsettings.A20 = bool(P2&0x02);
+                globalsettings.SetA20(bool(P2&0x02));
             }
             else if (command == 0xDD) //disable A20 (hp vectra) / (quadtel?)
             {
                 P2 &= ~0x02;
-                globalsettings.A20 = bool(P2&0x02);
+                globalsettings.SetA20(bool(P2&0x02));
+            }
+            else if (command == 0xE0) //read test inputs
+            {
+                //result = 0x03;
             }
             else
             {
@@ -233,6 +238,7 @@ struct CHIP8042 //AT keyboard etc
         }
         else if (port == 4)
         {
+            ram[0] &= 0xEF;
             status_byte = status_byte | 0x08;
             command = data;
             status_byte |= 0x02; //input byte done - don't do more!
@@ -255,9 +261,15 @@ struct CHIP8042 //AT keyboard etc
             else if (command == 0xAB) // interface test - return 0 for success
             {
             }
+            else if (command == 0xAD) //disable kbd
+            {
+                ram[0] |= 0x10; //set bit 4 -> disable kbd
+                result = 0xFE;
+            }
             else if (command == 0xAE) //enable kbd
             {
                 ram[0] &= 0xEF; //clear bit 4 -> enable kbd
+                result = 0xFE;
             }
             else if (data == 0xC0) //read P1
             {
@@ -265,10 +277,6 @@ struct CHIP8042 //AT keyboard etc
             }
             else if (data == 0xD1) //write P2
             {
-            }
-            else if (command == 0xAD) //disable kbd
-            {
-                ram[0] |= 0x10; //set bit 4 -> disable kbd
             }
             else if (command == 0xE0) // show keyboard clock (bit0) and data (bit1) ???
             {
