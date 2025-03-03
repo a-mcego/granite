@@ -79,6 +79,12 @@ struct GlobalSettings
 
         MACHINE_COUNT
     } machine=MACHINE_PC;
+
+    enum GRAPHICS
+    {
+        CGA,
+        HEGA
+    } graphics=CGA;
 } globalsettings{};
 
     u8 global_port0x61{0x00}; //system control port B
@@ -115,6 +121,7 @@ const u8 byte_parity[256] =
 #include "YM3812.h"
 #include "gameport.h"
 #include "cga.h"
+#include "hega.h"
 #include "ltems.h"
 #include "interrupt.h"
 #include "mem286.h"
@@ -136,12 +143,13 @@ struct IOSystem
 {
     Gameport gameport;
     CGA cga;
+    HEGA hega;
     LTEMS ltems;
     CHIP8259 pic, pic2;
     MemBytes membytes;
-    MemoryManager8088 mem88{cga, ltems, membytes};
-    MemoryManager186 mem186{cga, ltems, membytes};
-    MemoryManager286 mem286{cga, ltems, membytes};
+    MemoryManager8088 mem88{hega, cga, ltems, membytes};
+    MemoryManager186 mem186{hega, cga, ltems, membytes};
+    MemoryManager286 mem286{hega, cga, ltems, membytes};
     BEEPER beeper;
     YM3812 ym3812;
     CHIP146818 cmos;
@@ -190,9 +198,12 @@ struct IOSystem
             else
                 kbd_xt.write(port-0x60, data&0xFF);
         }
-        else if (port >= 0x3D0 && port <= 0x3DF)
+        else if (port >= 0x3B0 && port <= 0x3DF)
         {
-            cga.write(port-0x3D0, data&0xFF);
+            if (globalsettings.graphics == GlobalSettings::HEGA)
+                hega.write(port-0x3B0, data&0xFF);
+            else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
+                cga.write(port-0x3D0, data&0xFF);
         }
         else if (port >= 0x3F0 && port <= 0x3F7)
         {
@@ -260,9 +271,12 @@ struct IOSystem
             else
                 data = kbd_xt.read(port-0x60);
         }
-        else if (port >= 0x3D0 && port <= 0x3DF)
+        else if (port >= 0x3B0 && port <= 0x3DF)
         {
-            data = cga.read(port-0x3D0);
+            if (globalsettings.graphics == GlobalSettings::HEGA)
+                data = hega.read(port-0x3B0);
+            else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
+                data = cga.read(port-0x3D0);
         }
         else if (port >= 0x3F0 && port <= 0x3F7)
         {
@@ -436,7 +450,13 @@ struct Machine
             p.dma.cycle();
         }
         if (clock%8 == 0)
-            p.cga.cycle();
+        {
+            if (globalsettings.graphics == GlobalSettings::HEGA)
+                p.hega.cycle();
+            else if (globalsettings.graphics == GlobalSettings::CGA)
+                p.cga.cycle();
+        }
+
 
         if (clock%215 == 0) //ca. every 15 microseconds.
         {

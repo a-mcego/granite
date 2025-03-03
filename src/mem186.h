@@ -4,10 +4,11 @@
 
 struct MemoryManager186
 {
+    HEGA& hega;
     CGA& cga;
     LTEMS& ltems;
     MemBytes& membytes;
-    MemoryManager186(CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : cga(cga_), ltems(ltems_), membytes(membytes_) {}
+    MemoryManager186(HEGA& hega_, CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : hega(hega_), cga(cga_), ltems(ltems_), membytes(membytes_) {}
     bool testmode{};
 
     void dump_memory(const char* filename)

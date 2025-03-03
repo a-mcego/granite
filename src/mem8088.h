@@ -2,10 +2,11 @@
 
 struct MemoryManager8088
 {
+    HEGA& hega;
     CGA& cga;
     LTEMS& ltems;
     MemBytes& membytes;
-    MemoryManager8088(CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : cga(cga_), ltems(ltems_), membytes(membytes_) {}
+    MemoryManager8088(HEGA& hega_, CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : hega(hega_), cga(cga_), ltems(ltems_), membytes(membytes_) {}
 
     void dump_memory(const char* filename)
     {

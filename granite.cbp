@@ -42,11 +42,13 @@
 		<Unit filename="src/gl.cpp" />
 		<Unit filename="src/glad/gl.h" />
 		<Unit filename="src/harddisk.h" />
+		<Unit filename="src/hega.h" />
 		<Unit filename="src/interrupt.h" />
 		<Unit filename="src/keyboard_at.h" />
 		<Unit filename="src/keyboard_xt.h" />
 		<Unit filename="src/ltems.h" />
 		<Unit filename="src/main.cpp" />
+		<Unit filename="src/mem186.h" />
 		<Unit filename="src/mem286.h" />
 		<Unit filename="src/mem8088.h" />
 		<Unit filename="src/membytes.h" />
