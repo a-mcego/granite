@@ -1072,6 +1072,7 @@ struct CPU8088MC
 
     void cycle()
     {
+        bool previous_trap = flag(F_TRAP);
         ++cycles;
 
         if (delay)
@@ -1169,12 +1170,12 @@ struct CPU8088MC
             {
                 cycles_used += 12;
                 reg = pop();
+                inhibit_ss = true;
             }
             else
             {
                 cycles_used += 14;
                 push(reg);
-                inhibit_ss = true;
             }
         }
         else if (instruction == 0x27) // DAA
@@ -2166,7 +2167,7 @@ struct CPU8088MC
 
         mem.update();
 
-        if (flag(F_TRAP) && !inhibit_ss)
+        if (flag(F_TRAP) && previous_trap)
         {
             interrupt(1, true);
         }

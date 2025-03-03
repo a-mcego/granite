@@ -651,6 +651,7 @@ struct CPU80286
 
     void cycle()
     {
+        bool previous_trap = flag(F_TRAP);
         ++cycles;
 
         if (delay)
@@ -1181,6 +1182,7 @@ struct CPU80286
             {
                 cycles_used += ((msw&1)?20:3); //286
                 load_segment(SEG(seg_n), pop());
+                inhibit_ss = true;
             }
             else
             {
@@ -1475,6 +1477,7 @@ struct CPU80286
             else
                 cycles_used += (modrm_is_register?2:5); //286
 
+            inhibit_ss = true;
         }
         else if (instruction == 0x8D) // LEA Gv M
         {
@@ -2379,7 +2382,7 @@ struct CPU80286
             interrupt_true_cycles = 0;
         }
 
-        if (flag(F_TRAP) && !inhibit_ss && !mem.testmode)
+        if (flag(F_TRAP) && previous_trap && !mem.testmode)
         {
             registers[IP] = original_ip;
             interrupt(1, true);

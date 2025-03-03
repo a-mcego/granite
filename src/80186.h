@@ -442,6 +442,7 @@ struct CPU80186
 
     void cycle()
     {
+        bool previous_trap = flag(F_TRAP);
         ++cycles;
 
         if (delay)
@@ -1976,7 +1977,7 @@ struct CPU80186
             interrupt_true_cycles = 0;
         }
 
-        if (flag(F_TRAP) && !inhibit_ss)
+        if (flag(F_TRAP) && previous_trap)
         {
             registers[IP] = original_ip;
             interrupt(1, true);
