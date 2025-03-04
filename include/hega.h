@@ -59,7 +59,7 @@ struct HEGA
         H_RETRACE_END,
         V_TOTAL,
         OVERFLOW,
-        
+
         PRESET_ROW_SCAN,
         MAX_SCAN_LINE, //not "scanline" but "scan line" as per ibm's manual :-)
         CURSOR_START,
