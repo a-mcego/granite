@@ -475,8 +475,7 @@ struct CGA
                     if (draw_bg)
                     {
                         if (!resolution)
-                            //p1 = palette[0], p2 = palette[0];
-                            p1 = 1, p2 = 1;
+                            p1 = palette[0], p2 = palette[0];
                         else
                             p1 = 0, p2 = 0;
                     }
@@ -485,9 +484,6 @@ struct CGA
 
                     monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
                     monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-
-                    //screen.pixels[scan_line*screen.X + scan_column + i] = getpalette(p1);
-                    //screen.pixels[scan_line*screen.X + scan_column + i+1] = getpalette(p2);
                     gfx_byte <<= 2;
                 }
             }
@@ -507,13 +503,11 @@ struct CGA
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
                     if (draw_bg || is_graphics_mode)
-                        color = 1;//palette[0];
+                        color = palette[0];
                     if (hsync|vsync)
                         color = 0;
 
                     monitor_cycle(((color&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-
-                    //screen.pixels[scan_line * screen.X + scan_column + x_off] = getpalette(color); //screen.pixels is four bytes per pixel
                 }
             }
         }
