@@ -4,7 +4,11 @@
 //use with the bios
 //this supports cga, mda, hercules and ega
 
-#undef OVERFLOW
+/* REGISTER enum defines OVERFLOW, but it is a
+    definition in Windows headers */
+#ifdef _WIN32
+    #undef OVERFLOW
+#endif
 
 struct HEGA
 {
