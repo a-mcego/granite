@@ -4,6 +4,8 @@
 //use with the bios
 //this supports cga, mda, hercules and ega
 
+#undef OVERFLOW
+
 struct HEGA
 {
     static const u8 CRTC_REG_COUNT = 0x19; //3B5 / 3D5
@@ -53,7 +55,7 @@ struct HEGA
         H_RETRACE_END,
         V_TOTAL,
         OVERFLOW,
-
+        
         PRESET_ROW_SCAN,
         MAX_SCAN_LINE, //not "scanline" but "scan line" as per ibm's manual :-)
         CURSOR_START,
