@@ -12,7 +12,7 @@
 				<Option type="1" />
 				<Option compiler="gnu_gcc_newest_compiler" />
 				<Compiler>
-					<Add option="-O3 -std=c++23 -Werror=return-type" />
+					<Add option="-O3 -std=c++23 -Werror=return-type -Iinclude" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
@@ -24,43 +24,43 @@
 			<Add option="-Wall" />
 			<Add option="-fexceptions" />
 		</Compiler>
-		<Unit filename="src/80186.h" />
-		<Unit filename="src/80286.h" />
-		<Unit filename="src/8088mc.h" />
-		<Unit filename="src/808x.h" />
-		<Unit filename="src/808x_microcoded.h" />
+		<Unit filename="include/80186.h" />
+		<Unit filename="include/80286.h" />
+		<Unit filename="include/8088mc.h" />
+		<Unit filename="include/808x.h" />
+		<Unit filename="include/808x_microcoded.h" />
 		<Unit filename="src/KHR/khrplatform.h" />
-		<Unit filename="src/YM3812.h" />
-		<Unit filename="src/audio.h" />
-		<Unit filename="src/beeper.h" />
-		<Unit filename="src/cga.h" />
-		<Unit filename="src/cgabios.h" />
-		<Unit filename="src/diskette.h" />
-		<Unit filename="src/dma.h" />
-		<Unit filename="src/dmapage.h" />
-		<Unit filename="src/gameport.h" />
+		<Unit filename="include/YM3812.h" />
+		<Unit filename="include/audio.h" />
+		<Unit filename="include/beeper.h" />
+		<Unit filename="include/cga.h" />
+		<Unit filename="include/cgabios.h" />
+		<Unit filename="include/diskette.h" />
+		<Unit filename="include/dma.h" />
+		<Unit filename="include/dmapage.h" />
+		<Unit filename="include/gameport.h" />
 		<Unit filename="src/gl.cpp" />
-		<Unit filename="src/glad/gl.h" />
-		<Unit filename="src/harddisk.h" />
-		<Unit filename="src/hega.h" />
-		<Unit filename="src/interrupt.h" />
-		<Unit filename="src/keyboard_at.h" />
-		<Unit filename="src/keyboard_xt.h" />
-		<Unit filename="src/ltems.h" />
+		<Unit filename="include/glad/gl.h" />
+		<Unit filename="include/harddisk.h" />
+		<Unit filename="include/hega.h" />
+		<Unit filename="include/interrupt.h" />
+		<Unit filename="include/keyboard_at.h" />
+		<Unit filename="include/keyboard_xt.h" />
+		<Unit filename="include/ltems.h" />
 		<Unit filename="src/main.cpp" />
-		<Unit filename="src/mem186.h" />
-		<Unit filename="src/mem286.h" />
-		<Unit filename="src/mem8088.h" />
-		<Unit filename="src/membytes.h" />
+		<Unit filename="include/mem186.h" />
+		<Unit filename="include/mem286.h" />
+		<Unit filename="include/mem8088.h" />
+		<Unit filename="include/membytes.h" />
 		<Unit filename="src/miniaudio.cpp" />
-		<Unit filename="src/miniaudio.h" />
+		<Unit filename="include/miniaudio.h" />
 		<Unit filename="src/opl2.cpp" />
-		<Unit filename="src/opl2.h" />
-		<Unit filename="src/palette.h" />
-		<Unit filename="src/pit.h" />
-		<Unit filename="src/rtccmos.h" />
-		<Unit filename="src/screen.h" />
-		<Unit filename="src/shader.h" />
+		<Unit filename="include/opl2.h" />
+		<Unit filename="include/palette.h" />
+		<Unit filename="include/pit.h" />
+		<Unit filename="include/rtccmos.h" />
+		<Unit filename="include/screen.h" />
+		<Unit filename="include/shader.h" />
 		<Extensions />
 	</Project>
 </CodeBlocks_project_file>
