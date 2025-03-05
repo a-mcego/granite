@@ -4,6 +4,12 @@
 //use with the bios
 //this supports cga, mda, hercules and ega
 
+/* REGISTER enum defines OVERFLOW, but it is a
+    definition in Windows headers */
+#ifdef _WIN32
+    #undef OVERFLOW
+#endif
+
 struct HEGA
 {
     static const u8 CRTC_REG_COUNT = 0x19; //3B5 / 3D5
