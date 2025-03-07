@@ -23,26 +23,22 @@ struct MemoryManager186
     u8 readonly_bytes[256] = {};
     u8 readonly_byte{};
 
-    bool cga_used{};
-
     u8& _8(u16 segment, u16 index)
     {
         u32 total_address = (((segment<<4)+index)&0xFFFFF);
         if (!testmode)
         {
-            if (total_address >= 0xF0000)
+            if (globalsettings.graphics == GlobalSettings::CGA && (total_address&0xF8000) == 0xB8000)
+                return cga.memory8(total_address&0x7FFF);
+            if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
+                return hega.memory8(total_address&0x1FFFF);
+            if ((total_address&0xF0000) == 0xE0000)
+                return ltems._8(total_address&0xFFFF);
+            if (total_address >= 0xA0000)
             {
                 ++readonly_byte;
                 readonly_bytes[readonly_byte] = membytes.bytes[total_address];
                 return readonly_bytes[readonly_byte];
-            }
-
-            if ((total_address&0xF0000) == 0xE0000)
-                return ltems._8(total_address&0xFFFF);
-            if ((total_address&0xF8000) == 0xB8000)
-            {
-                cga_used = true;
-                return cga.memory8(total_address&0x7FFF);
             }
         }
         return membytes.bytes[total_address];
@@ -52,18 +48,17 @@ struct MemoryManager186
         u32 total_address = (((segment<<4)+index)&0xFFFFF);
         if (!testmode)
         {
-            if (total_address >= 0xF0000)
+            if (globalsettings.graphics == GlobalSettings::CGA && (total_address&0xF8000) == 0xB8000)
+                return cga.memory16(total_address&0x7FFF);
+            if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
+                return hega.memory16(total_address&0x1FFFF);
+            if ((total_address&0xF0000) == 0xE0000)
+                return ltems._16(total_address&0xFFFF);
+            if (total_address >= 0xA0000)
             {
                 ++readonly_word;
                 readonly_words[readonly_word] = *(u16*)(void*)(membytes.bytes+total_address);
                 return readonly_words[readonly_word];
-            }
-            if ((total_address&0xF0000) == 0xE0000)
-                return ltems._16(total_address&0xFFFF);
-            if ((total_address&0xF8000) == 0xB8000)
-            {
-                cga_used = true;
-                return cga.memory16(total_address&0x7FFF);
             }
         }
         return *(u16*)(void*)&membytes.bytes[total_address];

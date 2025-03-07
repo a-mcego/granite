@@ -237,7 +237,7 @@ struct CPU80186
 		if (mod == 0x03)
         {
             cout << "Loading effective address of a register? are you gone mad?" << endl;
-            std::abort();
+            return 0;
         }
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
@@ -470,6 +470,7 @@ struct CPU80186
         u16 original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
+        globalsettings.current_IP = registers[CS]*16+registers[IP];
         u8 instruction = read_inst<u8>();
         if (startprinting)
         {

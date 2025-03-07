@@ -411,7 +411,7 @@ struct CPU80286
 		if (mod == 0x03)
         {
             cout << "Loading effective address of a register? are you gone mad?" << endl;
-            std::abort();
+            return 0;
         }
         u16 offset{};
         u32 segment{};

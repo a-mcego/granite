@@ -423,7 +423,7 @@ struct CPU8086
 		if (mod == 0x03)
         {
             cout << "Loading effective address of a register? are you gone mad?" << endl;
-            std::abort();
+            return 0;
         }
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
@@ -571,6 +571,7 @@ struct CPU8086
             push(registers[FLAGS]);
             push(registers[CS]);
             push(registers[IP]);
+            mem.update();
 
             registers[IP] = mem._16(0, n*4);
             registers[CS] = mem._16(0, n*4+2);
@@ -615,6 +616,7 @@ struct CPU8086
             --delay;
             return;
         }
+        mem.update();
         inhibit_ss = false;
         if (halt)
         {
@@ -629,6 +631,8 @@ struct CPU8086
         u16 original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
+        globalsettings.current_IP = registers[CS]*16+registers[IP];
+
         u8 instruction = read_inst<u8>();
         if (startprinting)
         {

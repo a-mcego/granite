@@ -388,6 +388,7 @@ struct CPU8088MC
 
             while(true)
             {
+                ++cycles_used;
                 u16 current_opcode = current_sub+current_ip;
                 //cout << std::hex << current_opcode << " " << registers[TMPA] << " " <f< registers[TMPB] << " " << registers[TMPC] << endl;
                 if (current_opcode == INT0) //special case?
@@ -888,7 +889,7 @@ struct CPU8088MC
 		if (mod == 0x03)
         {
             cout << "Loading effective address of a register? are you gone mad?" << endl;
-            std::abort();
+            return 0;
         }
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
@@ -1036,6 +1037,7 @@ struct CPU8088MC
             push(registers[FLAGS]);
             push(registers[CS]);
             push(registers[IP]);
+            mem.update();
 
             registers[IP] = mem._16(0, n*4);
             registers[CS] = mem._16(0, n*4+2);
@@ -1080,6 +1082,7 @@ struct CPU8088MC
             --delay;
             return;
         }
+        mem.update();
         inhibit_ss = false;
         if (halt)
         {
@@ -1091,9 +1094,15 @@ struct CPU8088MC
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
         }
+
         u16 original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
+        globalsettings.current_IP = registers[CS]*16+registers[IP];
+
+        if (globalsettings.current_IP == 0xC0003)
+            startprinting = true;
+
         u8 instruction = read_inst<u8>();
         if (startprinting)
         {

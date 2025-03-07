@@ -38,8 +38,10 @@ struct MemoryManager286
 
         if (!testmode)
         {
-            if (address >= 0xB8000 && address <= 0xBFFFF)
+            if (globalsettings.graphics == GlobalSettings::CGA && address >= 0xB8000 && address <= 0xBFFFF)
                 return cga.memory16(address&0x7FFF);
+            if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
+                return hega.memory16(address&0x1FFFF);
             if (address >= 0xE0000 && address <= 0xEFFFF)
                 return ltems._16(address&0xFFFF);
             if (address >= 0xA0000 && address <= 0xFFFFF) //upper memory area, make read-only
