@@ -19,10 +19,12 @@ struct HEGA
     u8 attrib_regs[ATTRIB_REG_COUNT] = {};
     u8 gsi_regs[GSI_REG_COUNT] = {};
 
-
     u8 current_register{};
+    u8 current_attribute{};
+    u8 misc{};
     u8 mode_select{};
     u8 color_select{};
+    u8 feature{};
 
     u8 mem[0x4000 + 1] = {};
     u8& memory8(u16 address)
@@ -111,9 +113,19 @@ struct HEGA
 
     u8 read(u8 port) //port from 0 to 47! inclusive
     {
-        cout << "HEGA READ! " << u32(port+0x3B0) << endl;
+        cout << globalsettings.current_IP << ": HEGA READ! " << u32(port+0x3B0) << ":";
+
+        u8 port_add = (misc&0x01)?0x20:0x00;
+
         u8 readdata{};
-        if (port == 0x25)
+        if (false);
+        else if (port == 0x12)
+        {
+            //bit 0-3: switches 1-4 if CLKSEL is true
+            //bit 4: switch sense, 1 if switchc can be read
+            //bit 7: crt interrupt
+        }
+        else if (port == 0x05 || port == 0x25)
         {
             if (current_register < CRTC_REG_COUNT)
             {
@@ -125,7 +137,7 @@ struct HEGA
                 std::abort();
             }
         }
-        else if (port == 0x2A)
+        else if (port == 0x0A || port == 0x2A)
         {
             //bit 0 = we are in vert. or horiz. retrace
             readdata |= retrace;
@@ -134,20 +146,42 @@ struct HEGA
             //bit 3 = vertical sync pulse!
             readdata |= (vertical_retrace<<3);
         }
-        //std::cout << "r" << u32(port) << " d" << u32(readdata) << " " << std::endl;
+        else if (port == 0x0F || port == 0x2F); //nothing
+        else
+        {
+            std::cout << "unknown" << std::endl;
+            std::abort();
+        }
+        std::cout << u32(readdata) << std::endl;
         return readdata;
     }
 
     void write(u8 port, u8 data) //port from 0 to 47! inclusive.
     {
-        std::cout << "HEGA WRITE " << u32(port+0x3B0) << ":" << u32(data) << " " << std::endl;
-        if (port == 0x24)
+        cout << globalsettings.current_IP << ": HEGA WRITE " << u32(port+0x3B0) << ":" << u32(data) << " " << std::endl;
+
+        u8 port_add = (misc&0x01)?0x20:0x00;
+
+        if (false);
+        else if (port == 0x10) //attribute address
+        {
+            current_attribute = data;
+        }
+        else if (port == 0x12) //misc register
+        {
+            misc = data;
+        }
+        else if (port == 0x1A) //feature control reg
+        {
+            feature = data;
+        }
+        else if (port == 0x04 || port == 0x24)
         {
             current_register = data;
         }
-        else if (port == 0x25)
+        else if (port == 0x05 || port == 0x25)
         {
-            if (current_register < 0x10)
+            if (current_register < CRTC_REG_COUNT)
             {
                 crtc_regs[current_register] = data;
                 //if (current_register != 0x0E && current_register != 0x0F)
@@ -155,46 +189,47 @@ struct HEGA
             }
             else
             {
-                cout << "write 0x05, CGA current register bad: " << u32(current_register) << endl;
+                cout << "write 0x05, HEGA current register bad: " << u32(current_register) << endl;
                 std::abort();
             }
         }
-        else if (port == 0x08) //mode select register
+        else if (port == 0x08 || port == 0x28) //mode select register
         {
             mode_select = data;
         }
-        else if (port == 0x09) //color select register (UWAGA!! documentation had a mistake here, said port is 8 but it is 9)
+        else if (port == 0x09 || port == 0x29) //color select register (UWAGA!! documentation had a mistake here, said port is 8 but it is 9)
         {
             color_select = data;
         }
-        if constexpr(DEBUG_LEVEL > 1)
+        else if (port == 0x0A || port == 0x2A); //nothing??
+        else if (port == 0x0F || port == 0x2F); //nothing
+        else
         {
-            for(int i=0; i<88; ++i)
-                cout << i << "=" << u32(crtc_regs[i]) << ", ";
-            cout << endl;
+            std::cout << "unknown" << std::endl;
+            std::abort();
         }
     }
 
     u64 total_frames{};
 
-    //pinout the same as cga but without the first ground:
-    //bit 0: NC
+    //pinout the same as ega but without the first ground:
+    //bit 0: rred
     //bit 1: red
     //bit 2: green
     //bit 3: blue
-    //bit 4: intensity
-    //bit 5: NC
+    //bit 4: ggreen
+    //bit 5: bblue
     //bit 6: hsync
     //bit 7: vsync
 
     enum struct MONITOR
     {
-        NC1,
+        RED2,
         RED,
         GREEN,
         BLUE,
-        INTENSITY,
-        NC2,
+        GREEN2,
+        BLUE2,
         HSYNC,
         VSYNC
     };
@@ -319,7 +354,7 @@ struct HEGA
             }
         }
 
-        //vsync = (logical_line >= crtc_regs[V_SYNC_POS]+1 && logical_line <= crtc_regs[V_SYNC_POS]+1);
+        vsync = (logical_line >= crtc_regs[V_BLANK_START] && logical_line <= crtc_regs[V_BLANK_END]);
 
         if (!vsync)
             vsync_monitor_ctr = 0;
@@ -329,8 +364,8 @@ struct HEGA
         bool monitor_vsync = (vsync_monitor_ctr > 0 && vsync_monitor_ctr <= 912*3/8);
         vsync = (vsync_monitor_ctr > 0 && vsync_monitor_ctr <= 912*16/8);
 
-        u16 hsync_start = 0;//(crtc_regs[H_SYNC_POS]-1)*hsync_mult;
-        u16 hsync_end = 0;//(crtc_regs[H_SYNC_POS]-1+crtc_regs[H_SYNC_WIDTH])*hsync_mult;
+        u16 hsync_start = (crtc_regs[H_RETRACE_START])*hsync_mult;
+        u16 hsync_end = (crtc_regs[H_RETRACE_END])*hsync_mult;
         hsync = (column >= hsync_start && column < hsync_end);
         if (!hsync)
             hsync_monitor_ctr = 0;
@@ -339,8 +374,8 @@ struct HEGA
 
         bool monitor_hsync = (hsync_monitor_ctr >= 5 && hsync_monitor_ctr < 13);
 
-        //vertical_retrace = (logical_line >= crtc_regs[V_DISPLAYED]);
-        horizontal_retrace = (column >= (crtc_regs[H_DISPLAYED])*hsync_mult);
+        vertical_retrace = (logical_line >= crtc_regs[V_RETRACE_START] && logical_line <= crtc_regs[V_RETRACE_END]);
+        horizontal_retrace = (column >= (crtc_regs[H_RETRACE_START])*hsync_mult && column <= (crtc_regs[H_RETRACE_END])*hsync_mult);
 
         u8 no_colorburst = (mode_select>>2)&0x01;
         u8 resolution = (mode_select>>4)&0x01;
