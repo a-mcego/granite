@@ -1109,13 +1109,13 @@ void configline(std::string line)
 
             for(int i=0; i<14; ++i)
             {
+                const char* const regnames[14] =
+                {
+                    "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "ES", "CS", "SS", "DS", "FL", "IP"
+                };
                 u16 test_reg = testcpu.registers[testcpu.registermap[i]];
                 if (final_regs[i] != test_reg)
                 {
-                    const char* const regnames[14] =
-                    {
-                        "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "ES", "CS", "SS", "DS", "FL", "IP"
-                    };
                     //std::cout << "reg " << regnames[i] << "=" << test_reg << " but supposed=" << final_regs[i] << std::endl;
                     test_passed = false;
                     if (i==12)
@@ -1129,7 +1129,7 @@ void configline(std::string line)
                 }
                 if ((test_reg^final_regs[i]))
                 {
-                    //cout << test_filename << "#" << test_id << std::hex <<  ": " << r_fullnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                    //cout << test_filename << "#" << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
@@ -1142,7 +1142,7 @@ void configline(std::string line)
                 if (mac.p.membytes.bytes[address] != value)
                 {
                     test_passed = false;
-                    //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mem.memory_bytes[address]) << "!=" << u32(value) << std::dec << endl;
+                    //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mac.p.membytes.bytes[address]) << "!=" << u32(value) << std::dec << endl;
                 }
             }
 
