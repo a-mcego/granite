@@ -19,6 +19,11 @@ struct CPU8088MC
         AX,CX,DX,BX, SP,BP,SI,DI,
     };
 
+    //start_address: where to start executing
+    //bitwidth: 8 or 16
+    //X0: jump condition for jump types 0:B, 5:3 and 7:3 (phew)
+    //f1: jump condition for jump types 0:D, 5:5 and 7:5, flipped by 4:2. (used by mul sign determination)
+    //XIvalue: ALU OP used when XI
     void mc_execute(u16 start_address, u8 bitwidth, bool X0, bool f1, u8 XIvalue)
     {
         //cout << "-------------------------------------------" << endl;
@@ -57,6 +62,11 @@ struct CPU8088MC
             RRCY = 11,
             PASS = 16, //equality/nop?
             XI = 17, //reads the op from somewhere else?
+
+            DAA = 20,
+            DAS = 21,
+            AAA = 22,
+            AAS = 23,
             INC = 24,
             DEC = 25,
             COM1 = 26,
@@ -378,6 +388,89 @@ struct CPU8088MC
                     setflag(CARRY,reg1&1);
                     //setflag(OVERFLOW, bool(sigma&1) != bool(sigma&2));
                 }
+                else if (alu_op == DAA)
+                {
+                    u8 old_val = reg1&0xFF;
+                    bool weird_special_case = (!(aluflags&F_CARRY)) && (aluflags&AUX_CARRY);
+
+                    u8 added{};
+
+                    setflag(AUX_CARRY, (old_val & 0x0F) > 9 || (aluflags&AUX_CARRY));
+                    if (aluflags&AUX_CARRY)
+                        added += 0x06;
+
+                    setflag(CARRY, old_val > 0x99+(weird_special_case?6:0) || (aluflags&CARRY));
+                    if (aluflags&CARRY)
+                        added += 0x60;
+
+                    sigma = old_val+added;
+
+                    setflag(OVERFLOW, (added ^ sigma) & (old_val ^ sigma)&0x80);
+                    setflag(ZERO, (sigma&0xFF) == 0);
+                    setflag(SIGN, (sigma & 0x80));
+                    setflag(PARITY, byte_parity[sigma&0xFF]);
+                }
+                else if (alu_op == DAS)
+                {
+                    u8 old_val = reg1&0xFF;
+                    bool weird_special_case = (!(aluflags&F_CARRY)) && (aluflags&AUX_CARRY);
+
+                    u8 added{};
+
+                    setflag(AUX_CARRY, (old_val & 0x0F) > 9 || (aluflags&AUX_CARRY));
+                    if (aluflags&AUX_CARRY)
+                        added += -0x06;
+
+                    setflag(CARRY, old_val > (0x99+(weird_special_case?6:0)) || (aluflags&CARRY));
+                    if (aluflags&CARRY)
+                        added += -0x60;
+
+                    sigma = old_val+added;
+                    setflag(OVERFLOW, ((old_val ^ -added) & (old_val ^ sigma))&0x80);
+                    setflag(ZERO, (sigma&0xFF) == 0);
+                    setflag(SIGN, (sigma & 0x80));
+                    setflag(PARITY, byte_parity[sigma & 0xFF]);
+                }
+                else if (alu_op == AAA)
+                {
+                    u16 old_AX = reg1;
+                    bool add_ax = (old_AX & 0x0F) > 9 || (aluflags&AUX_CARRY);
+                    sigma = old_AX;
+                    if (add_ax)
+                    {
+                        sigma = ((old_AX+0x06)&0xFF) + ((old_AX&0xFF00)+0x100);
+                    }
+                    u16 added = sigma-old_AX;
+
+                    setflag(AUX_CARRY, add_ax);
+                    setflag(CARRY, add_ax);
+                    setflag(PARITY, byte_parity[sigma&0xFF]);
+                    setflag(ZERO, (sigma&0xFF) == 0);
+                    setflag(SIGN, (sigma & 0x80));
+                    setflag(OVERFLOW, (old_AX ^ sigma) & (added ^ sigma)&0x80);
+
+                    sigma &= 0xFF0F;
+                }
+                else if (alu_op == AAS)
+                {
+                    u16 old_AX = reg1;
+                    bool add_ax = (old_AX & 0x0F) > 9 || (aluflags&AUX_CARRY);
+                    sigma = old_AX;
+                    if (add_ax)
+                    {
+                        sigma = ((old_AX-0x06)&0xFF) + ((old_AX&0xFF00)-0x100);
+                    }
+                    u16 added = old_AX-sigma;
+
+                    setflag(AUX_CARRY, add_ax);
+                    setflag(CARRY, add_ax);
+                    setflag(PARITY, byte_parity[sigma&0xFF]);
+                    setflag(ZERO, (sigma&0xFF) == 0);
+                    setflag(SIGN, (sigma & 0x80));
+                    setflag(OVERFLOW, (old_AX ^ sigma) & (added ^ old_AX)&0x80);
+
+                    sigma &= 0xFF0F;
+                }
                 else
                 {
                     cout << "Unknown alu op number " << std::dec << u32(alu_op) << endl;
@@ -390,7 +483,8 @@ struct CPU8088MC
             {
                 ++cycles_used;
                 u16 current_opcode = current_sub+current_ip;
-                //cout << std::hex << current_opcode << " " << registers[TMPA] << " " <f< registers[TMPB] << " " << registers[TMPC] << endl;
+                //if (do_spam)
+                //    cout << std::hex << "MC: " << current_opcode << " " << registers[TMPA] << " " << registers[TMPB] << " " << registers[TMPC] << endl;
                 if (current_opcode == INT0) //special case?
                 {
                     bitwidth = 16;
@@ -445,6 +539,7 @@ struct CPU8088MC
 
                 if (optype == 0) //short jump
                 {
+                    ++cycles_used;
                     u16 condition = opdata>>4;
                     u16 jump_target = opdata&0xF;
 
@@ -575,6 +670,9 @@ struct CPU8088MC
                 else if (optype == 6) // memory read/write
                 {
                     bool is_write = opdata&0x40;
+                    cycles_used += is_write?3:4;
+                    if (bitwidth == 16)
+                        cycles_used += 4;
                     bool interrupt_ack = opdata&0x20;
                     next_opcode = opdata&0x10;
 
@@ -619,6 +717,7 @@ struct CPU8088MC
                 }
                 else if (optype == 5 || optype == 7) // long jump/call
                 {
+                    ++cycles_used;
                     //conds:
                     //0=UNC, 1=????, 2=NZ, 3=X0, 4=NCY, 5=F1, 6=INT, 7=XC
 
@@ -765,8 +864,9 @@ struct CPU8088MC
         {
             //cout << (sizeof(T)==2?"w":"b") << u32(result) << " ";
         }
-        do_prefetch_delay = !do_prefetch_delay;
-        cycles_used += (do_prefetch_delay?4*sizeof(T):0);
+        //do_prefetch_delay = !do_prefetch_delay;
+        //cycles_used += 2*sizeof(T);
+        //std::cout << "used " << 2*sizeof(T) << " for read_inst()" << std::endl;
         return result;
     }
 
@@ -825,6 +925,7 @@ struct CPU8088MC
         }
 
         cycles_used += effective_address_cycles[(mod<<3)+rm];
+        //std::cout << "used " << u32(effective_address_cycles[(mod<<3)+rm]) << " for EA" << std::endl;
 
 		if (mod == 0x00 && rm == 0x06)
         {
@@ -845,7 +946,7 @@ struct CPU8088MC
 				offset += registers[BP], segment = SS;
             }
 		}
-		cycles_used = ((offset&0x01)<<2); //4 cycles for odd accesses
+		//cycles_used += 4;//((offset&0x01)<<2); //4 cycles for odd accesses
         segment = registers[get_segment(segment)];
     }
 
@@ -994,6 +1095,7 @@ struct CPU8088MC
         if ((instruction&0xE7) == 0x26) // segment override:
         {
             cycles_used += 2;
+            //std::cout << "used " << 2 << " for seg override" << std::endl;
             segment_override = ((instruction>>3)&0x3)|0x8;
             return true;
         }
@@ -1018,7 +1120,7 @@ struct CPU8088MC
 
     bool accepts_interrupts()
     {
-        return interrupt_true_cycles >= 2 && !inhibit_ss && delay==0;
+        return interrupt_true_cycles >= 2 && !inhibit_ss && (delay==0 || halt);
     }
 
     void interrupt(u8 n, bool forced=false)
@@ -1031,6 +1133,7 @@ struct CPU8088MC
                 cout << "INTERRUPT " << std::hex << u32(n) << "!" << endl;
             halt = false;
             cycles_used += 80;
+            delay = 0;
 
             ++interrupt_table[n];
 
@@ -1100,8 +1203,8 @@ struct CPU8088MC
         is_inside_multi_part_instruction = false;
         globalsettings.current_IP = registers[CS]*16+registers[IP];
 
-        if (globalsettings.current_IP == 0xC0003)
-            startprinting = true;
+        //if (globalsettings.current_IP == 0xC0003)
+        //    startprinting = true;
 
         u8 instruction = read_inst<u8>();
         if (startprinting)
@@ -1161,10 +1264,12 @@ struct CPU8088MC
                 if (instruction&0x02) //towards general reg
                 {
                     cycles_used += (modrm_is_register?3:13);
+                    //std::cout << "used " << (modrm_is_register?3:13) << " for inst=" << u32(instruction) << std::endl;
                 }
                 else //towards modrm byte
                 {
                     cycles_used += (modrm_is_register?3:24);
+                    //std::cout << "used " << (modrm_is_register?3:24) << " for inst=" << u32(instruction) << std::endl;
                 }
             }
         }
@@ -1187,93 +1292,14 @@ struct CPU8088MC
                 push(reg);
             }
         }
-        else if (instruction == 0x27) // DAA
+        //void mc_execute(u16 start_address, u8 bitwidth, bool X0, bool f1, u8 XIvalue)
+        else if (instruction == 0x27 || instruction == 0x2F) // DAA DAS
         {
-            u8 old_AL = registers[AX]&0xFF;
-            bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
-
-            u8 added{};
-
-            set_flag(F_AUX_CARRY, (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY));
-            if (flag(F_AUX_CARRY))
-                added += 0x06;
-
-            set_flag(F_CARRY, old_AL > 0x99+(weird_special_case?6:0) || flag(F_CARRY));
-            if (flag(F_CARRY))
-                added += 0x60;
-
-            get_r8(0) += added;
-
-            set_flag(F_ZERO, (registers[AX]&0xFF) == 0);
-            set_flag(F_SIGN, (registers[AX] & 0x80));
-            set_flag(F_PARITY, byte_parity[registers[AX]&0xFF]);
-            set_flag(F_OVERFLOW, (old_AL ^ registers[AX]) & (added ^ registers[AX])&0x80);
-            cycles_used += 4;
+            mc_execute(0x144, 16, instruction&0x08, false, instruction==0x27?20:21);
         }
-        else if (instruction == 0x37) // AAA
+        else if (instruction == 0x37 || instruction == 0x3F) // AAA AAS
         {
-            u16 old_AX = registers[AX];
-            bool add_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
-            if (add_ax)
-            {
-                get_r8(0) += 0x06; //AL
-                get_r8(4) += 0x01; //AH
-            }
-            u16 added = registers[AX]-old_AX;
-
-            set_flag(F_AUX_CARRY, add_ax);
-            set_flag(F_CARRY, add_ax);
-            set_flag(F_PARITY, byte_parity[registers[AX]&0xFF]);
-            set_flag(F_ZERO, (registers[AX]&0xFF) == 0);
-            set_flag(F_SIGN, (registers[AX] & 0x80));
-            set_flag(F_OVERFLOW, (old_AX ^ registers[AX]) & (added ^ registers[AX])&0x80);
-
-            get_r8(0) &= 0x0F;
-            cycles_used += 8;
-        }
-        else if (instruction == 0x2F) // DAS
-        {
-            u8 old_AL = registers[AX] & 0xFF;
-            bool weird_special_case = (!flag(F_CARRY)) && flag(F_AUX_CARRY);
-
-            u8 subtracted{};
-
-            bool sub_al = ((registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY));
-            if (sub_al)
-                subtracted += 0x06;
-
-            set_flag(F_AUX_CARRY, sub_al);
-            bool sub_al2 = (old_AL > (0x99+(weird_special_case?6:0)) || flag(F_CARRY));
-            if (sub_al2)
-                subtracted += 0x60;
-
-            get_r8(0) -= subtracted;
-            set_flag(F_CARRY, sub_al2);
-            set_flag(F_ZERO, (registers[AX] & 0xFF) == 0);
-            set_flag(F_SIGN, (registers[AX] & 0x80));
-            set_flag(F_PARITY, byte_parity[registers[AX] & 0xFF]);
-            set_flag(F_OVERFLOW, ((old_AL ^ subtracted) & (old_AL ^ registers[AX]))&0x80);
-            cycles_used += 4;
-        }
-        else if (instruction == 0x3F) // AAS
-        {
-            u16 old_AX = registers[AX];
-            bool sub_ax = (registers[AX] & 0x0F) > 9 || flag(F_AUX_CARRY);
-            if (sub_ax)
-            {
-                get_r8(4) -= 1;
-                get_r8(0) -= 6;
-            }
-            u16 subtracted = old_AX-registers[AX];
-            set_flag(F_AUX_CARRY, sub_ax);
-            set_flag(F_CARRY, sub_ax);
-            set_flag(F_ZERO, (registers[AX] & 0xFF) == 0);
-            set_flag(F_SIGN, (registers[AX] & 0x80));
-            set_flag(F_PARITY, byte_parity[registers[AX] & 0xFF]);
-            set_flag(F_OVERFLOW, (old_AX ^ subtracted) & (old_AX ^ registers[AX])&0x80);
-
-            get_r8(0) &= 0x0F;
-            cycles_used += 8;
+            mc_execute(0x148, 16, instruction&0x08, false, instruction==0x37?22:23);
         }
         else if ((instruction&0xF0) == 0x40) //INC/DEC register
         {
@@ -1481,6 +1507,7 @@ struct CPU8088MC
             // waits for floating point exceptions.
             // basically a NOP because I don't have a FPU yet
             cycles_used += 4;
+            halt = true; // we don't have 8087 so we wait for an interrupt. it's not true halt but close enough.
         }
         else if (instruction == 0x9C) //pushf
         {
@@ -1848,67 +1875,19 @@ struct CPU8088MC
         }
         else if (instruction == 0xD4) // AAM
         {
-            u8 imm = read_inst<u8>();
-            if (imm != 0)
-            {
-                u8 tempAL = (registers[AX]&0xFF);
-                u8 tempAH = tempAL/imm;
-                tempAL = tempAL%imm;
-                registers[AX] = (tempAH<<8)|tempAL;
-
-                set_flag(F_SIGN, tempAL&0x80);
-                set_flag(F_ZERO, tempAL==0);
-                set_flag(F_PARITY, byte_parity[tempAL]);
-                set_flag(F_OVERFLOW,false);
-                set_flag(F_AUX_CARRY,false);
-                set_flag(F_CARRY,false);
-            }
-            else
-            {
-                set_flag(F_SIGN, false);
-                set_flag(F_ZERO, true);
-                set_flag(F_PARITY, true);
-                set_flag(F_OVERFLOW,false);
-                set_flag(F_AUX_CARRY,false);
-                set_flag(F_CARRY,false);
-                interrupt(0, true);
-            }
-            cycles_used += 83;
+            mc_execute(0x174, 8, 0, 0, 0);
         }
-        else if (instruction == 0xD5)
+        else if (instruction == 0xD5) // AAD
         {
-            u8 imm = read_inst<u8>();
-            u16 orig16 = registers[AX];
-            u16 temp16 = (registers[AX]&0xFF) + (registers[AX]>>8)*imm;
-            registers[AX] = (temp16&0xFF);
-
-            set_flag(F_SIGN,temp16&0x80);
-            set_flag(F_PARITY, byte_parity[temp16&0xFF]);
-
-            u8 a = orig16;
-            u8 b = (orig16>>8)*imm;
-            u8 result = a+b;
-
-            set_flag(F_ZERO, result==0);
-
-            set_flag(F_CARRY,result < a); //this is now correct
-
-            bool of = ((a ^ result) & (b ^ result)) & 0x80;
-            bool af = ((a ^ b ^ result) & 0x10);
-            set_flag(F_OVERFLOW,of);
-            set_flag(F_AUX_CARRY,af);
-            cycles_used += 60;
+            mc_execute(0x170, 8, 0, 0, 0);
         }
         else if (instruction == 0xD6) // SALC (undocumented!)
         {
-            get_r8(0) = flag(F_CARRY)?0xFF:0x00;
-            cycles_used += 4; //TODO: make sure this is correct!
+            mc_execute(0x0a0, 8, 0, 0, 0);
         }
         else if (instruction == 0xD7) // XLAT
         {
-            u8 result = mem._8(registers[get_segment(DS)],registers[BX]+(registers[AX]&0xFF));
-            get_r8(0) = result;
-            cycles_used += 11;
+            mc_execute(0x10C, 16, 0, 0, 0);
         }
         else if (instruction >= 0xD8 && instruction <= 0xDF)
         {
@@ -2066,14 +2045,7 @@ struct CPU8088MC
             u8& reg = decode_modrm_u8(modrm);
             u8 op = (modrm>>3)&0x07;
             u8 result = reg+1-(op<<1);
-            if (op >= 2)
-            {
-                cout << "*" << u32(instruction) << "-" << u32(modrm);
-                //std::cout << "Invalid opcode combo: 0x" << u32(instruction) << " 0x" << u32(modrm) << std::endl;
-                //std::abort();
-                cycles_used += 4; //TODO: fix the amount???
-            }
-            else
+            if (op == 0 || op == 1)
             {
                 set_flag(F_OVERFLOW,result==0x80-op);
                 set_flag(F_AUX_CARRY,(result&0x0F) == ((op&0x01)?0x0F:0x00));
@@ -2082,7 +2054,18 @@ struct CPU8088MC
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
                 //no carry!
                 reg = result;
-                cycles_used = (modrm_is_register?3:23);
+                cycles_used += (modrm_is_register?3:23);
+            }
+            else if (op >= 2)
+            {
+                cout << "*" << u32(instruction) << "-" << u32(modrm);
+                //std::cout << "Invalid opcode combo: 0x" << u32(instruction) << " 0x" << u32(modrm) << std::endl;
+                //std::abort();
+
+                const u16 fecyclesreg[8] = {0, 0, 3,20,20,11,11,15};
+                const u16 fecyclesmem[8] = {0, 0, 23,29,53,18,24,24};
+
+                cycles_used += modrm_is_register?fecyclesreg[op]:fecyclesmem[op];
             }
         }
         else if (instruction == 0xFF)
@@ -2099,7 +2082,7 @@ struct CPU8088MC
                 set_flag(F_SIGN,result&0x8000);
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
                 reg = result;
-                cycles_used = (modrm_is_register?3:23);
+                cycles_used += (modrm_is_register?3:23);
             }
             else if (op == 2) //call near
             {

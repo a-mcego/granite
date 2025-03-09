@@ -1734,7 +1734,7 @@ struct CPU8086
                     i32 numerator = i32((registers[DX]<<16)|registers[AX]);
                     i16 denominator = i16(rm);
                     i32 result = numerator / denominator;
-                    if (result < -0x8000 || result >= 0x8000) //186+ accept -0x8000
+                    if (result <= -0x8000 || result >= 0x8000) //186+ accept -0x8000
                     {
                         interrupt(0, true);
                     }

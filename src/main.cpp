@@ -1067,10 +1067,11 @@ void configline(std::string line)
         u32 regs_failed[16] = {};
         while(ptr < filedata.size())
         {
+            cycles = 0;
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
             //startprinting=true;
             bool test_passed = true;
-            CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p);
+            CPU8088MC testcpu(mac.p.mem88, mac.p.pic, mac.p);
             testcpu.mem.testmode = true;
             testcpu.reset();
             memset(mac.p.membytes.bytes, 0, (1<<20)+65536);
@@ -1096,7 +1097,9 @@ void configline(std::string line)
             do
             {
                 testcpu.cycle();
-            } while(testcpu.is_inside_multi_part_instruction);
+            } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
+
+            //std::cout << "cycles:" << cycles << std::endl;
             //testcpu.store_tmp_segs_for_test();
 
             for(int i=0; i<14; ++i)
