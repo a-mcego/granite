@@ -91,7 +91,6 @@ struct HARDDISK
         {
             //data.assign(type.totalsize(),0);
             //cout << "HD: " << data.size() << " bytes." << endl;
-            filename = "pieru";
         }
 
         DISK(const std::string& filename_):filename(filename_)
