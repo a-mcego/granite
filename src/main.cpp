@@ -152,6 +152,7 @@ struct IOSystem
     MemoryManager286 mem286{hega, cga, ltems, membytes};
     BEEPER beeper;
     YM3812 ym3812;
+    GameBlaster gameblaster;
     CHIP146818 cmos;
     CHIP8042 kbd_at{pic};
     CHIP8255 kbd_xt{pic};
@@ -160,7 +161,7 @@ struct IOSystem
     CHIP8253 pit{pic, beeper};
     HARDDISK harddisk{dma, pic};
     DISKETTECONTROLLER diskettecontroller{dma, pic};
-    MiniAudio miniaudio{beeper, ym3812};
+    MiniAudio miniaudio{beeper, ym3812, gameblaster};
 
     void io_out(u16 port, u16 data)
     {
@@ -197,6 +198,10 @@ struct IOSystem
                 kbd_at.write(port-0x60, data&0xFF);
             else
                 kbd_xt.write(port-0x60, data&0xFF);
+        }
+        else if (port >= 0x220 && port <= 0x22F)
+        {
+            gameblaster.write(port-0x220, data&0xFF);
         }
         else if (port >= 0x3B0 && port <= 0x3DF)
         {
@@ -270,6 +275,10 @@ struct IOSystem
                 data = kbd_at.read(port-0x60);
             else
                 data = kbd_xt.read(port-0x60);
+        }
+        else if (port >= 0x220 && port <= 0x22F)
+        {
+            data = gameblaster.read(port-0x220);
         }
         else if (port >= 0x3B0 && port <= 0x3DF)
         {
@@ -475,6 +484,8 @@ struct Machine
         }
         if (clock%GAMEPORT_CYCLE == 0)
             p.gameport.cycle();
+        if (clock%256 == 0)
+            p.gameblaster.cycle();
     }
 
 } mac;
