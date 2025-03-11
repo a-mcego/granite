@@ -19,9 +19,60 @@ struct CPU8088MC
         AX,CX,DX,BX, SP,BP,SI,DI,
     };
 
+    //used for M
+    bool modrm_is_register{};
+    u16 modrm_seg{};
+    u16 modrm_offset{};
+    u8 modrm_reg{}; //register from modRM part
+    u8 modrm_width{};
+    u8 modrm_r{}; //register from R part
+
+    void writeM(u16 data)
+    {
+        cycles_used += (modrm_width == 16?7:3);
+        //std::cout << "writeM: " << std::hex;
+        if (modrm_is_register)
+        {
+            if (modrm_width == 16)
+                get_r16(modrm_reg) = data;
+            else
+                get_r8(modrm_reg) = data;
+        }
+        else
+        {
+            mem._8(modrm_seg, modrm_offset) = (data&0xFF);
+            if (modrm_width == 16)
+                mem._8(modrm_seg, modrm_offset+1) = ((data>>8)&0xFF);
+            //std::cout << modrm_seg << ":" << modrm_offset << " ";
+        }
+        //std::cout << data << std::endl;
+    }
+    u16 readM()
+    {
+        cycles_used += (modrm_width == 16?8:4);
+        //std::cout << "readM: " << std::hex;
+        u16 ret{};
+        if (modrm_is_register)
+        {
+            if (modrm_width == 16)
+                ret = get_r16(modrm_reg);
+            else
+                ret = get_r8(modrm_reg);
+        }
+        else
+        {
+            ret = mem._8(modrm_seg, modrm_offset);
+            if (modrm_width == 16)
+                ret |= (mem._8(modrm_seg, modrm_offset+1)<<8);
+            //std::cout << modrm_seg << ":" << modrm_offset << " ";
+        }
+        //std::cout << ret << std::endl;
+        return ret;
+    }
+
     //start_address: where to start executing
     //bitwidth: 8 or 16
-    //X0: jump condition for jump types 0:B, 5:3 and 7:3 (phew)
+    //X0: jump condition for jump types 0:B, 5:3 and 7:3 (phew) - often bit 3 of opcode
     //f1: jump condition for jump types 0:D, 5:5 and 7:5, flipped by 4:2. (used by mul sign determination)
     //XIvalue: ALU OP used when XI
     void mc_execute(u16 start_address, u8 bitwidth, bool X0, bool f1, u8 XIvalue)
@@ -35,6 +86,7 @@ struct CPU8088MC
         {
             ALU_HIGH_BIT = (1<<(bitwidth-1));
             ALU_MASK = (1<<bitwidth)-1;
+            modrm_width = bitwidth;
         };
 
         set_width();
@@ -58,8 +110,14 @@ struct CPU8088MC
             XOR = 6, //my addition for completeness
             CMP = 7, //my addition for completeness
 
+            ROL = 8,
+            ROR = 9,
             LRCY = 10,
             RRCY = 11,
+            SHL = 12,
+            SHR = 13,
+            SETMO = 14, //not actually sal. does something weird.
+            SAR = 15,
             PASS = 16, //equality/nop?
             XI = 17, //reads the op from somewhere else?
 
@@ -83,6 +141,7 @@ struct CPU8088MC
             SIGN=(1<<7),
             TRAP=(1<<8),
             INTERRUPTFLAG=(1<<9),
+            DIRECTIONAL=(1<<10),
             OVERFLOW=(1<<11)
         };
 
@@ -201,11 +260,14 @@ struct CPU8088MC
                     return u16(read_inst<u8>());
                 else if (index == 8)
                     return u16(registers[AX]>>8);
-                else if (index == 10)
+                else if (index == 10) // M
+                    return readM();
+                else if (index == 11) // R
                 {
-                    if (bitwidth==8)
-                        return u16(*regM8);
-                    return *regM16;
+                    if (modrm_width == 16)
+                        return get_r16(modrm_r);
+                    else
+                        return (u16)get_r8(modrm_r);
                 }
                 else if (index == 13)
                     return u16(0xFFFFU&ALU_MASK);
@@ -231,11 +293,13 @@ struct CPU8088MC
                 else if (index == 8)
                     registers[AX] = (data<<8)|(registers[AX]&0xFF);
                 else if (index == 10) //M
+                    writeM(data);
+                else if (index == 11) // R
                 {
-                    if (bitwidth==8)
-                        *regM8 = data&0xFF;
+                    if (modrm_width == 16)
+                        get_r16(modrm_r) = data;
                     else
-                        *regM16 = data;
+                        get_r8(modrm_r) = data;
                 }
                 else if (index >= 12 && index <= 15)
                 {
@@ -270,7 +334,7 @@ struct CPU8088MC
                 if(false);
                 else if (alu_op == INC)
                 {
-                    sigma = (reg1+1)&ALU_MASK;
+                    sigma = (reg1+1);
                     setflag(OVERFLOW,sigma==ALU_HIGH_BIT);
                     setflag(AUX_CARRY,(sigma&0x0F) == 0x00);
                     setflag(ZERO,sigma==0);
@@ -283,7 +347,7 @@ struct CPU8088MC
                 }
                 else if (alu_op == DEC)
                 {
-                    sigma = (reg1-1)&ALU_MASK;
+                    sigma = (reg1-1);
                     setflag(OVERFLOW,reg1==ALU_HIGH_BIT);
                     setflag(AUX_CARRY,(sigma&0x0F) == 0x0F);
                     setflag(ZERO,sigma==0);
@@ -293,12 +357,12 @@ struct CPU8088MC
                 else if (alu_op == PASS)
                 {
                     sigma = reg1;
-                    setflag(CARRY, (sigma&ALU_MASK)<(reg1&ALU_MASK));
+                    //setflag(CARRY, false);
                     setflag(PARITY,byte_parity[sigma&0xFF]);
-                    setflag(AUX_CARRY, (reg1 ^ sigma) & 0x10);
+                    setflag(AUX_CARRY, false);
                     setflag(ZERO,sigma==0);
                     setflag(SIGN,sigma&ALU_HIGH_BIT);
-                    setflag(OVERFLOW,((reg1 ^ sigma) & (sigma))&ALU_HIGH_BIT);
+                    setflag(OVERFLOW,false);
                 }
                 else if (alu_op == DEC2) //flags?
                 {
@@ -308,16 +372,21 @@ struct CPU8088MC
                 {
                     sigma = (~reg1)&ALU_MASK;
                     setflag(CARRY, reg1&ALU_HIGH_BIT);
+                    setflag(PARITY,byte_parity[sigma&0xFF]);
+                    setflag(ZERO, reg1==0);
+                    setflag(SIGN,sigma&ALU_HIGH_BIT);
+                    setflag(AUX_CARRY, (reg1 ^ 1 ^ sigma) & 0x10);
+                    setflag(OVERFLOW,(((~reg1) ^ sigma) & (1 ^ sigma))&ALU_HIGH_BIT);
                 }
                 else if (alu_op == NEG)
                 {
-                    sigma = ((~reg1)+1)&ALU_MASK;
+                    sigma = (-reg1)&ALU_MASK;
                     setflag(CARRY, reg1!=0);
                     setflag(PARITY,byte_parity[sigma&0xFF]);
                     setflag(ZERO, reg1==0);
                     setflag(SIGN,sigma&ALU_HIGH_BIT);
                     setflag(AUX_CARRY, (reg1 ^ 1 ^ sigma) & 0x10);
-                    setflag(OVERFLOW,((~reg1 ^ sigma) & (1 ^ sigma))&ALU_HIGH_BIT);
+                    setflag(OVERFLOW,(((~reg1) ^ sigma) & (1 ^ sigma))&ALU_HIGH_BIT);
                 }
                 else if (alu_op == AND)
                 {
@@ -349,13 +418,14 @@ struct CPU8088MC
 
                     //cout << "ADC: " << reg1 << "-" << registers[TMPB] << "=" << sigma << endl;
                     setflag(PARITY,byte_parity[sigma&0xFF]);
-                    setflag(AUX_CARRY, (reg1&0xF)+(registers[TMPB]&0xF)+flag(F_CARRY) >= 0x10);
+                    //setflag(AUX_CARRY, (reg1&0xF)+(registers[TMPB]&0xF)+flag(F_CARRY) >= 0x10);
+                    setflag(AUX_CARRY, (reg1&0xF)+(registers[TMPB]&0xF)+((aluflags&CARRY)?1:0) >= 0x10);
                     setflag(ZERO,sigma==0);
                     setflag(SIGN,sigma&ALU_HIGH_BIT);
                     setflag(OVERFLOW,((reg1 ^ sigma) & (registers[TMPB] ^ sigma))&ALU_HIGH_BIT);
 
                     //set_flag(F_CARRY, ((p1+p2+flag(F_CARRY))>>(sizeof(T)*8)) > 0);
-                    setflag(CARRY, (totalsigma>>bitwidth)>0);
+                    setflag(CARRY, u32(totalsigma>>bitwidth)>0);
                     //setflag(CARRY, (sigma&ALU_MASK)<(reg1&ALU_MASK));
                 }
                 else if (alu_op == SUBT)
@@ -372,26 +442,82 @@ struct CPU8088MC
                         setflag(OVERFLOW,((reg1 ^ registers[TMPB]) & (reg1 ^ sigma))&ALU_HIGH_BIT);
                     }
                 }
+                else if (alu_op == ROL)
+                {
+                    sigma = (reg1 << 1)&ALU_MASK;
+                    sigma |= ((reg1&ALU_HIGH_BIT)?1:0);
+                    setflag(CARRY,reg1&ALU_HIGH_BIT);
+                    setflag(OVERFLOW, bool(reg1&ALU_HIGH_BIT) != bool(reg1&(ALU_HIGH_BIT>>1)));
+                    sigma &= ALU_MASK;
+                }
+                else if (alu_op == ROR)
+                {
+                    sigma = (reg1 >> 1)&ALU_MASK;
+                    sigma |= ((reg1&1)?ALU_HIGH_BIT:0);
+                    setflag(CARRY,reg1&1);
+                    setflag(OVERFLOW, bool(sigma&ALU_HIGH_BIT) != bool(sigma&(ALU_HIGH_BIT>>1)));
+                    sigma &= ALU_MASK;
+                }
                 else if (alu_op == LRCY)
                 {
                     sigma = (reg1 << 1)&ALU_MASK;
                     sigma |= ((aluflags&CARRY)?1:0);
-                    //cout << "Doing LRCY with: " << std::hex << reg1 << ", sigma=" << sigma << " flags=" << registers[FLAGS] << " aluflags=" << aluflags << endl;
                     setflag(CARRY,reg1&ALU_HIGH_BIT);
-                    //setflag(OVERFLOW, bool(sigma&ALU_HIGH_BIT) != bool(sigma&(ALU_HIGH_BIT>>1)));
+                    setflag(OVERFLOW, bool(reg1&ALU_HIGH_BIT) != bool(reg1&(ALU_HIGH_BIT>>1)));
+                    sigma &= ALU_MASK;
                 }
                 else if (alu_op == RRCY)
                 {
                     sigma = (reg1 >> 1)&ALU_MASK;
                     sigma |= ((aluflags&CARRY)?ALU_HIGH_BIT:0);
-                    //cout << "Doing RRCY with: " << std::hex << reg1 << ", sigma=" << sigma << " flags=" << registers[FLAGS] << " aluflags=" << aluflags << endl;
                     setflag(CARRY,reg1&1);
-                    //setflag(OVERFLOW, bool(sigma&1) != bool(sigma&2));
+                    setflag(OVERFLOW, bool(sigma&ALU_HIGH_BIT) != bool(sigma&(ALU_HIGH_BIT>>1)));
+                    sigma &= ALU_MASK;
+                }
+                else if (alu_op == SHL)
+                {
+                    sigma = (reg1 << 1)&ALU_MASK;
+                    setflag(CARRY,reg1&ALU_HIGH_BIT);
+                    setflag(OVERFLOW, bool(reg1&ALU_HIGH_BIT) != bool(reg1&(ALU_HIGH_BIT>>1)));
+                    setflag(SIGN, sigma&ALU_HIGH_BIT);
+                    setflag(ZERO, sigma==0);
+                    setflag(AUX_CARRY, sigma&0x10);
+                    setflag(PARITY, byte_parity[sigma&0xFF]);
+                }
+                else if (alu_op == SHR)
+                {
+                    sigma = (reg1 >> 1)&ALU_MASK;
+                    setflag(CARRY,reg1&1);
+                    setflag(OVERFLOW, bool(sigma&ALU_HIGH_BIT) != bool(sigma&(ALU_HIGH_BIT>>1)));
+                    setflag(SIGN, sigma&ALU_HIGH_BIT);
+                    setflag(ZERO, sigma==0);
+                    setflag(AUX_CARRY, false);
+                    setflag(PARITY, byte_parity[sigma&0xFF]);
+                }
+                else if (alu_op == SETMO)
+                {
+                    sigma = ALU_MASK;
+                    setflag(CARRY, false);
+                    setflag(OVERFLOW, false);
+                    setflag(SIGN, true);
+                    setflag(ZERO, false);
+                    setflag(AUX_CARRY, false);
+                    setflag(PARITY, byte_parity[0xFF]);
+                }
+                else if (alu_op == SAR)
+                {
+                    sigma = ((reg1 >> 1)&ALU_MASK) | (reg1&ALU_HIGH_BIT);
+                    setflag(CARRY,reg1&1);
+                    setflag(OVERFLOW, bool(sigma&ALU_HIGH_BIT) != bool(sigma&(ALU_HIGH_BIT>>1)));
+                    setflag(SIGN, sigma&ALU_HIGH_BIT);
+                    setflag(ZERO, sigma==0);
+                    setflag(AUX_CARRY, false);
+                    setflag(PARITY, byte_parity[sigma&0xFF]);
                 }
                 else if (alu_op == DAA)
                 {
                     u8 old_val = reg1&0xFF;
-                    bool weird_special_case = (!(aluflags&F_CARRY)) && (aluflags&AUX_CARRY);
+                    bool weird_special_case = (!(aluflags&CARRY)) && (aluflags&AUX_CARRY);
 
                     u8 added{};
 
@@ -413,7 +539,7 @@ struct CPU8088MC
                 else if (alu_op == DAS)
                 {
                     u8 old_val = reg1&0xFF;
-                    bool weird_special_case = (!(aluflags&F_CARRY)) && (aluflags&AUX_CARRY);
+                    bool weird_special_case = (!(aluflags&CARRY)) && (aluflags&AUX_CARRY);
 
                     u8 added{};
 
@@ -473,16 +599,25 @@ struct CPU8088MC
                 }
                 else
                 {
-                    cout << "Unknown alu op number " << std::dec << u32(alu_op) << endl;
-                    std::abort();
+                    //cout << "Unknown alu op number " << std::dec << u32(alu_op) << endl;
+                    //std::abort();
                 }
-                sigma &= ALU_MASK;
+                //sigma &= ALU_MASK;
             };
 
             while(true)
             {
                 ++cycles_used;
                 u16 current_opcode = current_sub+current_ip;
+
+                //hacks for instructions that are split
+                if (current_sub == 0x11C && current_ip >= 4)
+                    current_opcode = 0x1ec+current_ip;
+                else if (current_sub == 0x120 && current_ip >= 12)
+                    current_opcode = 0x1e8+current_ip;
+                else if (current_sub == 0x12c && current_ip >= 8)
+                    current_opcode = 0x1f0+current_ip;
+
                 //if (do_spam)
                 //    cout << std::hex << "MC: " << current_opcode << " " << registers[TMPA] << " " << registers[TMPB] << " " << registers[TMPC] << endl;
                 if (current_opcode == INT0) //special case?
@@ -491,7 +626,9 @@ struct CPU8088MC
                     set_width();
                 }
                 u32 instr = mc8088[current_opcode];
-/*
+
+                /*std::cout << std::hex << current_opcode <<": " << aluflags << ":" << registers[FLAGS] << std::endl;
+
 #define preg(x) cout << #x << std::hex << "=" << registers[x] << " ";
                 preg(TMPA);
                 preg(TMPB);
@@ -504,19 +641,17 @@ struct CPU8088MC
 				cout << " alucarry=" << ((aluflags&CARRY)?1:0)  << " carry=" << ((registers[FLAGS]&CARRY)?1:0);
                 cout << endl;
 
-                cout << "EXECUTING " << std::hex << current_sub+current_ip << ". " << endl;*/
+                cout << "EXECUTING " << std::hex << current_opcode << ". " << endl;*/
 
                 u16 target_id = decode_target_index((instr>>16)&0x1F);
                 u16 source_id = decode_source_index((instr>>11)&0x1F);
                 bool update_flags = (instr>>10)&0x01;
+
                 if (source_id == 12)
                 {
                     //cout << "ALU run: " << std::hex << current_opcode << endl;
+                    //aluflags = registers[FLAGS];
                     run_alu();
-                }
-                if (update_flags)
-                {
-                    registers[FLAGS] = aluflags;
                 }
                 u16 operation = instr&0x3ff;
                 bool next_opcode{};
@@ -527,7 +662,11 @@ struct CPU8088MC
 
                 write(target_id, read(source_id));
 
-                //cout << std::hex << current_sub+current_ip << ": " << regnames[source_id] << " -> " << regnames[target_id] << endl;//" " << (update_flags?'F':'_') << ", op=" << std::hex << operation << endl;
+                if (update_flags)
+                {
+                    registers[FLAGS] = aluflags;
+                }
+                //cout << std::hex << current_opcode << ": " << regnames[source_id] << " -> " << regnames[target_id] << endl;//" " << (update_flags?'F':'_') << ", op=" << std::hex << operation << endl;
 
                 u16 optype{};
                 u16 opdata{};
@@ -539,13 +678,16 @@ struct CPU8088MC
 
                 if (optype == 0) //short jump
                 {
-                    ++cycles_used;
+
+                    ++cycles_used; //extra cycle for jump
                     u16 condition = opdata>>4;
                     u16 jump_target = opdata&0xF;
 
                     bool do_jump{};
 
                     if (false);
+                    else if (condition == 0x00) //F1 ^ Z - repne=1 repe=2
+                        do_jump = ((string_prefix==2) && !bool(registers[FLAGS]&ZERO)) || (string_prefix==1 && bool(registers[FLAGS]&ZERO));// != bool(aluflags&ZERO));
                     else if (condition == 0x02) //jump if 8-bit width
                         do_jump = (bitwidth==8);
                     else if (condition == 0x03) //zero
@@ -560,6 +702,10 @@ struct CPU8088MC
                         do_jump = (aluflags&CARRY);
                     else if (condition == 0x08)
                         do_jump = true; //unconditional jump!
+                    else if (condition == 0x09)
+                        do_jump = !f1; //jump if not REP
+                    else if (condition == 0x0A)
+                        do_jump = !(aluflags&ZERO); //not zero
                     else if (condition == 0x0B)
                         do_jump = X0;
                     else if (condition == 0x0C)
@@ -584,7 +730,6 @@ struct CPU8088MC
                     alu_op = (opdata>>3);
                     alu_param = (opdata>>1)&0x03;
                     alu_NXT = (opdata&0x01);
-                    registers[FLAGS] = (registers[FLAGS]&~CARRY) | (aluflags&CARRY);
                     //cout << "ALU primed: " << std::hex << current_opcode << endl;
                 }
                 else if (optype == 4) //bookkeeping, misc
@@ -592,7 +737,6 @@ struct CPU8088MC
                     u16 op1 = (opdata>>3)&0x0F;
                     u16 op2 = (opdata&0x07);
                     //cout << "Bookkeeping op " << op1 << ":" << op2 << endl;
-
                     if (false);
                     else if (op1 == 0)
                     {
@@ -609,8 +753,8 @@ struct CPU8088MC
                     else if (op1 == 3) //clear interrupt, trap
                     {
                         aluflags &= ~INTERRUPTFLAG;
-                        registers[FLAGS] &= ~INTERRUPTFLAG;
                         aluflags &= ~TRAP;
+                        registers[FLAGS] &= ~INTERRUPTFLAG;
                         registers[FLAGS] &= ~TRAP;
                     }
                     else if (op1 == 4)
@@ -693,26 +837,30 @@ struct CPU8088MC
 
                     const i16 add[4] = {2, 0, -2, 0};
 
-
-                    //cout << "Memory " << (is_write?"write":"read") << " " << seg_id << " " << addr_factor << ". addr=" << segment << ":" << offset_thing << endl;
+                    //print_regs();
+                    //cout <<std::hex << "Memory " << (is_write?"write":"read") << " " << seg_id << " " << addr_factor << ". addr=" << segment << ":" << registers[IND] << " = " << segment*16+registers[IND] << endl;
                     //cout << names[addr_factor] << endl;
 
-                    if (addr_factor == 1)
-                    {
-                        cout << "Addr factor b1 (for str instrs) not implement." << endl;
-                        std::abort();
-                    }
                     if (is_write)
                     {
-                        mem._16(segment, registers[IND]) = registers[OPR];
-                        mem.update();
+                        mem._8(segment, registers[IND]) = registers[OPR];
+                        if (bitwidth==16)
+                            mem._8(segment, registers[IND]+1) = registers[OPR]>>8;
                     }
                     else
                     {
-                        registers[OPR] = mem._16(segment, registers[IND]);
+                        registers[OPR] = mem._8(segment, registers[IND]);
+                        if (bitwidth==16)
+                            registers[OPR] |= (mem._8(segment, registers[IND]+1)<<8);
                     }
 
-                    registers[IND] += add[addr_factor];
+                    //addr_factor==1, modify IND according to word size and direction flag
+                    if (addr_factor == 1)
+                    {
+                        registers[IND] += (aluflags&DIRECTIONAL)?-(bitwidth>>3):(bitwidth>>3);
+                    }
+                    else
+                        registers[IND] += add[addr_factor];
                     //cout << "OPR is now " << std::hex << registers[OPR] << ", new IND " << registers[IND] << endl;
                 }
                 else if (optype == 5 || optype == 7) // long jump/call
@@ -736,9 +884,11 @@ struct CPU8088MC
                         do_jump = !(aluflags&CARRY);
                     else if (cond == 5)
                         do_jump = f1;
+                    else if (cond == 6)
+                        do_jump = false; //TODO! FIXME! this is jumped if interrupt is pending!
                     else
                     {
-                        std::cout << "cond=" << cond << " not implemented." << endl;
+                        std::cout << std::hex << current_opcode << " cond=" << cond << " not implemented." << endl;
                         std::abort();
                     }
 
@@ -764,13 +914,11 @@ struct CPU8088MC
     }
 
     u16 registers[32] = {};
-    u8* regM8{nullptr};
-    u16* regM16{nullptr};
 
     u8 segment_override{};
     u8 string_prefix{};
     u8 lock{};
-    u32 delay{}; //HACK: to make the cpu slow down a bit so it passes POST lol.
+    u32 delay{};
     u32 cpu_steps{};
 
     enum SP_VALUES
@@ -909,7 +1057,7 @@ struct CPU8088MC
         11,12,12,11, 9, 9, 9, 9,
          0, 0, 0, 0, 0, 0, 0, 0, //reg
     };
-    bool modrm_is_register{};
+
     void decode_modrm(u8 mod, u8 rm, u16& segment, u16& offset)
     {
         offset = 0;
@@ -944,42 +1092,66 @@ struct CPU8088MC
 			if ((rm&0x02) && rm != 7)
             {
 				offset += registers[BP], segment = SS;
+				if (segment_override == 0)
+                    segment_override = SS+8;
             }
 		}
 		//cycles_used += 4;//((offset&0x01)<<2); //4 cycles for odd accesses
         segment = registers[get_segment(segment)];
+        modrm_seg = segment;
+        modrm_offset = offset;
     }
 
     u8& decode_modrm_u8(u8 modrm)
     {
+        modrm_width = 8;
         u8 mod = (modrm >> 6) & 0x03;
+        modrm_r = (modrm >> 3) & 0x07;
         u8 rm = modrm & 0x07;
         modrm_is_register = (mod==0x03);
 		if (mod == 0x03)
         {
-            regM8 = &get_r8(rm);
-			return *regM8;
+            modrm_reg = rm;
+			return get_r8(rm);
         }
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
-        regM8 = &mem._8(segment, offset);
-        return *regM8;
+        return mem._8(segment, offset);
     }
 
     u16& decode_modrm_u16(u8 modrm)
     {
+        modrm_width = 16;
         u8 mod = (modrm >> 6) & 0x03;
+        modrm_r = (modrm >> 3) & 0x07;
         u8 rm = modrm & 0x07;
         modrm_is_register = (mod==0x03);
 		if (mod == 0x03)
         {
-            regM16 = &get_r16(rm);
-			return *regM16;
+            modrm_reg = rm;
+			return get_r16(rm);
         }
         u16 offset{}, segment{};
         decode_modrm(mod,rm,segment,offset);
-        regM16 = &mem._16(segment, offset);
-        return *regM16;
+        return mem._16(segment, offset);
+    }
+
+    void decode_modrm_mc(u8 modrm)
+    {
+        u8 mod = (modrm >> 6) & 0x03;
+        modrm_r = (modrm >> 3) & 0x07;
+        u8 rm = modrm & 0x07;
+        modrm_is_register = (mod==0x03);
+		if (mod == 0x03)
+        {
+            modrm_reg = rm;
+            return;
+        }
+        u16 offset{}, segment{DS};
+        decode_modrm(mod,rm,segment,offset);
+        registers[IND] = offset;
+        registers[OPR] = mem._8(segment,offset);
+        registers[OPR] |= mem._8(segment,offset+1)<<8;
     }
 
     u32 effective_address(u8 modrm)
@@ -1203,7 +1375,7 @@ struct CPU8088MC
         is_inside_multi_part_instruction = false;
         globalsettings.current_IP = registers[CS]*16+registers[IP];
 
-        //if (globalsettings.current_IP == 0xC0003)
+        //if (globalsettings.current_IP == 0x7C00)
         //    startprinting = true;
 
         u8 instruction = read_inst<u8>();
@@ -1531,7 +1703,7 @@ struct CPU8088MC
             get_r8(4) = reg8()[FLAGS*2];
             cycles_used += 4;
         }
-        else if (instruction >= 0xA0 && instruction <= 0xA3) //AL/X=MEM  MEM=AL/X
+        /*else if (instruction >= 0xA0 && instruction <= 0xA3) //AL/X=MEM  MEM=AL/X
         {
             u16 source_segment = registers[get_segment(DS)];
             u16 source_offset = read_inst<u16>();
@@ -1543,7 +1715,7 @@ struct CPU8088MC
                 case 0xA3: mem._16(source_segment, source_offset) = registers[AX]; break;
             }
             cycles_used += 14;
-        }
+        }*/
         else if (instruction >= 0xA8 && instruction <= 0xA9) //TEST AL/X,imm8/16
         {
             if (instruction&1)
@@ -1558,111 +1730,26 @@ struct CPU8088MC
             }
             cycles_used += 4;
         }
-        else if (instruction >= 0xA4 && instruction <= 0xAF) //MOVSB/W CMPSB/W --- STOSB/W LODSB/W SCASB/W
+        else if (instruction >= 0xA0 && instruction <= 0xAF)
         {
-            bool big = (instruction&0x01); //word-sized?
-            i8 size = i8(big)+1;
-            i8 direction = flag(F_DIRECTIONAL)?-size:size;
-            const u16 programs[8] = // lol microcode
+            modrm_is_register = true;
+            modrm_width = (instruction&1)?16:8;
+            modrm_reg = 0;
+
+            const u16 programs[16] = // lol actual microcode
             {
-                0x0000, 0x0000, 0x4021, 0x8103,
-                0x0000, 0x4024, 0x4041, 0x8106,
+                0x060, 0x060, 0x064, 0x064, 0x12C, 0x12C, 0x120, 0x120,
+                0x09C, 0x09C, 0x11C, 0x11C, 0x12C, 0x12C, 0x120, 0x120
             };
 
-            const u8 cycles_single[16] =
-            {
-                 0,  0,  0,  0, 18, 26, 30, 30,
-                 0,  0, 11, 15, 16, 16, 19, 19,
-            };
-            const u8 cycles_rep_mult[16] =
-            {
-                0, 0, 0, 0,17,25,30,30,
-                0, 0,10,14,15,15,15,19,//check LOD
-            };
-
-            u16 source_segment = registers[get_segment(DS)];
-
-            u16 program = programs[(instruction>>1)&0x07];
-            if (registers[CX] != 0 || string_prefix == 0) do
-            {
-                u16 value1{}, value2{};
-                if (big)
-                {
-                    if (program&0x01)
-                        value1 = mem._16(source_segment, registers[SI]);
-                    if (program&0x02)
-                        value2 = mem._16(registers[ES], registers[DI]);
-                    if (program&0x04)
-                        value1 = registers[AX];
-                    if (program&0x10)
-                        mem._16(source_segment, registers[SI]) = value1;
-                    if (program&0x20)
-                        mem._16(registers[ES],registers[DI]) = value1;
-                    if (program&0x40)
-                        registers[AX] = value1;
-                    if (program&0x100)
-                        cmp_flags<u16>(value1,value2,u16(value1-value2));
-                }
-                else
-                {
-                    if (program&0x01)
-                        value1 = mem._8(source_segment, registers[SI]);
-                    if (program&0x02)
-                        value2 = mem._8(registers[ES], registers[DI]);
-                    if (program&0x04)
-                        value1 = get_r8(0);
-                    if (program&0x10)
-                        mem._8(source_segment, registers[SI]) = value1;
-                    if (program&0x20)
-                        mem._8(registers[ES],registers[DI]) = value1;
-                    if (program&0x40)
-                        get_r8(0) = value1;
-                    if (program&0x100)
-                        cmp_flags<u8>(value1,value2,u8(value1-value2));
-                }
-                if (program&0x11) //uses DS:SI
-                    registers[SI] += direction;
-                if (program&0x22) //uses ES:DI
-                    registers[DI] += direction;
-
-                if (string_prefix == 0)
-                {
-                    cycles_used += cycles_single[instruction&0x0F];
-                    break;
-                }
-                cycles_used += cycles_rep_mult[instruction&0x0F];
-                registers[CX] -= 1;
-                if ((program&0xC000)==0x8000)
-                {
-                    if (string_prefix == SP_REPNZ && flag(F_ZERO))
-                    {
-                        cycles_used += 9;
-                        break;
-                    }
-                    if (string_prefix == SP_REPZ && !flag(F_ZERO))
-                    {
-                        cycles_used += 9;
-                        break;
-                    }
-                }
-                if (registers[CX] == 0)
-                {
-                    cycles_used += 9;
-                    break;
-                }
-                registers[IP] -= 1+prefix_byte_n;
-                is_inside_multi_part_instruction = true;
-            } while(false);
+            mc_execute(programs[instruction&0x0F], modrm_width, (instruction&0x08), string_prefix, 0);
         }
-        else if ((instruction&0xF8) == 0xB0) //mov reg8, Ib
+        else if ((instruction&0xF0) == 0xB0) //mov reg8, Ib/Iv
         {
-            get_r8(instruction&0x07) = read_inst<u8>();
-            cycles_used += 4;
-        }
-        else if ((instruction&0xF8) == 0xB8) //mov reg16, Iv
-        {
-            get_r16(instruction&0x07) = read_inst<u16>();
-            cycles_used += 4;
+            modrm_is_register = true;
+            modrm_reg = (instruction&0x07);
+            modrm_width = (instruction&0x08)?16:8;
+            mc_execute(0x1C, modrm_width, (instruction&0x08), string_prefix, 0);
         }
         else if (instruction == 0xC0 || instruction == 0xC2) // near return w/imm
         {
@@ -1693,13 +1780,18 @@ struct CPU8088MC
         else if ((instruction&0xFE) == 0xC4) // LES LDS
         {
             u8 modrm = read_inst<u8>();
+            decode_modrm_mc(modrm);
+            modrm_width = 16;
+            mc_execute((instruction&0x01)?0xF4:0xF0, modrm_width, (instruction&0x08), string_prefix, 0);
+
+            /*u8 modrm = read_inst<u8>();
             //u16& rm = decode_modrm_u16(modrm);
 
             u32 addr = effective_address(modrm);
             u16& r = get_r16((modrm>>3)&0x07);
             r = mem._16(addr>>16, addr&0xFFFF);
             registers[(instruction&1)?DS:ES] = mem._16(addr>>16, (addr&0xFFFF)+2); //ES or DS, based on the opcode
-            cycles_used += 24;
+            cycles_used += 24;*/
         }
         else if (instruction == 0xC6)
         {
@@ -1752,6 +1844,18 @@ struct CPU8088MC
             if (startprinting)
                 cout << "RETURN FROM INTERRUPT to " << registers[IP]<< ":" << registers[CS] << "|" << newflags << endl;
             cycles_used += 44;
+        }
+        else if (instruction >= 0xD0 && instruction <= 0xD1)
+        {
+            u8 modrm = read_inst<u8>();
+            decode_modrm_mc(modrm);
+            mc_execute(0x088, (instruction&0x01)?16:8, 0, 0, modrm_r+8);
+        }
+        else if (instruction >= 0xD2 && instruction <= 0xD3)
+        {
+            u8 modrm = read_inst<u8>();
+            decode_modrm_mc(modrm);
+            mc_execute(0x08C, (instruction&0x01)?16:8, 0, 0, modrm_r+8);
         }
         else if (instruction == 0xD0 || instruction == 0xD2)
         {
@@ -2000,7 +2104,8 @@ struct CPU8088MC
         else if(instruction == 0xF6) //byte param
         {
             u8 modrm = read_inst<u8>();
-            decode_modrm_u8(modrm);
+            modrm_width = 8;
+            decode_modrm_mc(modrm);
             u8 op = ((modrm>>3)&0x07);
 
             //cout << "DIV: " << std::dec << get_r16(AX)<< "/" << u32(*regM8) << std::hex << endl;
@@ -2015,7 +2120,8 @@ struct CPU8088MC
         else if(instruction == 0xF7) //word param
         {
             u8 modrm = read_inst<u8>();
-            decode_modrm_u16(modrm);
+            modrm_width = 16;
+            decode_modrm_mc(modrm);
             u8 op = ((modrm>>3)&0x07);
 
             const u16 start_addr[8] =

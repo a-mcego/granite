@@ -1065,6 +1065,7 @@ void configline(std::string line)
 
         u32 flags_failed[16] = {};
         u32 regs_failed[16] = {};
+        u32 mem_failures{};
         while(ptr < filedata.size())
         {
             cycles = 0;
@@ -1116,7 +1117,7 @@ void configline(std::string line)
                 u16 test_reg = testcpu.registers[testcpu.registermap[i]];
                 if (final_regs[i] != test_reg)
                 {
-                    //std::cout << "reg " << regnames[i] << "=" << test_reg << " but supposed=" << final_regs[i] << std::endl;
+                    //std::cout << "reg " << std::hex << regnames[i] << "=" << test_reg << " but supposed=" << final_regs[i] << std::endl;
                     test_passed = false;
                     if (i==12)
                     {
@@ -1129,7 +1130,7 @@ void configline(std::string line)
                 }
                 if ((test_reg^final_regs[i]))
                 {
-                    //cout << test_filename << "#" << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                    //cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
@@ -1141,13 +1142,15 @@ void configline(std::string line)
 
                 if (mac.p.membytes.bytes[address] != value)
                 {
+                    ++mem_failures;
                     test_passed = false;
-                    //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mac.p.membytes.bytes[address]) << "!=" << u32(value) << std::dec << endl;
+                    //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mac.p.membytes.bytes[address]) << ", should be " << u32(value) << std::dec << endl;
                 }
             }
 
             if (!test_passed)
                 tests_failed += 1, ++tests_totalfailed;
+
             ++test_id;
             ++tests_totaldone;
 
@@ -1156,7 +1159,9 @@ void configline(std::string line)
         }
 
         if (tests_failed > 0)
-        {   cout << test_filename << ": " << tests_failed << " TESTS FAILED!" << endl;
+        {
+            cout << std::dec;
+            cout << test_filename << ": " << tests_failed << " TESTS FAILED!" << endl;
             cout << "Reg failures:   ";
             for(int i=0; i<14; ++i)
                 cout << regs_failed[i] << (i%4==3?"  ":" ");
@@ -1165,11 +1170,12 @@ void configline(std::string line)
             for(int i=0; i<16; ++i)
                 cout << flags_failed[i] << (i%4==3?"  ":" ");
             cout << endl;
+            cout << "Mem failures:   " << std::dec << mem_failures << std::hex << std::endl;
         }
     }
     else if (command == "end_tests")
     {
-        cout << "tests failed: " << tests_totalfailed << "/" << tests_totaldone << endl;
+        cout << "tests failed: " << std::dec << tests_totalfailed << "/" << tests_totaldone << endl;
         std::abort();
     }
     else if (command == "sound")
