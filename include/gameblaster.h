@@ -8,10 +8,10 @@
 
 struct GameBlaster
 {
-    i16 sound_out{};
+    i16 sound_out_l, sound_out_r{};
     struct SAA1099
     {
-        i16 sound_out{}; //current output sample
+        i16 sound_out_l, sound_out_r{}; //current output sample
 
         u8 reg[0x20] = {};
         u8 current_reg = {};
@@ -29,24 +29,28 @@ struct GameBlaster
 
         void cycle() //calling frequency is real chip / 256, to save on processing
         {
-            u16 out_sample{};
+            u16 out_sample_l{};
+            u16 out_sample_r{};
             for(u8 channel=0; channel<6; ++channel) //6 melody channels
             {
-                u8 amp = (reg[channel]&0x0F)+((reg[channel]>>4)&0x0F);
+                u8 amp_l = (reg[channel]&0x0F);
+                u8 amp_r = (reg[channel]>>4)&0x0F;
                 u8 freq = reg[channel|0x08];
                 u8 octave = (reg[0x10 + (channel>>1)]>>(channel&1?4:0))&0x0F;
                 u32 divisor = (0x1FF^freq) << (9-octave);
                 osc_state[channel] += 256;
                 if (osc_state[channel] >= 2*divisor)
                     osc_state[channel] -= 2*divisor;
-                u16 sample = (osc_state[channel]>=divisor)?0x80:0x00;
+                u16 sample = (osc_state[channel]>=divisor)?0x180:0x00;
 
                 bool enable = (reg[0x14]>>channel)&0x01;
-                out_sample += amp*(enable?sample:0);
+                out_sample_l += amp_l*(enable?sample:0);
+                out_sample_r += amp_r*(enable?sample:0);
             }
             //TODO: noise channels, envelope
             bool sound_enabled = reg[0x1C]&0x01; //all channels
-            sound_out = (sound_enabled?out_sample:0);
+            sound_out_l = (sound_enabled?out_sample_l:0);
+            sound_out_r = (sound_enabled?out_sample_r:0);
         }
     };
 
@@ -89,6 +93,7 @@ struct GameBlaster
         low.cycle();
         high.cycle();
 
-        sound_out = (low.sound_out>>1) + (high.sound_out>>1); //no stereo yet :(
+        sound_out_l = (low.sound_out_l>>1) + (high.sound_out_l>>1);
+        sound_out_r = (low.sound_out_r>>1) + (high.sound_out_r>>1);
     }
 };

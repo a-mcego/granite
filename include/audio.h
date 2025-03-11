@@ -39,10 +39,13 @@ void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
         i16 data = audio_buffer[offset_start];
         *pi16Output = data;
         ++pi16Output;
+        data = audio_buffer[offset_start+1];
+        *pi16Output = data;
+        ++pi16Output;
         frame_counter += done_count;
         while(frame_counter >= frameCount)
         {
-            ++offset_start;
+            offset_start += 2;
             frame_counter -= frameCount;
             if (offset_start == offset_end)
                 goto double_break; //oh no :o
@@ -80,7 +83,7 @@ struct MiniAudio
     {
         deviceConfig = ma_device_config_init(ma_device_type_playback);
         deviceConfig.playback.format   = ma_format_s16;
-        deviceConfig.playback.channels = 1;
+        deviceConfig.playback.channels = 2;
         deviceConfig.sampleRate        = u32(SAMPLERATE);
         deviceConfig.dataCallback      = audio_method3;
 
@@ -107,11 +110,22 @@ struct MiniAudio
 
     void cycle()
     {
-        i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out;
-        data = (data<-32768?-32768:data);
-        data = (data>32767?32767:data);
-        audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
-        ++audio_write_offset;
+        {
+            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_l;
+            data = (data<-32768?-32768:data);
+            data = (data>32767?32767:data);
+            audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
+            ++audio_write_offset;
+        }
+        {
+            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_r;
+            data = (data<-32768?-32768:data);
+            data = (data>32767?32767:data);
+            audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
+            ++audio_write_offset;
+        }
+        //audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
+        //++audio_write_offset;
     }
 };
 
