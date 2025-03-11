@@ -128,6 +128,7 @@ struct HARDDISK
                     cout << "File " << filename << " doesnt contain an image of " << data.size() << " bytes." << endl;
                 }
                 fclose(filu);
+                filename.clear();
             }
             else
             {
