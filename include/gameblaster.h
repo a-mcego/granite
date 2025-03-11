@@ -33,18 +33,21 @@ struct GameBlaster
             u16 out_sample_r{};
             for(u8 channel=0; channel<6; ++channel) //6 melody channels
             {
-                u8 amp_l = (reg[channel]&0x0F);
-                u8 amp_r = (reg[channel]>>4)&0x0F;
                 u8 freq = reg[channel|0x08];
-                u8 octave = (reg[0x10 + (channel>>1)]>>(channel&1?4:0))&0x0F;
-                u32 divisor = (0x1FF^freq) << (9-octave);
+                u8 octave = (reg[0x10 + (channel>>1)]>>(channel&1?4:0))&0x07;
+
+                //256 cycles all at once
                 osc_state[channel] += 256;
+
+                u32 divisor = (0x1FF^freq) << (9-octave);
                 if (osc_state[channel] >= 2*divisor)
                     osc_state[channel] -= 2*divisor;
                 u16 sample = (osc_state[channel]>=divisor)?0x180:0x00;
 
                 bool enable = (reg[0x14]>>channel)&0x01;
+                u8 amp_l = (reg[channel]&0x0F);
                 out_sample_l += amp_l*(enable?sample:0);
+                u8 amp_r = (reg[channel]>>4)&0x0F;
                 out_sample_r += amp_r*(enable?sample:0);
             }
             //TODO: noise channels, envelope
