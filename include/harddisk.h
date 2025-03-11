@@ -12,6 +12,17 @@ struct HARDDISK
     {
         struct DiskType
         {
+            DiskType(){}
+
+            DiskType(int c, int h, int s):cylinders(c),heads(h),sectors(s)
+            {
+                if (s != 17)
+                {
+                    std::cout << "Xebec v1 requires 17 sectors per track." << std::endl;
+                    std::abort();
+                }
+            }
+
             static const u32 BYTES_PER_SECTOR = 512;
             u32 cylinders=0;
             u32 heads=0;
@@ -29,9 +40,11 @@ struct HARDDISK
 
             u32 totalsize()
             {
+                std::cout << "C=" << cylinders << ", H=" << heads << ", S=" << sectors << std::endl;
                 return cylinders*heads*sectors*BYTES_PER_SECTOR;
             }
-        } static constexpr disktypes[4] =
+        };
+        /* static constexpr disktypes[4] =
         {
             {306, 2, 17},
             {375, 8, 17},
@@ -40,7 +53,8 @@ struct HARDDISK
         };
 
         static const u32 DISKTYPE_ID = 1;
-        DiskType type{disktypes[DISKTYPE_ID]};
+        DiskType type{disktypes[DISKTYPE_ID]};*/
+        DiskType type;
         vector<u8> data;
         std::string filename;
 
@@ -66,7 +80,8 @@ struct HARDDISK
             u64 filesize = ftell(filu);
             if (data.size() != filesize)
             {
-                cout << "Data size " << data.size() << " is not file size " << filesize << endl;
+                cout << filename << " Data size " << data.size() << " is not file size " << filesize << endl;
+                return;
                 //std::abort();
             }
             fseek(filu, 0, SEEK_SET);
@@ -89,12 +104,11 @@ struct HARDDISK
 
         DISK()
         {
-            //data.assign(type.totalsize(),0);
-            //cout << "HD: " << data.size() << " bytes." << endl;
         }
 
-        DISK(const std::string& filename_):filename(filename_)
+        DISK(const std::string& filename_, int c, int h, int s):filename(filename_)
         {
+            type = DiskType(c,h,s);
             data.assign(type.totalsize(),0);
             cout << "HD: " << data.size() << " bytes." << endl;
 
@@ -493,7 +507,11 @@ struct HARDDISK
         }
         else if (port == 2) //switch settings
         {
-            data = 0b0101; //both drives type 2 (note inverted logic)
+            //data: bits 3 and 2 = drive 0 type
+            //      bits 1 and 0 = drive 1 type
+
+            data = 0b0001; //let's put type 1 and 2, then dynamically set them inside the ROM
+
             //cout << "HD READ switch: " << u32(data) << endl;
             r1_req = true;
         }

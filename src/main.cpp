@@ -885,6 +885,55 @@ vector<u8> readfile(const std::string& filename)
 
 u64 tests_totalfailed{}, tests_totaldone{};
 
+struct ROM
+{
+    u32 start_address{};
+    std::vector<u8> data;
+    u32 stride{1};
+
+    //patches checksum in a chosen byte (or last byte if not chosen).
+    void patch_checksum(int index=-1)
+    {
+        if (index == -1)
+        {
+            index = data.size()-1;
+        }
+
+        if (index < 0 || index >= data.size())
+        {
+            return;
+        }
+
+        u8 checksum{};
+        for(int i=0; i<data.size(); ++i)
+        {
+            if (i != index)
+                checksum += data[i];
+        }
+        data[index] = -checksum;
+    }
+};
+std::vector<ROM> roms;
+
+inline const std::vector<std::string> ExplodeCopy(std::string s, const char& c)
+{
+    std::vector<std::string> v;
+
+    size_t start=0, len=0;//, i=0;
+    for(auto n:s)
+    {
+        ++len;
+        if(n == c)
+        {
+            v.push_back(s.substr(start, len-1));
+            start += len;
+            len = 0;
+        }
+    }
+    v.push_back(s.substr(start));
+    return v;
+}
+
 void configline(std::string line)
 {
     if (line.empty())
@@ -955,23 +1004,25 @@ void configline(std::string line)
         std::string address_str, filename;
         iss >> address_str >> filename;
 
-        unsigned long stride = 1;
+        ROM rom;
+
+        rom.stride = 1;
         while(true)
         {
             std::string option;
             iss >> option;
             if (option.substr(0,7) == "stride=")
             {
-                stride = atoi(option.substr(7).c_str());
+                rom.stride = atoi(option.substr(7).c_str());
             }
             if (iss.eof())
                 break;
         }
 
-        std::cout << filename << " stride = " << stride << std::endl;
+        std::cout << filename << " stride = " << rom.stride << std::endl;
 
         // Convert hex address to integer
-        unsigned long address = std::stoul(address_str, nullptr, 16);
+        rom.start_address = std::stoul(address_str, nullptr, 16);
 
         // Read the ROM file
         std::ifstream file(filename, std::ios::binary);
@@ -986,11 +1037,14 @@ void configline(std::string line)
         std::streampos fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
 
+        rom.data.assign(fileSize,0);
+
         // Read file contents into memory
 
         for(int i=0; i<fileSize; ++i)
         {
-            file.read(reinterpret_cast<char*>(&mac.p.membytes.bytes[address+i*stride]),1);
+            //file.read(reinterpret_cast<char*>(&mac.p.membytes.bytes[address+i*stride]),1);
+            file.read(reinterpret_cast<char*>(&rom.data[i]),1);
         }
 
         /*if (address + fileSize <= 0x100000)
@@ -1001,6 +1055,7 @@ void configline(std::string line)
         {
             std::cerr << "Error: ROM file too large or invalid address" << std::endl;
         }*/
+        roms.push_back(rom);
     }
     else if (command == "load")
     {
@@ -1016,7 +1071,33 @@ void configline(std::string line)
         else if (drive_number >= 2 && drive_number < 4)
         {
             cout << "Loading hard disk from " << image_filename << endl;
-            mac.p.harddisk.disks[drive_number-2] = HARDDISK::DISK(image_filename);
+
+            int c = 375;
+            int h = 8;
+            int s = 17;
+            while(true)
+            {
+                std::string option;
+                iss >> option;
+                std::cout << "ho" << std::endl;
+                if (option.substr(0,4) == "chs=")
+                {
+                    std::cout << "ho2" << std::endl;
+                    vector<string> chsvals = ExplodeCopy(option.substr(4), ',');
+                    std::cout << "ho3 " << chsvals.size() << std::endl;
+                    if (chsvals.size() == 3)
+                    {
+                        c = atoi(chsvals[0].c_str());
+                        h = atoi(chsvals[1].c_str());
+                        s = atoi(chsvals[2].c_str());
+                        std::cout << "ho3 " << chsvals.size() << std::endl;
+                    }
+                }
+                if (iss.eof())
+                    break;
+            }
+
+            mac.p.harddisk.disks[drive_number-2] = HARDDISK::DISK(image_filename, c, h, s);
         }
         else
         {
@@ -1223,6 +1304,43 @@ void readConfigFile(const std::string& filename)
     while (std::getline(configFile, line))
     {
         configline(line);
+    }
+
+    //patch xebec :christ:
+    const u8 xebecHeader[16] = { 0x55, 0xAA, 0x10, 0xEB, 0x1E, 0x35, 0x30, 0x30, 0x30, 0x30, 0x35, 0x39, 0x20, 0x28, 0x43, 0x29 };
+    for(auto& rom: roms)
+    {
+        if (rom.data.size() >= 16 && memcmp(xebecHeader, rom.data.data(), 16) == 0)
+        {
+            std::cout << "zebec found" << std::endl;
+
+            const u32 chs_data_offset = 0x3E7;
+
+            for(int disk_i=0; disk_i<2; ++disk_i)
+            {
+                u16 c = mac.p.harddisk.disks[disk_i].type.cylinders;
+                u16 h = mac.p.harddisk.disks[disk_i].type.heads;
+                //u16 s = harddisk.disk[0].type.sectors; //ignored until i have xebec v3
+
+                const u32 type_offset = chs_data_offset + 16*disk_i;
+
+                rom.data[type_offset] = (c&0xFF);
+                rom.data[type_offset+1] = (c>>8);
+
+                rom.data[type_offset+2] = (h&0xFF);
+                rom.data[type_offset+3] = (h>>8);
+
+                rom.data[type_offset+4] = (c&0xFF);
+                rom.data[type_offset+5] = (c>>8);
+            }
+            rom.patch_checksum();
+        }
+    }
+
+    for(auto& rom: roms)
+    {
+        for(int i=0; i<rom.data.size(); ++i)
+            mac.p.membytes.bytes[rom.start_address+i*rom.stride] = rom.data[i];
     }
 }
 
