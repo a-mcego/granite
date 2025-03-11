@@ -1079,18 +1079,14 @@ void configline(std::string line)
             {
                 std::string option;
                 iss >> option;
-                std::cout << "ho" << std::endl;
                 if (option.substr(0,4) == "chs=")
                 {
-                    std::cout << "ho2" << std::endl;
                     vector<string> chsvals = ExplodeCopy(option.substr(4), ',');
-                    std::cout << "ho3 " << chsvals.size() << std::endl;
                     if (chsvals.size() == 3)
                     {
                         c = atoi(chsvals[0].c_str());
                         h = atoi(chsvals[1].c_str());
                         s = atoi(chsvals[2].c_str());
-                        std::cout << "ho3 " << chsvals.size() << std::endl;
                     }
                 }
                 if (iss.eof())
