@@ -126,9 +126,10 @@ struct HARDDISK
                 else
                 {
                     cout << "File " << filename << " doesnt contain an image of " << data.size() << " bytes." << endl;
+                    filename.clear();
+                    data.clear();
                 }
                 fclose(filu);
-                filename.clear();
             }
             else
             {
@@ -288,7 +289,7 @@ struct HARDDISK
                     {
                         set_current_params();
                         u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
-                        cout << "HD READ offset: " << offset << endl;
+                        //cout << "HD READ offset: " << offset << endl;
                         if (address_valid)
                         {
                             //dma.print_params(3);
