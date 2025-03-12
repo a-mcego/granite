@@ -1,0 +1,190 @@
+#pragma once
+
+#include <queue>
+#include "dma.h"
+#include "interrupt.h"
+
+//soundblaster! :-)
+//trying to get as many versions as possible, from 1.0 to awe64, all ISA cards
+//currently sb pro, hardcoded to I/O 220, DMA 1, IRQ 7. remember to SET BLASTER!
+
+struct SoundBlaster
+{
+    CHIP8237& dma;
+    CHIP8259& pic;
+
+    SoundBlaster(CHIP8237& dma_, CHIP8259& pic_) : dma(dma_), pic(pic_) { buffer.assign(256,0); }
+
+    i16 sound_out_l{}, sound_out_r{};
+    static constexpr u8 VERSION_MAJOR = 3;
+    static constexpr u8 VERSION_MINOR = 1;
+
+    enum PORTS
+    {
+        MIXER=0x04,
+        MIXER_DATA=0x05,
+        RESET=0x06,
+        READ=0x0A,
+        WRITE=0x0C,
+        STATUS=0x0E,
+        INT_ACK=0x0F //sb16+ only
+    };
+    enum COMMANDS
+    {
+        OUTPUT_8_AUTOINIT=0x1C,
+        OUTPUT_8_AUTOINIT_STOP=0xDA,
+        SET_TIME_CONSTANT=0x40, //requires one more write: the time constant
+        SET_BLOCK_TRANSFER_SIZE=0x48, //two bytes. low byte and high byte.
+        SPEAKER_ON=0xD1,
+        SPEAKER_OFF=0xD3,
+        VERSION=0xE1, //returns 2 bytes: major version, minor version
+    };
+
+    struct Mixer
+    {
+        u8 regs[0x100] = {};
+        u8 current_reg{};
+    } mixer;
+
+    bool play{};
+    bool stop_after_current{};
+    bool speaker{};
+    bool reset{};
+    u8 writestatus{};
+    std::queue<u8> readdata;
+
+    u8 bytes_left_to_write{};
+    u8 current_command{};
+    u16 block_transfer_size{};
+
+    u8 time_constant{};
+
+    u8 read(u8 port) // port from 0 to F inclusive
+    {
+        u8 data = 0;
+        if (port == STATUS)
+        {
+            data = readdata.empty()?0:0x80;
+        }
+        else if (port == READ)
+        {
+            if (!readdata.empty())
+            {
+                data = readdata.front();
+                readdata.pop();
+            }
+        }
+        else if (port == MIXER_DATA)
+        {
+            data = mixer.regs[mixer.current_reg];
+        }
+        std::cout << "SB read " << u32(port) << ":" << u32(data) << std::endl;
+        return data;
+    }
+
+    void write(u8 port, u8 data) // port from 0 to F inclusive
+    {
+        std::cout << "SB write " << u32(port) << ":" << u32(data) << std::endl;
+        if (port == RESET)
+        {
+            if (reset && !data)
+            {
+                readdata.push(0xAA);
+            }
+            reset = bool(data);
+        }
+        else if (port == MIXER)
+        {
+            mixer.current_reg = data;
+        }
+        else if (port == MIXER_DATA)
+        {
+            mixer.regs[mixer.current_reg] = data;
+        }
+        else if (port == WRITE)
+        {
+            if (bytes_left_to_write)
+            {
+                --bytes_left_to_write;
+                if (current_command == SET_TIME_CONSTANT)
+                {
+                    //for example: 0xD2 is 22050 samples per second
+                    //it's the high byte of: 65536 - (256'000'000 / (samplerate*channels))
+                    time_constant = data;
+                    std::cout << "Time constant set to " << u32(data) << std::endl;
+                }
+                else if (current_command == SET_BLOCK_TRANSFER_SIZE)
+                {
+                    if (bytes_left_to_write == 1)
+                        block_transfer_size = (block_transfer_size&0xFF00)|data;
+                    else
+                        block_transfer_size = (block_transfer_size&0x00FF)|(data<<8);
+                }
+            }
+            else
+            {
+                current_command = data;
+                if (data == VERSION)
+                {
+                    readdata.push(VERSION_MAJOR);
+                    readdata.push(VERSION_MINOR);
+                }
+                else if (data == SET_TIME_CONSTANT)
+                {
+                    bytes_left_to_write=1;
+                }
+                else if (data == SET_BLOCK_TRANSFER_SIZE)
+                    bytes_left_to_write=2;
+                else if (data == SPEAKER_ON)
+                    speaker = true;
+                else if (data == SPEAKER_OFF)
+                    speaker = false;
+                else if (data == OUTPUT_8_AUTOINIT)
+                {
+                    dma.chans[1].curr_addr = dma.chans[1].start_addr;
+                    dma.chans[1].curr_count = dma.chans[1].transfer_count;
+                    play=true;
+                }
+                else if (data == OUTPUT_8_AUTOINIT_STOP)
+                    stop_after_current=play;
+                else
+                {
+                    std::cout << "unknown SB command " << u32(data) << std::endl;
+                    std::abort();
+                }
+            }
+        }
+    }
+
+
+    vector<u8> buffer;
+
+    void cycle() //22050 hz now for show
+    {
+        if (play)
+        {
+            dma.chans[1].device_vector = &buffer;
+            dma.chans[1].curr_vector_offset = 0;
+            dma.chans[1].cycle_transfer();
+
+            sound_out_l = i16(i8(buffer[0]^0x80))<<7;
+            sound_out_r = i16(i8(buffer[0]^0x80))<<7;
+
+            if (dma.chans[1].is_complete)
+            {
+                if (stop_after_current)
+                {
+                    play = false;
+                    stop_after_current = false;
+                }
+                else
+                {
+                    dma.chans[1].curr_addr = dma.chans[1].start_addr;
+                    dma.chans[1].curr_count = dma.chans[1].transfer_count;
+                }
+                dma.chans[1].is_complete_and_reset();
+                pic.request_interrupt(7);
+            }
+        }
+    }
+};

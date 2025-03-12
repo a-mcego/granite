@@ -128,6 +128,8 @@ const u8 byte_parity[256] =
 #include "mem186.h"
 #include "mem8088.h"
 #include "beeper.h"
+#include "gameblaster.h"
+#include "soundblaster.h"
 #include "audio.h"
 #include "rtccmos.h"
 #include "keyboard_at.h"
@@ -159,9 +161,10 @@ struct IOSystem
     CHIPLS612N dmapage;
     CHIP8237 dma{0, dmapage, mem286}, dma2{1, dmapage, mem286};
     CHIP8253 pit{pic, beeper};
+    SoundBlaster soundblaster{dma, pic};
     HARDDISK harddisk{dma, pic};
     DISKETTECONTROLLER diskettecontroller{dma, pic};
-    MiniAudio miniaudio{beeper, ym3812, gameblaster};
+    MiniAudio miniaudio{beeper, ym3812, gameblaster, soundblaster};
 
     void io_out(u16 port, u16 data)
     {
@@ -199,9 +202,13 @@ struct IOSystem
             else
                 kbd_xt.write(port-0x60, data&0xFF);
         }
-        else if (port >= 0x220 && port <= 0x22F)
+        /*else if (port >= 0x220 && port <= 0x223)
         {
             gameblaster.write(port-0x220, data&0xFF);
+        }*/
+        else if (port >= 0x220 && port <= 0x22F)
+        {
+            soundblaster.write(port-0x220, data&0xFF);
         }
         else if (port >= 0x3B0 && port <= 0x3DF)
         {
@@ -276,9 +283,13 @@ struct IOSystem
             else
                 data = kbd_xt.read(port-0x60);
         }
-        else if (port >= 0x220 && port <= 0x22F)
+        /*else if (port >= 0x220 && port <= 0x223)
         {
             data = gameblaster.read(port-0x220);
+        }*/
+        else if (port >= 0x220 && port <= 0x22F)
+        {
+            data = soundblaster.read(port-0x220);
         }
         else if (port >= 0x3B0 && port <= 0x3DF)
         {
@@ -486,6 +497,8 @@ struct Machine
             p.gameport.cycle();
         if (clock%256 == 0)
             p.gameblaster.cycle();
+        if (clock%650 == 0)
+            p.soundblaster.cycle();
     }
 
 } mac;

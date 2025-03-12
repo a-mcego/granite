@@ -3,6 +3,7 @@
 #include "beeper.h"
 #include "YM3812.h"
 #include "gameblaster.h"
+#include "soundblaster.h"
 
 u64 totalframes = 0;
 
@@ -74,12 +75,13 @@ struct MiniAudio
     BEEPER& beeper;
     YM3812& ym3812;
     GameBlaster& gameblaster;
+    SoundBlaster& soundblaster;
 
     ma_result result;
     ma_device_config deviceConfig;
     ma_device device;
 
-    MiniAudio(BEEPER& beeper_, YM3812& ym3812_, GameBlaster& gameblaster_) : beeper(beeper_), ym3812(ym3812_), gameblaster(gameblaster_)
+    MiniAudio(BEEPER& beeper_, YM3812& ym3812_, GameBlaster& gameblaster_, SoundBlaster& soundblaster_) : beeper(beeper_), ym3812(ym3812_), gameblaster(gameblaster_), soundblaster(soundblaster_)
     {
         deviceConfig = ma_device_config_init(ma_device_type_playback);
         deviceConfig.playback.format   = ma_format_s16;
@@ -111,14 +113,14 @@ struct MiniAudio
     void cycle()
     {
         {
-            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_l;
+            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_l+soundblaster.sound_out_l;
             data = (data<-32768?-32768:data);
             data = (data>32767?32767:data);
             audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
             ++audio_write_offset;
         }
         {
-            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_r;
+            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_r+soundblaster.sound_out_r;
             data = (data<-32768?-32768:data);
             data = (data>32767?32767:data);
             audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
