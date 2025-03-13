@@ -99,13 +99,11 @@ struct CHIP8237 //DMA
             ++curr_vector_offset;
             if (curr_count == 0 || cross_seg_boundary)
             {
-                pending = false;
-                is_complete = true;
-                if (!automatic)
-                {
-                    start_addr = 0;
-                    transfer_count = 0;
-                }
+                pending = automatic;
+                is_complete = !automatic;
+                curr_addr = start_addr;
+                curr_count = transfer_count;
+                curr_count = 0;
             }
             else
             {
@@ -280,7 +278,7 @@ struct CHIP8237 //DMA
         for(u64 i=0; i<4; ++i)
         {
             Channel& c = chans[i];
-            while (c.pending)
+            while (c.pending && i != 1)
             {
                 c.cycle_transfer();
             }

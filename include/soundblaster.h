@@ -13,7 +13,10 @@ struct SoundBlaster
     CHIP8237& dma;
     CHIP8259& pic;
 
-    SoundBlaster(CHIP8237& dma_, CHIP8259& pic_) : dma(dma_), pic(pic_) { buffer.assign(256,0); }
+    SoundBlaster(CHIP8237& dma_, CHIP8259& pic_) : dma(dma_), pic(pic_)
+    {
+        buffer.assign(256,0);
+    }
 
     i16 sound_out_l{}, sound_out_r{};
     static constexpr u8 VERSION_MAJOR = 3;
@@ -31,12 +34,16 @@ struct SoundBlaster
     };
     enum COMMANDS
     {
+        OUTPUT_8_SINGLE=0x10, //one more byte: the single data.
+        OUTPUT_8_ONEBLOCK=0x14, //two bytes: low byte, high byte
         OUTPUT_8_AUTOINIT=0x1C,
         OUTPUT_8_AUTOINIT_STOP=0xDA,
         SET_TIME_CONSTANT=0x40, //requires one more write: the time constant
         SET_BLOCK_TRANSFER_SIZE=0x48, //two bytes. low byte and high byte.
+        PAUSE = 0xD0,
         SPEAKER_ON=0xD1,
         SPEAKER_OFF=0xD3,
+        UNPAUSE = 0xD4,
         VERSION=0xE1, //returns 2 bytes: major version, minor version
     };
 
@@ -56,6 +63,7 @@ struct SoundBlaster
     u8 bytes_left_to_write{};
     u8 current_command{};
     u16 block_transfer_size{};
+    u16 current_block_transfer{};
 
     u8 time_constant{};
 
@@ -78,13 +86,13 @@ struct SoundBlaster
         {
             data = mixer.regs[mixer.current_reg];
         }
-        std::cout << "SB read " << u32(port) << ":" << u32(data) << std::endl;
+        //std::cout << "SB read " << u32(port) << ":" << u32(data) << std::endl;
         return data;
     }
 
     void write(u8 port, u8 data) // port from 0 to F inclusive
     {
-        std::cout << "SB write " << u32(port) << ":" << u32(data) << std::endl;
+        //std::cout << "SB write " << u32(port) << ":" << u32(data) << std::endl;
         if (port == RESET)
         {
             if (reset && !data)
@@ -113,12 +121,33 @@ struct SoundBlaster
                     time_constant = data;
                     std::cout << "Time constant set to " << u32(data) << std::endl;
                 }
+                else if (current_command == OUTPUT_8_ONEBLOCK)
+                {
+                    if (bytes_left_to_write == 1)
+                        block_transfer_size = (block_transfer_size&0xFF00)|data;
+                    else
+                    {
+                        block_transfer_size = (block_transfer_size&0x00FF)|(data<<8);
+                        current_block_transfer = block_transfer_size;
+                        std::cout << "SB single-block size: " << std::dec << block_transfer_size << std::endl;
+                        play=true;
+                    }
+                }
                 else if (current_command == SET_BLOCK_TRANSFER_SIZE)
                 {
                     if (bytes_left_to_write == 1)
                         block_transfer_size = (block_transfer_size&0xFF00)|data;
                     else
+                    {
                         block_transfer_size = (block_transfer_size&0x00FF)|(data<<8);
+                        current_block_transfer = block_transfer_size;
+                        std::cout << "SB block transfer size: " << std::dec << block_transfer_size << std::endl;
+                    }
+                }
+                else if (current_command == OUTPUT_8_SINGLE)
+                {
+                    sound_out_l = i16(i8(data^0x80))<<7;
+                    sound_out_r = sound_out_l;
                 }
             }
             else
@@ -139,17 +168,30 @@ struct SoundBlaster
                     speaker = true;
                 else if (data == SPEAKER_OFF)
                     speaker = false;
+                else if (data == OUTPUT_8_SINGLE)
+                {
+                    bytes_left_to_write=1;
+                }
+                else if (data == OUTPUT_8_ONEBLOCK)
+                {
+                    bytes_left_to_write=2;
+                }
                 else if (data == OUTPUT_8_AUTOINIT)
                 {
                     dma.chans[1].curr_addr = dma.chans[1].start_addr;
                     dma.chans[1].curr_count = dma.chans[1].transfer_count;
+                    dma.chans[1].pending = true;
                     play=true;
                 }
+                else if (data == UNPAUSE)
+                    play = true;
+                else if (data == PAUSE)
+                    play = false;
                 else if (data == OUTPUT_8_AUTOINIT_STOP)
                     stop_after_current=play;
                 else
                 {
-                    std::cout << "unknown SB command " << u32(data) << std::endl;
+                    std::cout << "unknown SB command " << std::hex << u32(data) << std::endl;
                     std::abort();
                 }
             }
@@ -170,8 +212,10 @@ struct SoundBlaster
             sound_out_l = i16(i8(buffer[0]^0x80))<<7;
             sound_out_r = i16(i8(buffer[0]^0x80))<<7;
 
-            if (dma.chans[1].is_complete)
+            bool did_interrupt{};
+            if (current_block_transfer == 0)
             {
+                dma.chans[1].is_complete_and_reset();
                 if (stop_after_current)
                 {
                     play = false;
@@ -179,11 +223,14 @@ struct SoundBlaster
                 }
                 else
                 {
-                    dma.chans[1].curr_addr = dma.chans[1].start_addr;
-                    dma.chans[1].curr_count = dma.chans[1].transfer_count;
+                    current_block_transfer = block_transfer_size;
                 }
-                dma.chans[1].is_complete_and_reset();
                 pic.request_interrupt(7);
+                did_interrupt = true;
+            }
+            else
+            {
+                --current_block_transfer;
             }
         }
     }

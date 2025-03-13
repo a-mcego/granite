@@ -85,6 +85,10 @@ struct GlobalSettings
         CGA,
         HEGA
     } graphics=CGA;
+
+    bool opl_enabled{true};
+    bool gblast_enabled{true};
+    bool sblast_enabled{true};
 } globalsettings{};
 
     u8 global_port0x61{0x00}; //system control port B
@@ -202,11 +206,13 @@ struct IOSystem
             else
                 kbd_xt.write(port-0x60, data&0xFF);
         }
-        /*else if (port >= 0x220 && port <= 0x223)
+        else if (globalsettings.gblast_enabled && port >= 0x220 && port <= 0x22F)
         {
+            if (globalsettings.sblast_enabled && port >= 0x224 && port <= 0x22F)
+                soundblaster.write(port-0x220, data&0xFF);
             gameblaster.write(port-0x220, data&0xFF);
-        }*/
-        else if (port >= 0x220 && port <= 0x22F)
+        }
+        else if (globalsettings.sblast_enabled && port >= 0x220 && port <= 0x22F)
         {
             soundblaster.write(port-0x220, data&0xFF);
         }
@@ -221,7 +227,7 @@ struct IOSystem
         {
             diskettecontroller.write(port-0x3F0, data&0xFF);
         }
-        else if (port >= 0x388 && port <= 0x389)
+        else if (globalsettings.opl_enabled && port >= 0x388 && port <= 0x389)
         {
             ym3812.write(port-0x388, data&0xFF);
         }
@@ -283,11 +289,14 @@ struct IOSystem
             else
                 data = kbd_xt.read(port-0x60);
         }
-        /*else if (port >= 0x220 && port <= 0x223)
+        else if (globalsettings.gblast_enabled && port >= 0x220 && port <= 0x22F)
         {
-            data = gameblaster.read(port-0x220);
-        }*/
-        else if (port >= 0x220 && port <= 0x22F)
+            if (globalsettings.sblast_enabled && port >= 0x224 && port <= 0x22F)
+                data = soundblaster.read(port-0x220);
+            else
+                data = gameblaster.read(port-0x220);
+        }
+        else if (globalsettings.sblast_enabled && port >= 0x220 && port <= 0x22F)
         {
             data = soundblaster.read(port-0x220);
         }
@@ -302,7 +311,7 @@ struct IOSystem
         {
             data = diskettecontroller.read(port-0x3F0);
         }
-        else if (port >= 0x388 && port <= 0x389)
+        else if (globalsettings.opl_enabled && port >= 0x388 && port <= 0x389)
         {
             data = ym3812.read(port-0x388);
         }
@@ -488,16 +497,16 @@ struct Machine
         }
         if (clock%298 == 0) //ca. 48kHz. handles sound output in general
             p.miniaudio.cycle();
-        if (clock%288 == 0)
+        if (globalsettings.opl_enabled && clock%288 == 0)
         {
             p.ym3812.cycle();
             p.ym3812.cycle_timers();
         }
         if (clock%GAMEPORT_CYCLE == 0)
             p.gameport.cycle();
-        if (clock%256 == 0)
+        if (globalsettings.gblast_enabled && clock%256 == 0)
             p.gameblaster.cycle();
-        if (clock%650 == 0)
+        if (globalsettings.sblast_enabled && clock%(650) == 0)
             p.soundblaster.cycle();
     }
 
