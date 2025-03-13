@@ -103,7 +103,6 @@ struct CHIP8237 //DMA
                 is_complete = !automatic;
                 curr_addr = start_addr;
                 curr_count = transfer_count;
-                curr_count = 0;
             }
             else
             {
