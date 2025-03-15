@@ -43,7 +43,7 @@ struct CHIP8255 //PC/XT keyboard etc
         }
     }
 
-    u8 read(u8 port) //port from 0 to 3! inclusive
+    u8 read(u8 port) //port from 0 to 4! inclusive
     {
         if constexpr (DEBUG_LEVEL > 1)
         {
@@ -105,9 +105,13 @@ struct CHIP8255 //PC/XT keyboard etc
             }
             return value;
         }
+        if (port == 4)
+        {
+            return 0;
+        }
 
         //what
-        cout << PRETTY_FUNCTION << " weird thing?" << endl;
+        cout << PRETTY_FUNCTION << " read from port: " << std::hex << 0x60+port << "??" << endl;
         std::abort();
     }
 

@@ -1,4 +1,4 @@
-cpu 8088mc
+cpu 8088
 cpu_multiplier 1/3
 #cpu_multiplier 10/6
 #cpu 286
@@ -14,13 +14,12 @@ cpu_multiplier 1/3
 rom f2000 rom/GLaTICK_0.8.5_AT.ROM
 
 #basic
-rom f6000 rom/basic/basicc1.0.f600.bin
-rom f8000 rom/basic/basicc1.0.f800.bin
-rom fa000 rom/basic/basicc1.0.fa00.bin
-rom fc000 rom/basic/basicc1.0.fc00.bin
+#rom f6000 rom/basic/basicc1.0.f600.bin
+#rom f8000 rom/basic/basicc1.0.f800.bin
+#rom fa000 rom/basic/basicc1.0.fa00.bin
+#rom fc000 rom/basic/basicc1.0.fc00.bin
 
 machine xt
-rom c0000 rom/ct-8190s_v3.32.bin
 rom fe000 rom/GLABIOS_0.2.5_8X.ROM
 #rom fe000 rom/GLABIOS_0.2.5_VX.ROM
 #rom fe000 rom/xtramtest.8k
@@ -28,9 +27,13 @@ rom fe000 rom/GLABIOS_0.2.5_8X.ROM
 #rom f8000 rom/xtbios/BIOS_5160_09MAY86_U18_59X7268_62X0890_27256_F800.BIN
 #rom f0000 rom/xtbios/BIOS_5160_10JAN86_U19_62X0854_27256_F000.BIN
 #rom f8000 rom/xtbios/BIOS_5160_10JAN86_U18_62X0851_27256_F800.BIN
+
+#rom c0000 rom/ct-8190s_v3.32.bin
 rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #rom f8000 rom/ruuds_diagnostic_rom_v5.4_32kb.bin
 
+load a disk/aaa.img
+#load a disk/cpc40/disk1.img
 #load a disk/FD13-D1.IMG
 #load a disk/pcdos5.02/DISK01.img
 #load a disk/pcdos3.3/Disk01.img
@@ -40,8 +43,9 @@ rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #load a disk/freedos/FD13-D1.IMG
 #load a disk/msfs1-d1.img
 
+#load b disk/cpc40/disk2.img
 #load b disk/8088mph.360
-load b disk/area5150.img
+#load b disk/area5150.img
 #load b disk/games/stunts.img
 #load b disk/games/spurgux.img
 #load b disk/games/rackem.img
@@ -53,8 +57,9 @@ load b disk/area5150.img
 #load b disk/panzer.img
 #load b disk/sound4.img
 
-load c cdisk.img
-load d ddisk.img
+load c cdisk.img chs=375,8,17
+#load d ddisk.img chs=375,8,17
+load d bigdisk.img chs=615,8,17
 
 #load c ddisk.img
 #load d edisk.img

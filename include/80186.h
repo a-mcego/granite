@@ -756,7 +756,6 @@ struct CPU80186
         }
         else if (instruction == 0xC9)
         {
-            cout << "BLAH: " << u32(instruction) << endl; std::abort();
             //0xC9 LEAVE
             registers[SP] = registers[BP];
             registers[BP] = pop();

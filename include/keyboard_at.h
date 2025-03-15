@@ -164,7 +164,7 @@ struct CHIP8042 //AT keyboard etc
         }
 
         //what
-        cout << PRETTY_FUNCTION << " weird thing?" << endl;
+        cout << PRETTY_FUNCTION << " read from port: " << std::hex << 0x60+port << "??" << endl;
         std::abort();
     }
 

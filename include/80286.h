@@ -1672,6 +1672,10 @@ struct CPU80286
                 registers[IP] = original_ip;
                 is_inside_multi_part_instruction = true;
             } while(false);
+            else
+            {
+                cycles_used += 6;
+            }
         }
         else if ((instruction&0xF8) == 0xB0) //mov reg8, Ib
         {
