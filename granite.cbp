@@ -38,6 +38,7 @@
 		<Unit filename="include/diskette.h" />
 		<Unit filename="include/dma.h" />
 		<Unit filename="include/dmapage.h" />
+		<Unit filename="include/gameblaster.h" />
 		<Unit filename="include/gameport.h" />
 		<Unit filename="include/glad/gl.h" />
 		<Unit filename="include/harddisk.h" />
@@ -57,6 +58,7 @@
 		<Unit filename="include/rtccmos.h" />
 		<Unit filename="include/screen.h" />
 		<Unit filename="include/shader.h" />
+		<Unit filename="include/soundblaster.h" />
 		<Unit filename="src/KHR/khrplatform.h" />
 		<Unit filename="src/gl.cpp" />
 		<Unit filename="src/main.cpp" />
