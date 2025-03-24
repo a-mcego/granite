@@ -277,7 +277,7 @@ struct CHIP8237 //DMA
         for(u64 i=0; i<4; ++i)
         {
             Channel& c = chans[i];
-            while (c.pending && i != 1)
+            while (c.pending && i != 1 && i!=2)
             {
                 c.cycle_transfer();
             }

@@ -37,13 +37,13 @@ struct SoundBlaster
         OUTPUT_8_SINGLE=0x10, //one more byte: the single data.
         OUTPUT_8_ONEBLOCK=0x14, //two bytes: low byte, high byte
         OUTPUT_8_AUTOINIT=0x1C,
-        OUTPUT_8_AUTOINIT_STOP=0xDA,
         SET_TIME_CONSTANT=0x40, //requires one more write: the time constant
         SET_BLOCK_TRANSFER_SIZE=0x48, //two bytes. low byte and high byte.
         PAUSE = 0xD0,
         SPEAKER_ON=0xD1,
         SPEAKER_OFF=0xD3,
         UNPAUSE = 0xD4,
+        OUTPUT_8_AUTOINIT_STOP=0xDA,
         VERSION=0xE1, //returns 2 bytes: major version, minor version
     };
 
@@ -64,6 +64,8 @@ struct SoundBlaster
     u8 current_command{};
     u16 block_transfer_size{};
     u16 current_block_transfer{};
+    u16 clocks_per_cycle{};
+    u16 current_clock{};
 
     u8 time_constant{};
 
@@ -119,6 +121,7 @@ struct SoundBlaster
                     //for example: 0xD2 is 22050 samples per second
                     //it's the high byte of: 65536 - (256'000'000 / (samplerate*channels))
                     time_constant = data;
+                    clocks_per_cycle = 315*(256-time_constant)/22;
                     std::cout << "Time constant set to " << u32(data) << std::endl;
                 }
                 else if (current_command == OUTPUT_8_ONEBLOCK)
@@ -201,37 +204,45 @@ struct SoundBlaster
 
     vector<u8> buffer;
 
-    void cycle() //22050 hz now for show
+    void cycle()
     {
-        if (play)
+        if (clocks_per_cycle == 0)
+            return;
+        ++current_clock;
+        if (current_clock >= clocks_per_cycle)
         {
-            dma.chans[1].device_vector = &buffer;
-            dma.chans[1].curr_vector_offset = 0;
-            dma.chans[1].cycle_transfer();
-
-            sound_out_l = i16(i8(buffer[0]^0x80))<<7;
-            sound_out_r = i16(i8(buffer[0]^0x80))<<7;
-
-            bool did_interrupt{};
-            if (current_block_transfer == 0)
+            current_clock %= clocks_per_cycle;
+            if (play)
             {
-                dma.chans[1].is_complete_and_reset();
-                if (stop_after_current)
+                dma.chans[1].device_vector = &buffer;
+                dma.chans[1].curr_vector_offset = 0;
+                dma.chans[1].cycle_transfer();
+
+                sound_out_l = i16(i8(buffer[0]^0x80))<<7;
+                sound_out_r = sound_out_l;
+
+                bool did_interrupt{};
+                if (current_block_transfer == 0)
                 {
-                    play = false;
-                    stop_after_current = false;
+                    dma.chans[1].is_complete_and_reset();
+                    if (stop_after_current)
+                    {
+                        play = false;
+                        stop_after_current = false;
+                    }
+                    else
+                    {
+                        current_block_transfer = block_transfer_size;
+                    }
+                    pic.request_interrupt(7);
+                    did_interrupt = true;
                 }
                 else
                 {
-                    current_block_transfer = block_transfer_size;
+                    --current_block_transfer;
                 }
-                pic.request_interrupt(7);
-                did_interrupt = true;
-            }
-            else
-            {
-                --current_block_transfer;
             }
         }
+
     }
 };
