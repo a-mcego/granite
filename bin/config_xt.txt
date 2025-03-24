@@ -32,7 +32,7 @@ rom fe000 rom/GLABIOS_0.2.5_8X.ROM
 rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #rom f8000 rom/ruuds_diagnostic_rom_v5.4_32kb.bin
 
-load a disk/aaa.img
+#load a disk/aaa.img
 #load a disk/cpc40/disk1.img
 #load a disk/FD13-D1.IMG
 #load a disk/pcdos5.02/DISK01.img
@@ -59,7 +59,8 @@ load a disk/aaa.img
 
 load c cdisk.img chs=375,8,17
 #load d ddisk.img chs=375,8,17
-load d bigdisk.img chs=615,8,17
+#load d bigdisk.img chs=615,8,17
+load d geos.img chs=615,8,17
 
 #load c ddisk.img
 #load d edisk.img

@@ -121,6 +121,7 @@ const u8 byte_parity[256] =
     1,0,0,1,0,1,1,0,0,1,1,0,1,0,0,1,
 };
 
+#include "sampleplayer.h"
 #include "screen.h"
 #include "YM3812.h"
 #include "gameport.h"
@@ -143,6 +144,7 @@ const u8 byte_parity[256] =
 #include "pit.h"
 #include "harddisk.h"
 #include "diskette.h"
+#include "busmouse.h"
 
 
 struct IOSystem
@@ -162,6 +164,7 @@ struct IOSystem
     CHIP146818 cmos;
     CHIP8042 kbd_at{pic};
     CHIP8255 kbd_xt{pic};
+    BusMouse busmouse{pic};
     CHIPLS612N dmapage;
     CHIP8237 dma{0, dmapage, mem286}, dma2{1, dmapage, mem286};
     CHIP8253 pit{pic, beeper};
@@ -205,6 +208,10 @@ struct IOSystem
                 kbd_at.write(port-0x60, data&0xFF);
             else
                 kbd_xt.write(port-0x60, data&0xFF);
+        }
+        else if (port >= 0x23C && port <= 0x23F)
+        {
+            busmouse.write(port-0x23C, data&0xFF);
         }
         else if (globalsettings.gblast_enabled && port >= 0x220 && port <= 0x22F)
         {
@@ -295,6 +302,10 @@ struct IOSystem
                 data = soundblaster.read(port-0x220);
             else
                 data = gameblaster.read(port-0x220);
+        }
+        else if (port >= 0x23C && port <= 0x23F)
+        {
+            data = busmouse.read(port-0x23C);
         }
         else if (globalsettings.sblast_enabled && port >= 0x220 && port <= 0x22F)
         {
@@ -452,7 +463,7 @@ struct Machine
             p.pic.cycle();
             for(u8 irq=0; irq<8; ++irq)
             {
-                if (p.pic.isr&(1<<irq))
+                if (!p.pic.masked(irq) && (p.pic.isr&(1<<irq)))
                 {
                     //if constexpr(DEBUG_LEVEL > 0)
                         //cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
@@ -474,7 +485,6 @@ struct Machine
                 if (p.kbd_xt.is_reset())
                     reset_cpu();
             }
-            p.diskettecontroller.cycle();
             p.harddisk.cycle();
             p.dma.cycle();
         }
@@ -494,7 +504,10 @@ struct Machine
         if (clock%12 == 0)
         {
             p.pit.cycle();
+            p.busmouse.cycle();
         }
+        if (clock%512 == 0)
+            p.diskettecontroller.cycle();
         if (clock%298 == 0) //ca. 48kHz. handles sound output in general
             p.miniaudio.cycle();
         if (globalsettings.opl_enabled && clock%288 == 0)
@@ -506,7 +519,7 @@ struct Machine
             p.gameport.cycle();
         if (globalsettings.gblast_enabled && clock%256 == 0)
             p.gameblaster.cycle();
-        if (globalsettings.sblast_enabled && clock%(650) == 0)
+        if (globalsettings.sblast_enabled)
             p.soundblaster.cycle();
     }
 
@@ -712,16 +725,41 @@ std::vector<std::string> list_all_files(const fs::path& directory)
     return files;
 }
 
+bool cursor_inited{};
+double prev_mouse_x{};
+double prev_mouse_y{};
+void cursor_pos_callback(GLFWwindow* window, double x, double y)
+{
+    if (!cursor_inited)
+    {
+        cursor_inited = true;
+    }
+    else
+    {
+        mac.p.busmouse.update_pos((x-prev_mouse_x)*1.0, (y-prev_mouse_y)*1.0);
+    }
+    prev_mouse_x = x;
+    prev_mouse_y = y;
+}
+
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
     if (button == GLFW_MOUSE_BUTTON_1)
+        mac.p.busmouse.update_button(2, action == GLFW_PRESS);
+    if (button == GLFW_MOUSE_BUTTON_2)
+        mac.p.busmouse.update_button(0, action == GLFW_PRESS);
+    //if (button == GLFW_MOUSE_BUTTON_3)
+    //    mac.p.busmouse.update_button(0, action == GLFW_PRESS);
+
+
+    /*if (button == GLFW_MOUSE_BUTTON_1)
         mac.p.gameport.set_button_state(0, action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_2)
         mac.p.gameport.set_button_state(1, action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_3)
         mac.p.gameport.set_button_state(2, action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_4)
-        mac.p.gameport.set_button_state(3, action == GLFW_PRESS);
+        mac.p.gameport.set_button_state(3, action == GLFW_PRESS);*/
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -1505,6 +1543,7 @@ int main(int argc, char* argv[])
     readConfigFile(configFilename);
     initialize_key_lookup();
     screen.SCREEN_start();
+    sampleplayer.load_sample("sounds/seek.raw");
 
     Opl2::Init();
 
@@ -1513,6 +1552,7 @@ int main(int argc, char* argv[])
     std::cout << std::uppercase << std::hex;
 
     glfwSetKeyCallback(screen.window, key_callback);
+    glfwSetCursorPosCallback(screen.window, cursor_pos_callback);
     glfwSetMouseButtonCallback(screen.window, mouse_button_callback);
     for(int jid=GLFW_JOYSTICK_1; jid<GLFW_JOYSTICK_LAST; ++jid)
     {

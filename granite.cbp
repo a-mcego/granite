@@ -12,11 +12,10 @@
 				<Option type="1" />
 				<Option compiler="gnu_gcc_newest_compiler" />
 				<Compiler>
-					<Add option="-O3 -std=c++23 -Werror=return-type" />
+					<Add option="-gdwarf-4 -O3 -std=c++23 -Werror=return-type" />
 					<Add directory="include" />
 				</Compiler>
 				<Linker>
-					<Add option="-s" />
 					<Add library="glfw3" />
 				</Linker>
 			</Target>
@@ -64,6 +63,7 @@
 		<Unit filename="src/main.cpp" />
 		<Unit filename="src/miniaudio.cpp" />
 		<Unit filename="src/opl2.cpp" />
+		<Unit filename="src/sampleplayer.h" />
 		<Extensions />
 	</Project>
 </CodeBlocks_project_file>
