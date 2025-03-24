@@ -30,28 +30,29 @@ struct CHIP8259 //PIC
 
     u8 read(u8 port) // port from 0 to 1 inclusive
     {
+        u8 data{};
         if (port == 0)
         {
-            if (ocw[3]&1)
+            if (!(ocw[3]&1))
             {
                 if constexpr (DEBUG_LEVEL > 0)
                     cout << PRETTY_FUNCTION << ":" << std::dec << __LINE__ << std::hex << endl;
-                return irr;
+                data = irr;
             }
             else
             {
                 if constexpr (DEBUG_LEVEL > 0)
                     cout << PRETTY_FUNCTION << ":" << std::dec << __LINE__ << std::hex << endl;
-                return isr;
+                data = isr;
             }
         }
         else if (port == 1)
         {
             if constexpr (DEBUG_LEVEL > 0)
                 cout << PRETTY_FUNCTION << ":" << std::dec << __LINE__ << std::hex << endl;
-            return imr;
+            data = imr;
         }
-        return 0;
+        return data;
     }
 
     void write(u8 port, u8 data) // port from 0 to 1 inclusive
@@ -109,7 +110,7 @@ struct CHIP8259 //PIC
                 imr = data;
                 if constexpr (DEBUG_LEVEL > 0)
                 {
-                    cout << "interrupt mask: " << u32(imr) << endl;
+                    cout << "new interrupt mask: " << u32(imr) << endl;
                 }
             }
         }
@@ -118,6 +119,7 @@ struct CHIP8259 //PIC
     void cpu_ack_irq(u8 irq)
     {
         isr &= ~(1 << irq);
+        irr &= ~(1 << irq);
     }
 
     void cycle() // one clock cycle running
