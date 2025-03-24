@@ -112,15 +112,16 @@ struct MiniAudio
 
     void cycle()
     {
+        sampleplayer.cycle();
         {
-            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_l+soundblaster.sound_out_l;
+            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_l+soundblaster.sound_out_l+sampleplayer.sound_out_l;
             data = (data<-32768?-32768:data);
             data = (data>32767?32767:data);
             audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
             ++audio_write_offset;
         }
         {
-            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_r+soundblaster.sound_out_r;
+            i32 data = beeper.sampleC+ym3812.sample+gameblaster.sound_out_r+soundblaster.sound_out_r+sampleplayer.sound_out_r;
             data = (data<-32768?-32768:data);
             data = (data>32767?32767:data);
             audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);

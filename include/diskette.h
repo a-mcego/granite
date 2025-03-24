@@ -28,7 +28,8 @@ DIGITAL_INPUT_REGISTER           = 0x3F7, // read-only
 CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
 */
 
-    static const u16 RESET_CYCLES = 256;
+    static const u16 RESET_CYCLES = 3;//256
+    static const u16 SEEK_ONE_TRACK = 144*2;//(12*1024);
     u16 reset_state{};
     u32 interrupt_timer{};
 
@@ -42,6 +43,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             u32 heads{};
             u32 sectors{};
             u32 bytes_per_sector{512};
+            u32 rpm{300};
             vector<u8> data;
 
             void eject()
@@ -64,6 +66,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                 cylinders = 40;
                 heads = 1;
                 sectors = 9;
+                rpm = 300;
                 //data.assign(184320,0);
             }
 
@@ -74,13 +77,14 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                 u32 size = ftell(filu);
                 fseek(filu,0,SEEK_SET);
 
-                if (size == 163840) //160k disk
+                rpm = 300;
+                if (size == 163840) //160k disk =)
                 {
                     cylinders = 40;
                     heads = 1;
                     sectors = 8;
                 }
-                else if (size == 184320) //180k disk
+                else if (size == 184320) //180k disk =P
                 {
                     cylinders = 40;
                     heads = 1;
@@ -103,20 +107,21 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                     cylinders = 80;
                     heads = 2;
                     sectors = 15;
+                    rpm = 360;
                 }
-                else if (size == 737280) //720k disk
+                else if (size == 737280) //720k disk :D
                 {
                     cylinders = 80;
                     heads = 2;
                     sectors = 9;
                 }
-                else if (size == 1474560) //1.44M disk
+                else if (size == 1474560) //1.44M disk :-D
                 {
                     cylinders = 80;
                     heads = 2;
                     sectors = 18;
                 }
-                else if (size == 2949120) //2.88M disk
+                else if (size == 2949120) //2.88M disk :--D
                 {
                     cylinders = 80;
                     heads = 2;
@@ -149,6 +154,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
         }
 
         u8 current_cylinder{};
+        u8 target_cylinder{};
         bool motor{};
     } drives[4];
 
@@ -376,12 +382,13 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                     }
                     else if (current_command == 0x07) //recalibrate
                     {
-                        drives[data&0x03].current_cylinder = 0;
+                        drives[data&0x03].target_cylinder = 0;
                         out_buffer.clear();
-                        pic.request_interrupt(6);
+                        //pic.request_interrupt(6);
                         main_status &= ~0x50; //no output bytes
                         st0 = selected_drive;
                         current_command = 0;
+                        interrupt_timer = SEEK_ONE_TRACK;
                     }
                     else if (current_command == 0x0F) //seek
                     {
@@ -389,7 +396,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                         u8 drive_number = out_buffer[0]&0x03;
                         if (drives[drive_number].motor)
                         {
-                            drives[drive_number].current_cylinder = out_buffer[1];
+                            drives[drive_number].target_cylinder = out_buffer[1];
                         }
                         else
                         {
@@ -397,7 +404,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                         }
                         st0 = selected_drive;
                         main_status |= (1<<st0);
-                        interrupt_timer = 4096;
+                        interrupt_timer = SEEK_ONE_TRACK;
                     }
                     else
                     {
@@ -536,11 +543,27 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             --interrupt_timer;
             if (interrupt_timer == 0)
             {
-                st0 &= 0xF0; //clear the "seek" bits
-                pic.request_interrupt(6);
+                u8& cur = drives[selected_drive].current_cylinder;
+                u8& target = drives[selected_drive].target_cylinder;
+                if (cur == target)
+                {
+                    st0 &= 0xF0; //clear the "seek" bits
+                    pic.request_interrupt(6);
+                }
+                else
+                {
+                    //std::cout << "seek " << u32(cur) << "->";
+                    cur += (cur<target)?1:-1;
+                    sampleplayer.play(0);
+                    //std::cout << u32(cur) << std::endl;
+                    interrupt_timer = SEEK_ONE_TRACK;
+                }
             }
         }
-
+        if (dma.chans[2].pending)
+        {
+            dma.chans[2].cycle_transfer();
+        }
         if (dma.chans[2].is_complete_and_reset())
         {
             pic.request_interrupt(6);
