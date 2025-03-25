@@ -263,6 +263,7 @@ struct CPU8086
         for(u32 i=0; i<16; ++i)
             registers[i] = 0x0000;
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
+        registers[FLAGS] = 0xF002;
 
         pic.reset();
     }
