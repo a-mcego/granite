@@ -98,19 +98,6 @@ struct HEGA
 
     u32 totalvsync{};
 
-    double last_render{};
-
-    void render()
-    {
-        double now = glfwGetTime();
-        if (now-last_render > 0.01)
-        {
-            screen.render();
-            last_render = now;
-            screen.clear();
-        }
-    }
-
     u8 read(u8 port) //port from 0 to 47! inclusive
     {
         cout << globalsettings.current_IP << ": HEGA READ! " << u32(port+0x3B0) << ":";
@@ -271,7 +258,6 @@ struct HEGA
             {
                 prev_line_amount = linepos;
                 linepos = 0;
-                render();
             }
         }
         if (hc && !hsync_ctr.prev && !vsync_ctr.prev)

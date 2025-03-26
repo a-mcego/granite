@@ -170,19 +170,6 @@ struct CGA
 
     u32 totalvsync{};
 
-    double last_render{};
-
-    void render()
-    {
-        double now = glfwGetTime();
-        if (now-last_render > 0.01)
-        {
-            screen.render();
-            last_render = now;
-            screen.clear();
-        }
-    }
-
     u8 read(u8 port) //port from 0 to 15! inclusive
     {
         if constexpr (DEBUG_LEVEL > 0)
@@ -343,7 +330,6 @@ struct CGA
             {
                 prev_line_amount = linepos;
                 linepos = 0;
-                render();
             }
         }
         if (hc && !hsync_ctr.prev && !vsync_ctr.prev)

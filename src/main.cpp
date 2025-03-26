@@ -20,6 +20,7 @@
 #include <deque>
 #include <concepts>
 #include <vector>
+#include <thread>
 
 #define MA_NO_DECODING
 #define MA_NO_ENCODING
@@ -1515,6 +1516,99 @@ void updatejoysticks()
     }
 }
 
+void run_emu()
+{
+    double previousTime=0.0;
+    u64 loop_counter=0, clockgen_fast=0, clockgen_real=0;
+    while(true)
+    {
+        //the loop is ca. ~14.31818 MHz
+        ++loop_counter;
+
+        if (!lockstep || turbo)
+        {
+            ++clockgen_fast;
+
+            mac.fast_stuff(clockgen_fast);
+
+            //realtime stuff
+            if (lockstep) //implies turbo==true
+            {
+                mac.real_stuff(clockgen_fast);
+            }
+            if (!lockstep && turbo)
+            {
+                mac.real_stuff(clockgen_fast);
+                mac.real_stuff(clockgen_fast);
+                mac.real_stuff(clockgen_fast);
+            }
+        }
+
+        //do realtime stuff
+        if (!turbo && (loop_counter&0x1F) == 0) //calculate how many cycles we need to do
+        {
+            double newTime = glfwGetTime();
+            if (newTime-previousTime >= 0.1)
+                previousTime = newTime-0.1;
+            u64 cycles_done = (newTime-previousTime)*(14318180.0);
+            for(u64 i=0; i<cycles_done; ++i)
+            {
+                ++clockgen_real;
+                //fast stuff
+                if (lockstep)
+                {
+                    mac.fast_stuff(clockgen_real);
+                }
+                //realtime stuff
+                mac.real_stuff(clockgen_real);
+            }
+            previousTime += double(cycles_done)/14318180.0;
+        }
+        /*if ((loop_counter&0xFFFF) == 0)
+        {
+            if ((loop_counter&0x3FFFF) == 0)
+            {
+                glfwPollEvents();
+                updatejoysticks();
+            }
+            if (!lockstep || turbo)
+            {
+                previousTime = glfwGetTime();
+            }
+            if (glfwGetTime()-startTime >= 1.0)
+            {
+                startTime += 1.0;
+                cout << mac.cpu_steps*3/14318180.0 << "x realtime ";
+                cout << std::dec << mac.cpu_steps/1000000.0 << std::hex << " MHz ";
+                //cout << std::dec << totalframes << " Hz audio " << std::hex;
+                cout << std::dec << mac.p.cga.totalvsync << " Hz vsync, " << std::hex;
+                //cout << std::hex << "flags=" << cpu.registers[cpu.FLAGS] << " " << std::hex;
+                //cout << "halt=" << cpu.halt << " ";
+
+                cout << endl;
+
+                mac.p.harddisk.disks[0].flush();
+                mac.p.harddisk.disks[1].flush();
+                mac.cpu_steps = 0;
+                totalframes = 0;
+                mac.p.cga.totalvsync = 0;
+                mac.p.pit.int0_count = 0;
+
+                for(int i=0; i<256; ++i)
+                {
+                    if (cpu.interrupt_table[i] != 0)
+                    {
+                        cout << std::hex << "int" << i << "=" << std::dec << cpu.interrupt_table[i] << std::hex << "Hz ";
+                        cpu.interrupt_table[i] = 0;
+                    }
+                }
+                cout << endl;
+            //}
+        //}*/
+
+    }
+}
+
 int main(int argc, char* argv[])
 {
     FILE* filu = fopen("rom/8088mc.bin","rb");
@@ -1564,96 +1658,21 @@ int main(int argc, char* argv[])
     glfwSetJoystickCallback(joystickfun);
     mac.reset_cpu();
 
-    double previousTime=0.0;
+    std::thread emu_thread(run_emu);
 
-    u64 loop_counter=0, clockgen_fast=0, clockgen_real=0;
     while(true)
     {
-        //the loop is ca. ~14.31818 MHz
-        ++loop_counter;
-
-        if (!lockstep || turbo)
-        {
-            ++clockgen_fast;
-
-            mac.fast_stuff(clockgen_fast);
-
-            //realtime stuff
-            if (lockstep) //implies turbo==true
-            {
-                mac.real_stuff(clockgen_fast);
-            }
-            if (!lockstep && turbo)
-            {
-                mac.real_stuff(clockgen_fast);
-                mac.real_stuff(clockgen_fast);
-                mac.real_stuff(clockgen_fast);
-            }
-        }
-
-        //do realtime stuff
-        if (!turbo && (loop_counter&0x1F) == 0) //calculate how many cycles we need to do
-        {
-            double newTime = glfwGetTime();
-            if (newTime-previousTime >= 0.1)
-                previousTime = newTime-0.1;
-            u64 cycles_done = (newTime-previousTime)*(14318180.0);
-            for(u64 i=0; i<cycles_done; ++i)
-            {
-                ++clockgen_real;
-                //fast stuff
-                if (lockstep)
-                {
-                    mac.fast_stuff(clockgen_real);
-                }
-                //realtime stuff
-                mac.real_stuff(clockgen_real);
-            }
-            previousTime += double(cycles_done)/14318180.0;
-        }
-        if ((loop_counter&0xFFFF) == 0)
-        {
-            if ((loop_counter&0x3FFFF) == 0)
-            {
-                glfwPollEvents();
-                updatejoysticks();
-            }
-            if (!lockstep || turbo)
-            {
-                previousTime = glfwGetTime();
-            }
-            if (glfwGetTime()-startTime >= 1.0)
-            {
-                startTime += 1.0;
-                cout << mac.cpu_steps*3/14318180.0 << "x realtime ";
-                cout << std::dec << mac.cpu_steps/1000000.0 << std::hex << " MHz ";
-                //cout << std::dec << totalframes << " Hz audio " << std::hex;
-                cout << std::dec << mac.p.cga.totalvsync << " Hz vsync, " << std::hex;
-                //cout << std::hex << "flags=" << cpu.registers[cpu.FLAGS] << " " << std::hex;
-                //cout << "halt=" << cpu.halt << " ";
-
-                cout << endl;
-
-                mac.p.harddisk.disks[0].flush();
-                mac.p.harddisk.disks[1].flush();
-                mac.cpu_steps = 0;
-                totalframes = 0;
-                mac.p.cga.totalvsync = 0;
-                mac.p.pit.int0_count = 0;
-
-                /*for(int i=0; i<256; ++i)
-                {
-                    if (cpu.interrupt_table[i] != 0)
-                    {
-                        cout << std::hex << "int" << i << "=" << std::dec << cpu.interrupt_table[i] << std::hex << "Hz ";
-                        cpu.interrupt_table[i] = 0;
-                    }
-                }
-                cout << endl;*/
-            }
-        }
-
+        glfwPollEvents();
+        updatejoysticks();
+        screen.render();
+        glfwWaitEventsTimeout(0.01);
+        //last_render = now;
+        //screen.clear();
     }
+
+
+    emu_thread.join();
+
     Opl2::Quit();
     glfwTerminate();
 }
