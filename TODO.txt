@@ -1,0 +1,93 @@
+# Granite TODO List
+
+## CPU
+- [x] 8086/8088
+- [x] 80186/80188
+- [x] 808x memory controller
+- [x] 8018x+ memory controller (different segment boundary behavior)
+- [x] Timing from timing charts
+- [.] full microcode execution of 8088 (incomplete, buggy)
+- [.] 286 protected mode (in progress)
+- [ ] 386 new instructions, including 32-bit variants
+- [ ] 386 protected mode + v8086 + everything
+- [ ] 386 microcode execution
+- [ ] 486/Pentium extra instructions
+
+## FPU
+- [ ] 8087/80287 (TBD: how different are they?)
+- [ ] 387
+- [ ] Research if there were any new instructions after 387
+- [ ] MMX (uses fpu registers so it's here)
+
+## Memory & System
+- [x] Conventional memory in a separate struct
+- [x] LoTech EMS (up to 2 MB)
+- [x] use a big "Machine" struct to allow multiple machines simultaneously eventually
+- [x] configurable devices so that PC/XT/AT doesn't require recompiling
+- [x] ability to set CPU MHz (or multiplier)
+- [ ] save CMOS info between sessions (where?)
+
+## I/O & Peripherals
+- [x] PIT
+- [x] 8-bit PIC, DMA
+- [x] XT keyboard
+- [x] RTC (GLaTICK compatible)
+- [x] Set RTC clock automatically at launch
+- [x] Bus mouse (works with mouse.com /b)
+- [.] AT keyboard (buggy)
+- [ ] 16-bit PIC, DMA
+- [ ] Configurable I/O base per device
+- [ ] Keep RTC clock in time when the machine is running
+- [ ] Serial port
+- [ ] Parallel port
+- [ ] Serial mouse
+- [ ] MPU-401 dumb mode (redirect to system midi renderer)
+
+## Storage
+- [x] Floppy controller
+- [x] IBM Xebec Fixed disk controller
+- [x] Floppy seek timing
+- [x] Floppy seek sounds (sample by GloriousCow)
+- [.] Floppy rotation timing
+- [ ] HDD seek sounds
+- [ ] HDD seek/rotation timing
+- [ ] IDE HD (XTIDE or similar)
+- [ ] ATAPI (for CD/DVD)
+
+## Video
+- [x] CGA
+- [x] CRT emulation, split CRT and CRTC
+- [ ] Move CGA character rom to a file - combine with MDA like it is on the real IBM cards
+- [ ] MDA
+- [ ] Hercules
+- [ ] ColorPlus
+- [ ] AGA
+- [ ] EGA
+- [ ] Twinhead CT-8190 emulation
+- [ ] VGA
+- [ ] Arbitrary VESA modes
+
+## Audio
+- [x] PC Speaker
+- [x] OPL2
+- [x] 8-bit Sound Blaster
+- [.] Creative Game Blaster / Music System (missing noise channels)
+- [ ] 16-bit Sound Blaster
+- [ ] OPL3
+- [ ] CQM (Creative Labs OPL3 clone, sounds different)
+- [ ] AWE32 wavetable midi
+
+## Input
+- [x] Gamepad as joystick
+- [ ] Gamepad calibration routine
+
+## Development & Structure
+- [x] put every device in its own file
+- [x] make compilable on msvc
+
+## UI & Debug
+- [ ] Make a quit button
+- [ ] Debug view (specifics TBD)
+
+## Networking
+- [ ] Basic networking (specifics TBD)
