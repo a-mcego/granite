@@ -459,21 +459,19 @@ struct Machine
 
     void real_stuff(u64 clock)
     {
-        if (clock%3 == 0)
+        if (clock%8 == 0)
         {
-            p.pic.cycle();
-            for(u8 irq=0; irq<8; ++irq)
+            if (globalsettings.graphics == GlobalSettings::HEGA)
+                p.hega.cycle();
+            else if (globalsettings.graphics == GlobalSettings::CGA)
+                p.cga.cycle();
+            if (p.pic.irq_to_cpu != -1)
             {
-                if (!p.pic.masked(irq) && (p.pic.isr&(1<<irq)))
-                {
-                    //if constexpr(DEBUG_LEVEL > 0)
-                        //cout << "IRQ: ATTEMPT TO CPU " << u32(irq) << " int flag=" << u32(cpu.flag(cpu.F_INTERRUPT)) << endl;
-                    if (irq_if_accept(irq))
-                    {
-                        break;
-                    }
-                }
+                irq_if_accept(p.pic.irq_to_cpu);
             }
+        }
+        if (clock%16 == 0)
+        {
             if (globalsettings.machine == GlobalSettings::MACHINE_AT)
             {
                 p.kbd_at.cycle();
@@ -487,14 +485,6 @@ struct Machine
                     reset_cpu();
             }
             p.harddisk.cycle();
-            p.dma.cycle();
-        }
-        if (clock%8 == 0)
-        {
-            if (globalsettings.graphics == GlobalSettings::HEGA)
-                p.hega.cycle();
-            else if (globalsettings.graphics == GlobalSettings::CGA)
-                p.cga.cycle();
         }
 
 
@@ -505,7 +495,6 @@ struct Machine
         if (clock%12 == 0)
         {
             p.pit.cycle();
-            p.busmouse.cycle();
         }
         if (clock%512 == 0)
             p.diskettecontroller.cycle();

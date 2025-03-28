@@ -8,6 +8,7 @@ struct CHIP8259 //PIC
     u8 isr{}; // In-Service Register
     u8 icw[5] = {}; // Initialization Command Words
     u8 ocw[4] = {}; // Operation Command Words
+    int irq_to_cpu = -1;
     bool is_initialized = false;
 
     void reset()
@@ -82,6 +83,7 @@ struct CHIP8259 //PIC
                         if ((data&0x07) != 0)
                             cout << "EOI isr " << u32(data & 0x07) << endl;
                         isr &= ~(1 << (data & 0x07));
+                        update();
                     }
                 }
             }
@@ -120,9 +122,10 @@ struct CHIP8259 //PIC
     {
         isr &= ~(1 << irq);
         irr &= ~(1 << irq);
+        update();
     }
 
-    void cycle() // one clock cycle running
+    void update()
     {
         if (!is_initialized)
         {
@@ -138,6 +141,18 @@ struct CHIP8259 //PIC
                     cout << "IRQ: SERVICE " << u32(i) << endl;
                 isr |= (1 << i);
                 irr &= ~(1 << i);
+                update();
+            }
+        }
+
+        //send to CPU
+        irq_cpu = -1;
+        for(u8 irq=0; irq<8; ++irq)
+        {
+            if (!masked(irq) && serviced(irq))
+            {
+                irq_cpu = irq;
+                break;
             }
         }
     }
@@ -166,6 +181,7 @@ struct CHIP8259 //PIC
             return false;
 
         irr |= (1<<irq);
+        update();
         return true;
     }
 };

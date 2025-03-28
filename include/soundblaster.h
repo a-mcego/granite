@@ -122,6 +122,7 @@ struct SoundBlaster
                     //it's the high byte of: 65536 - (256'000'000 / (samplerate*channels))
                     time_constant = data;
                     clocks_per_cycle = 315*(256-time_constant)/22;
+                    current_clock = 0;
                     std::cout << "Time constant set to " << u32(data) << std::endl;
                 }
                 else if (current_command == OUTPUT_8_ONEBLOCK)
@@ -211,7 +212,7 @@ struct SoundBlaster
         ++current_clock;
         if (current_clock >= clocks_per_cycle)
         {
-            current_clock %= clocks_per_cycle;
+            current_clock -= clocks_per_cycle;
             if (play)
             {
                 dma.chans[1].device_vector = &buffer;

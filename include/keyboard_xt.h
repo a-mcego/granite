@@ -29,6 +29,7 @@ struct CHIP8255 //PC/XT keyboard etc
     u8 keyboard_self_test{0}; //if > 0, is doing a self test
     bool keyboard_self_test_done{};
     static const u8 KEYBOARD_SELF_TEST_LENGTH = 16; //:peeposhrug: lol
+    static const u8 KEYBOARD_KEY_WAIT = 512; //wait before sending more keys
     u8 current_scancode = 0;
     bool is_initialized{false};
 
@@ -164,7 +165,7 @@ struct CHIP8255 //PC/XT keyboard etc
                 {
                     scancode_queue.pop_front();
                 }
-                kbd_wait = 2048;
+                kbd_wait = KEYBOARD_KEY_WAIT;
             }
             else
             {

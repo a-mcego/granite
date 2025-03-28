@@ -530,7 +530,11 @@ struct HARDDISK
     {
         if (dma_in_progress)
         {
-            if (dma.chans[3].is_complete_and_reset())
+            if (dma.chans[3].pending)
+            {
+                dma.chans[3].cycle_transfer();
+            }
+            else if (dma.chans[3].is_complete_and_reset())
             {
                 dma_in_progress = false;
                 pic.request_interrupt(5);
