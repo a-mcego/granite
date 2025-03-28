@@ -1172,6 +1172,10 @@ void configline(std::string line)
             std::abort();
         }
     }
+    else if (command == "trace")
+    {
+        startprinting = true;
+    }
     else if (command == "test")
     {
         //readonly_start = 0xFFFF0000;
