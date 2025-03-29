@@ -7,7 +7,37 @@ struct CHIP146818 // RTC & CMOS
     u8 CMOSdata[64] = {};
     u8 current_reg = 0x0D;
 
-    CHIP146818()
+    std::string filename;
+
+    bool changed{};
+    void save()
+    {
+        if (changed && !filename.empty())
+        {
+            FILE* filu = fopen(filename.c_str(),"wb");
+            if (filu != NULL)
+            {
+                fwrite(CMOSdata, 64, 1, filu);
+                fclose(filu);
+            }
+        }
+        changed = false;
+    }
+
+    void load()
+    {
+        if (!filename.empty())
+        {
+            FILE* filu = fopen(filename.c_str(),"rb");
+            if (filu != NULL)
+            {
+                fread(CMOSdata, 64, 1, filu);
+                fclose(filu);
+            }
+        }
+    }
+
+    void update_time()
     {
         time_t now = time(nullptr);
         tm* t = localtime(&now);
@@ -34,6 +64,12 @@ struct CHIP146818 // RTC & CMOS
         // bit 1: 1 = 24h mode (0 = 12h)
         CMOSdata[0x0B] = 0b00000010;
         CMOSdata[0x0D] = 0x80;
+    }
+
+    CHIP146818(std::string filename_=""):filename(filename_)
+    {
+        load();
+        update_time();
     }
 
     void printtime()
@@ -64,9 +100,10 @@ struct CHIP146818 // RTC & CMOS
         }
         else if (port == 1)
         {
-            if (current_reg != 0x0C && current_reg != 0x0D)
+            if (current_reg != 0x0C && current_reg != 0x0D) //EXPLAIN: why this IF?
             {
                 CMOSdata[current_reg] = data;
+                changed = true;
             }
             //current_reg = 0x0D;
         }

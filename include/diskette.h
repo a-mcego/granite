@@ -28,7 +28,7 @@ DIGITAL_INPUT_REGISTER           = 0x3F7, // read-only
 CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
 */
 
-    static const u16 RESET_CYCLES = 3;//256
+    static const u16 RESET_CYCLES = 4;//256
     static const u16 SEEK_ONE_TRACK = 144*2;//(12*1024);
     u16 reset_state{};
     u32 interrupt_timer{};
@@ -164,6 +164,12 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
     u8 st1{};
     u8 st2{};
 
+    //0 = 500kbps
+    //1 = 300kbps
+    //2 = 250kbps
+    //3 = 1000kbps
+    u8 datarate{};
+
     u8 registers[8] = {}; // not all registers are used, but we'll do it this way to be simple
 
     u8 is_selected_and_on(u8 drive)
@@ -175,11 +181,11 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
 
     u8 read(u8 port) //port from 0 to 7! inclusive
     {
-        /*if (FLOPPY_DEBUG)
+        if (FLOPPY_DEBUG)
             cout << "/-------------------------------------------\\" << endl;
         if (FLOPPY_DEBUG)
-            cout << "FLOPPY CONTROLLER READ: " << u32(port) << endl;*/
-        //PrintCSIP();
+            cout << "FLOPPY CONTROLLER READ: " << u32(port) << endl;
+        //  PrintCSIP();
         u8 readdata{};
         if(false);
         else if (port == 0) // STATUS_REGISTER_A
@@ -296,12 +302,17 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
 
     void write(u8 port, u8 data) //port from 0 to 7! inclusive.
     {
-        /*if (FLOPPY_DEBUG)
+        if (FLOPPY_DEBUG)
             cout << "/===========================================\\" << endl;
         if (FLOPPY_DEBUG)
-            cout << "FLOPPY CONTROLLER WRITE: " << u32(port) << " data=" << u32(data) << endl;*/
+            cout << "FLOPPY CONTROLLER WRITE: " << u32(port) << " data=" << u32(data) << endl;
         //PrintCSIP();
-        if (port == 5) // DATA_FIFO
+        if (false);
+        else if (port == 4 || port == 7) //datarate select, configuration control
+        {
+            datarate = data;
+        }
+        else if (port == 5) // DATA_FIFO
         {
             if (fifo_input_bytes_left > 0) // FIFO has input bytes, collect them
             {
@@ -362,13 +373,13 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                             std::abort();
                         }
                         u32 byte_offset = drives[drive].diskette.get_byte_offset(cylinder,head_A,sector);
-                        std::cout << (current_command == 0x05?"WRITE":"READ") << ":";
+                        /*std::cout << (current_command == 0x05?"WRITE":"READ") << ":";
                         cout << " drive=" << drive;
                         cout << " head=" << head_A;
                         cout << " cylinder=" << cylinder;
                         cout << " sector=" << sector;
                         cout << " end_of_track=" << end_of_track;
-                        cout << " -> byte offset=" << byte_offset << endl;
+                        cout << " -> byte offset=" << byte_offset << endl;*/
 
                         if (drives[drive].diskette.is_ready())
                         {
@@ -396,7 +407,12 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                         u8 drive_number = out_buffer[0]&0x03;
                         if (drives[drive_number].motor)
                         {
-                            drives[drive_number].target_cylinder = out_buffer[1];
+                            u8 target = out_buffer[1];
+                            //std::cout << "seek target: " << u32(target) << "/" << u32(drives[drive_number].diskette.cylinders) << std::endl;
+                            if (target >= drives[drive_number].diskette.cylinders && drives[drive_number].diskette.cylinders != 0)
+                                target = drives[drive_number].diskette.cylinders-1;
+                            drives[drive_number].target_cylinder = target;
+
                         }
                         else
                         {
@@ -502,7 +518,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             }
 
             selected_drive = (data&0x03);
-            if (!(data&0x04))
+            if (!(registers[port]&0x04) && (data&0x04))
                 reset_state = RESET_CYCLES;
 
             for(int i=0; i<4; ++i)
@@ -552,10 +568,10 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                 }
                 else
                 {
-                    //std::cout << "seek " << u32(cur) << "->";
+                    std::cout << "seek " << u32(cur) << "->";
                     cur += (cur<target)?1:-1;
                     sampleplayer.play(0);
-                    //std::cout << u32(cur) << std::endl;
+                    std::cout << u32(cur) << std::endl;
                     interrupt_timer = SEEK_ONE_TRACK;
                 }
             }

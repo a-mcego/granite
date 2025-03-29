@@ -515,184 +515,179 @@ struct Machine
 
 } mac;
 
-unsigned char key_lookup[GLFW_KEY_LAST+1] = {};
+unsigned char key_lookup_xt[GLFW_KEY_LAST+1] = {};
+unsigned char key_lookup_at[GLFW_KEY_LAST+1] = {};
 void initialize_key_lookup()
 {
-    if (globalsettings.machine == GlobalSettings::MACHINE_AT)
-    {
-        key_lookup[GLFW_KEY_F9] = 0x01;
-        key_lookup[GLFW_KEY_F5] = 0x03;
-        key_lookup[GLFW_KEY_F3] = 0x04;
-        key_lookup[GLFW_KEY_F1] = 0x05;
-        key_lookup[GLFW_KEY_F2] = 0x06;
-        //key_lookup[GLFW_KEY_F12] = 0x07;
-        key_lookup[GLFW_KEY_F10] = 0x09;
-        key_lookup[GLFW_KEY_F8] = 0x0A;
-        key_lookup[GLFW_KEY_F6] = 0x0B;
-        key_lookup[GLFW_KEY_F4] = 0x0C;
-        key_lookup[GLFW_KEY_TAB] = 0x0D;
-        key_lookup[GLFW_KEY_GRAVE_ACCENT] = 0x0E; // ` (back tick)
-        key_lookup[GLFW_KEY_LEFT_ALT] = 0x11;
-        key_lookup[GLFW_KEY_LEFT_SHIFT] = 0x12;
-        key_lookup[GLFW_KEY_LEFT_CONTROL] = 0x14;
-        key_lookup[GLFW_KEY_Q] = 0x15;
-        key_lookup[GLFW_KEY_1] = 0x16;
-        key_lookup[GLFW_KEY_Z] = 0x1A;
-        key_lookup[GLFW_KEY_S] = 0x1B;
-        key_lookup[GLFW_KEY_A] = 0x1C;
-        key_lookup[GLFW_KEY_W] = 0x1D;
-        key_lookup[GLFW_KEY_2] = 0x1E;
-        key_lookup[GLFW_KEY_C] = 0x21;
-        key_lookup[GLFW_KEY_X] = 0x22;
-        key_lookup[GLFW_KEY_D] = 0x23;
-        key_lookup[GLFW_KEY_E] = 0x24;
-        key_lookup[GLFW_KEY_4] = 0x25;
-        key_lookup[GLFW_KEY_3] = 0x26;
-        key_lookup[GLFW_KEY_SPACE] = 0x29;
-        key_lookup[GLFW_KEY_V] = 0x2A;
-        key_lookup[GLFW_KEY_F] = 0x2B;
-        key_lookup[GLFW_KEY_T] = 0x2C;
-        key_lookup[GLFW_KEY_R] = 0x2D;
-        key_lookup[GLFW_KEY_5] = 0x2E;
-        key_lookup[GLFW_KEY_N] = 0x31;
-        key_lookup[GLFW_KEY_B] = 0x32;
-        key_lookup[GLFW_KEY_H] = 0x33;
-        key_lookup[GLFW_KEY_G] = 0x34;
-        key_lookup[GLFW_KEY_Y] = 0x35;
-        key_lookup[GLFW_KEY_6] = 0x36;
-        key_lookup[GLFW_KEY_M] = 0x3A;
-        key_lookup[GLFW_KEY_J] = 0x3B;
-        key_lookup[GLFW_KEY_U] = 0x3C;
-        key_lookup[GLFW_KEY_7] = 0x3D;
-        key_lookup[GLFW_KEY_8] = 0x3E;
-        key_lookup[GLFW_KEY_COMMA] = 0x41;
-        key_lookup[GLFW_KEY_K] = 0x42;
-        key_lookup[GLFW_KEY_I] = 0x43;
-        key_lookup[GLFW_KEY_O] = 0x44;
-        key_lookup[GLFW_KEY_0] = 0x45;
-        key_lookup[GLFW_KEY_9] = 0x46;
-        key_lookup[GLFW_KEY_PERIOD] = 0x49;
-        key_lookup[GLFW_KEY_SLASH] = 0x4A;
-        key_lookup[GLFW_KEY_L] = 0x4B;
-        key_lookup[GLFW_KEY_SEMICOLON] = 0x4C;
-        key_lookup[GLFW_KEY_P] = 0x4D;
-        key_lookup[GLFW_KEY_MINUS] = 0x4E;
-        key_lookup[GLFW_KEY_APOSTROPHE] = 0x52;
-        key_lookup[GLFW_KEY_LEFT_BRACKET] = 0x54;
-        key_lookup[GLFW_KEY_EQUAL] = 0x55;
-        key_lookup[GLFW_KEY_CAPS_LOCK] = 0x58;
-        key_lookup[GLFW_KEY_RIGHT_SHIFT] = 0x59;
-        key_lookup[GLFW_KEY_ENTER] = 0x5A;
-        key_lookup[GLFW_KEY_RIGHT_BRACKET] = 0x5B;
-        key_lookup[GLFW_KEY_BACKSLASH] = 0x5D;
-        key_lookup[GLFW_KEY_BACKSPACE] = 0x66;
-        key_lookup[GLFW_KEY_KP_1] = 0x69;
-        key_lookup[GLFW_KEY_KP_4] = 0x6B;
-        key_lookup[GLFW_KEY_KP_7] = 0x6C;
-        key_lookup[GLFW_KEY_KP_0] = 0x70;
-        key_lookup[GLFW_KEY_KP_DECIMAL] = 0x71;
-        key_lookup[GLFW_KEY_KP_2] = 0x72;
-        key_lookup[GLFW_KEY_KP_5] = 0x73;
-        key_lookup[GLFW_KEY_KP_6] = 0x74;
-        key_lookup[GLFW_KEY_KP_8] = 0x75;
-        key_lookup[GLFW_KEY_ESCAPE] = 0x76;
-        key_lookup[GLFW_KEY_NUM_LOCK] = 0x77;
-        //key_lookup[GLFW_KEY_F11] = 0x78;
-        key_lookup[GLFW_KEY_KP_ADD] = 0x79;
-        key_lookup[GLFW_KEY_KP_3] = 0x7A;
-        key_lookup[GLFW_KEY_KP_SUBTRACT] = 0x7B;
-        key_lookup[GLFW_KEY_KP_MULTIPLY] = 0x7C;
-        key_lookup[GLFW_KEY_KP_9] = 0x7D;
-        key_lookup[GLFW_KEY_SCROLL_LOCK] = 0x7E;
-        key_lookup[GLFW_KEY_F7] = 0x83;
-    }
-    else
-    {
-        key_lookup[GLFW_KEY_ESCAPE] = 0x01;
-        key_lookup[GLFW_KEY_1] = 0x02;
-        key_lookup[GLFW_KEY_2] = 0x03;
-        key_lookup[GLFW_KEY_3] = 0x04;
-        key_lookup[GLFW_KEY_4] = 0x05;
-        key_lookup[GLFW_KEY_5] = 0x06;
-        key_lookup[GLFW_KEY_6] = 0x07;
-        key_lookup[GLFW_KEY_7] = 0x08;
-        key_lookup[GLFW_KEY_8] = 0x09;
-        key_lookup[GLFW_KEY_9] = 0x0A;
-        key_lookup[GLFW_KEY_0] = 0x0B;
-        key_lookup[GLFW_KEY_MINUS] = 0x0C;
-        key_lookup[GLFW_KEY_EQUAL] = 0x0D;
-        key_lookup[GLFW_KEY_BACKSPACE] = 0x0E;
-        key_lookup[GLFW_KEY_TAB] = 0x0F;
-        key_lookup[GLFW_KEY_Q] = 0x10;
-        key_lookup[GLFW_KEY_W] = 0x11;
-        key_lookup[GLFW_KEY_E] = 0x12;
-        key_lookup[GLFW_KEY_R] = 0x13;
-        key_lookup[GLFW_KEY_T] = 0x14;
-        key_lookup[GLFW_KEY_Y] = 0x15;
-        key_lookup[GLFW_KEY_U] = 0x16;
-        key_lookup[GLFW_KEY_I] = 0x17;
-        key_lookup[GLFW_KEY_O] = 0x18;
-        key_lookup[GLFW_KEY_P] = 0x19;
-        key_lookup[GLFW_KEY_LEFT_BRACKET] = 0x1A;
-        key_lookup[GLFW_KEY_RIGHT_BRACKET] = 0x1B;
-        key_lookup[GLFW_KEY_ENTER] = 0x1C;
-        key_lookup[GLFW_KEY_LEFT_CONTROL] = 0x1D;
-        key_lookup[GLFW_KEY_A] = 0x1E;
-        key_lookup[GLFW_KEY_S] = 0x1F;
-        key_lookup[GLFW_KEY_D] = 0x20;
-        key_lookup[GLFW_KEY_F] = 0x21;
-        key_lookup[GLFW_KEY_G] = 0x22;
-        key_lookup[GLFW_KEY_H] = 0x23;
-        key_lookup[GLFW_KEY_J] = 0x24;
-        key_lookup[GLFW_KEY_K] = 0x25;
-        key_lookup[GLFW_KEY_L] = 0x26;
-        key_lookup[GLFW_KEY_SEMICOLON] = 0x27;
-        key_lookup[GLFW_KEY_APOSTROPHE] = 0x28;
-        key_lookup[GLFW_KEY_GRAVE_ACCENT] = 0x29;
-        key_lookup[GLFW_KEY_LEFT_SHIFT] = 0x2A;
-        key_lookup[GLFW_KEY_BACKSLASH] = 0x2B;
-        key_lookup[GLFW_KEY_Z] = 0x2C;
-        key_lookup[GLFW_KEY_X] = 0x2D;
-        key_lookup[GLFW_KEY_C] = 0x2E;
-        key_lookup[GLFW_KEY_V] = 0x2F;
-        key_lookup[GLFW_KEY_B] = 0x30;
-        key_lookup[GLFW_KEY_N] = 0x31;
-        key_lookup[GLFW_KEY_M] = 0x32;
-        key_lookup[GLFW_KEY_COMMA] = 0x33;
-        key_lookup[GLFW_KEY_PERIOD] = 0x34;
-        key_lookup[GLFW_KEY_SLASH] = 0x35;
-        key_lookup[GLFW_KEY_RIGHT_SHIFT] = 0x36;
-        key_lookup[GLFW_KEY_PRINT_SCREEN] = 0x37;
-        key_lookup[GLFW_KEY_LEFT_ALT] = 0x38;
-        key_lookup[GLFW_KEY_SPACE] = 0x39;
-        key_lookup[GLFW_KEY_CAPS_LOCK] = 0x3A;
-        key_lookup[GLFW_KEY_F1] = 0x3B;
-        key_lookup[GLFW_KEY_F2] = 0x3C;
-        key_lookup[GLFW_KEY_F3] = 0x3D;
-        key_lookup[GLFW_KEY_F4] = 0x3E;
-        key_lookup[GLFW_KEY_F5] = 0x3F;
-        key_lookup[GLFW_KEY_F6] = 0x40;
-        key_lookup[GLFW_KEY_F7] = 0x41;
-        key_lookup[GLFW_KEY_F8] = 0x42;
-        key_lookup[GLFW_KEY_F9] = 0x43;
-        key_lookup[GLFW_KEY_F10] = 0x44;
-        key_lookup[GLFW_KEY_NUM_LOCK] = 0x45;
-        key_lookup[GLFW_KEY_SCROLL_LOCK] = 0x46;
-        key_lookup[GLFW_KEY_KP_7] = 0x47;
-        key_lookup[GLFW_KEY_KP_8] = 0x48;
-        key_lookup[GLFW_KEY_KP_9] = 0x49;
-        key_lookup[GLFW_KEY_KP_SUBTRACT] = 0x4A;
-        key_lookup[GLFW_KEY_KP_4] = 0x4B;
-        key_lookup[GLFW_KEY_KP_5] = 0x4C;
-        key_lookup[GLFW_KEY_KP_6] = 0x4D;
-        key_lookup[GLFW_KEY_KP_ADD] = 0x4E;
-        key_lookup[GLFW_KEY_KP_1] = 0x4F;
-        key_lookup[GLFW_KEY_KP_2] = 0x50;
-        key_lookup[GLFW_KEY_KP_3] = 0x51;
-        key_lookup[GLFW_KEY_KP_0] = 0x52;
-        key_lookup[GLFW_KEY_KP_DECIMAL] = 0x53;
-    }
+    key_lookup_at[GLFW_KEY_F9] = 0x01;
+    key_lookup_at[GLFW_KEY_F5] = 0x03;
+    key_lookup_at[GLFW_KEY_F3] = 0x04;
+    key_lookup_at[GLFW_KEY_F1] = 0x05;
+    key_lookup_at[GLFW_KEY_F2] = 0x06;
+    //key_lookup_at[GLFW_KEY_F12] = 0x07;
+    key_lookup_at[GLFW_KEY_F10] = 0x09;
+    key_lookup_at[GLFW_KEY_F8] = 0x0A;
+    key_lookup_at[GLFW_KEY_F6] = 0x0B;
+    key_lookup_at[GLFW_KEY_F4] = 0x0C;
+    key_lookup_at[GLFW_KEY_TAB] = 0x0D;
+    key_lookup_at[GLFW_KEY_GRAVE_ACCENT] = 0x0E; // ` (back tick)
+    key_lookup_at[GLFW_KEY_LEFT_ALT] = 0x11;
+    key_lookup_at[GLFW_KEY_LEFT_SHIFT] = 0x12;
+    key_lookup_at[GLFW_KEY_LEFT_CONTROL] = 0x14;
+    key_lookup_at[GLFW_KEY_Q] = 0x15;
+    key_lookup_at[GLFW_KEY_1] = 0x16;
+    key_lookup_at[GLFW_KEY_Z] = 0x1A;
+    key_lookup_at[GLFW_KEY_S] = 0x1B;
+    key_lookup_at[GLFW_KEY_A] = 0x1C;
+    key_lookup_at[GLFW_KEY_W] = 0x1D;
+    key_lookup_at[GLFW_KEY_2] = 0x1E;
+    key_lookup_at[GLFW_KEY_C] = 0x21;
+    key_lookup_at[GLFW_KEY_X] = 0x22;
+    key_lookup_at[GLFW_KEY_D] = 0x23;
+    key_lookup_at[GLFW_KEY_E] = 0x24;
+    key_lookup_at[GLFW_KEY_4] = 0x25;
+    key_lookup_at[GLFW_KEY_3] = 0x26;
+    key_lookup_at[GLFW_KEY_SPACE] = 0x29;
+    key_lookup_at[GLFW_KEY_V] = 0x2A;
+    key_lookup_at[GLFW_KEY_F] = 0x2B;
+    key_lookup_at[GLFW_KEY_T] = 0x2C;
+    key_lookup_at[GLFW_KEY_R] = 0x2D;
+    key_lookup_at[GLFW_KEY_5] = 0x2E;
+    key_lookup_at[GLFW_KEY_N] = 0x31;
+    key_lookup_at[GLFW_KEY_B] = 0x32;
+    key_lookup_at[GLFW_KEY_H] = 0x33;
+    key_lookup_at[GLFW_KEY_G] = 0x34;
+    key_lookup_at[GLFW_KEY_Y] = 0x35;
+    key_lookup_at[GLFW_KEY_6] = 0x36;
+    key_lookup_at[GLFW_KEY_M] = 0x3A;
+    key_lookup_at[GLFW_KEY_J] = 0x3B;
+    key_lookup_at[GLFW_KEY_U] = 0x3C;
+    key_lookup_at[GLFW_KEY_7] = 0x3D;
+    key_lookup_at[GLFW_KEY_8] = 0x3E;
+    key_lookup_at[GLFW_KEY_COMMA] = 0x41;
+    key_lookup_at[GLFW_KEY_K] = 0x42;
+    key_lookup_at[GLFW_KEY_I] = 0x43;
+    key_lookup_at[GLFW_KEY_O] = 0x44;
+    key_lookup_at[GLFW_KEY_0] = 0x45;
+    key_lookup_at[GLFW_KEY_9] = 0x46;
+    key_lookup_at[GLFW_KEY_PERIOD] = 0x49;
+    key_lookup_at[GLFW_KEY_SLASH] = 0x4A;
+    key_lookup_at[GLFW_KEY_L] = 0x4B;
+    key_lookup_at[GLFW_KEY_SEMICOLON] = 0x4C;
+    key_lookup_at[GLFW_KEY_P] = 0x4D;
+    key_lookup_at[GLFW_KEY_MINUS] = 0x4E;
+    key_lookup_at[GLFW_KEY_APOSTROPHE] = 0x52;
+    key_lookup_at[GLFW_KEY_LEFT_BRACKET] = 0x54;
+    key_lookup_at[GLFW_KEY_EQUAL] = 0x55;
+    key_lookup_at[GLFW_KEY_CAPS_LOCK] = 0x58;
+    key_lookup_at[GLFW_KEY_RIGHT_SHIFT] = 0x59;
+    key_lookup_at[GLFW_KEY_ENTER] = 0x5A;
+    key_lookup_at[GLFW_KEY_RIGHT_BRACKET] = 0x5B;
+    key_lookup_at[GLFW_KEY_BACKSLASH] = 0x5D;
+    key_lookup_at[GLFW_KEY_BACKSPACE] = 0x66;
+    key_lookup_at[GLFW_KEY_KP_1] = 0x69;
+    key_lookup_at[GLFW_KEY_KP_4] = 0x6B;
+    key_lookup_at[GLFW_KEY_KP_7] = 0x6C;
+    key_lookup_at[GLFW_KEY_KP_0] = 0x70;
+    key_lookup_at[GLFW_KEY_KP_DECIMAL] = 0x71;
+    key_lookup_at[GLFW_KEY_KP_2] = 0x72;
+    key_lookup_at[GLFW_KEY_KP_5] = 0x73;
+    key_lookup_at[GLFW_KEY_KP_6] = 0x74;
+    key_lookup_at[GLFW_KEY_KP_8] = 0x75;
+    key_lookup_at[GLFW_KEY_ESCAPE] = 0x76;
+    key_lookup_at[GLFW_KEY_NUM_LOCK] = 0x77;
+    //key_lookup_at[GLFW_KEY_F11] = 0x78;
+    key_lookup_at[GLFW_KEY_KP_ADD] = 0x79;
+    key_lookup_at[GLFW_KEY_KP_3] = 0x7A;
+    key_lookup_at[GLFW_KEY_KP_SUBTRACT] = 0x7B;
+    key_lookup_at[GLFW_KEY_KP_MULTIPLY] = 0x7C;
+    key_lookup_at[GLFW_KEY_KP_9] = 0x7D;
+    key_lookup_at[GLFW_KEY_SCROLL_LOCK] = 0x7E;
+    key_lookup_at[GLFW_KEY_F7] = 0x83;
 
+    key_lookup_xt[GLFW_KEY_ESCAPE] = 0x01;
+    key_lookup_xt[GLFW_KEY_1] = 0x02;
+    key_lookup_xt[GLFW_KEY_2] = 0x03;
+    key_lookup_xt[GLFW_KEY_3] = 0x04;
+    key_lookup_xt[GLFW_KEY_4] = 0x05;
+    key_lookup_xt[GLFW_KEY_5] = 0x06;
+    key_lookup_xt[GLFW_KEY_6] = 0x07;
+    key_lookup_xt[GLFW_KEY_7] = 0x08;
+    key_lookup_xt[GLFW_KEY_8] = 0x09;
+    key_lookup_xt[GLFW_KEY_9] = 0x0A;
+    key_lookup_xt[GLFW_KEY_0] = 0x0B;
+    key_lookup_xt[GLFW_KEY_MINUS] = 0x0C;
+    key_lookup_xt[GLFW_KEY_EQUAL] = 0x0D;
+    key_lookup_xt[GLFW_KEY_BACKSPACE] = 0x0E;
+    key_lookup_xt[GLFW_KEY_TAB] = 0x0F;
+    key_lookup_xt[GLFW_KEY_Q] = 0x10;
+    key_lookup_xt[GLFW_KEY_W] = 0x11;
+    key_lookup_xt[GLFW_KEY_E] = 0x12;
+    key_lookup_xt[GLFW_KEY_R] = 0x13;
+    key_lookup_xt[GLFW_KEY_T] = 0x14;
+    key_lookup_xt[GLFW_KEY_Y] = 0x15;
+    key_lookup_xt[GLFW_KEY_U] = 0x16;
+    key_lookup_xt[GLFW_KEY_I] = 0x17;
+    key_lookup_xt[GLFW_KEY_O] = 0x18;
+    key_lookup_xt[GLFW_KEY_P] = 0x19;
+    key_lookup_xt[GLFW_KEY_LEFT_BRACKET] = 0x1A;
+    key_lookup_xt[GLFW_KEY_RIGHT_BRACKET] = 0x1B;
+    key_lookup_xt[GLFW_KEY_ENTER] = 0x1C;
+    key_lookup_xt[GLFW_KEY_LEFT_CONTROL] = 0x1D;
+    key_lookup_xt[GLFW_KEY_A] = 0x1E;
+    key_lookup_xt[GLFW_KEY_S] = 0x1F;
+    key_lookup_xt[GLFW_KEY_D] = 0x20;
+    key_lookup_xt[GLFW_KEY_F] = 0x21;
+    key_lookup_xt[GLFW_KEY_G] = 0x22;
+    key_lookup_xt[GLFW_KEY_H] = 0x23;
+    key_lookup_xt[GLFW_KEY_J] = 0x24;
+    key_lookup_xt[GLFW_KEY_K] = 0x25;
+    key_lookup_xt[GLFW_KEY_L] = 0x26;
+    key_lookup_xt[GLFW_KEY_SEMICOLON] = 0x27;
+    key_lookup_xt[GLFW_KEY_APOSTROPHE] = 0x28;
+    key_lookup_xt[GLFW_KEY_GRAVE_ACCENT] = 0x29;
+    key_lookup_xt[GLFW_KEY_LEFT_SHIFT] = 0x2A;
+    key_lookup_xt[GLFW_KEY_BACKSLASH] = 0x2B;
+    key_lookup_xt[GLFW_KEY_Z] = 0x2C;
+    key_lookup_xt[GLFW_KEY_X] = 0x2D;
+    key_lookup_xt[GLFW_KEY_C] = 0x2E;
+    key_lookup_xt[GLFW_KEY_V] = 0x2F;
+    key_lookup_xt[GLFW_KEY_B] = 0x30;
+    key_lookup_xt[GLFW_KEY_N] = 0x31;
+    key_lookup_xt[GLFW_KEY_M] = 0x32;
+    key_lookup_xt[GLFW_KEY_COMMA] = 0x33;
+    key_lookup_xt[GLFW_KEY_PERIOD] = 0x34;
+    key_lookup_xt[GLFW_KEY_SLASH] = 0x35;
+    key_lookup_xt[GLFW_KEY_RIGHT_SHIFT] = 0x36;
+    key_lookup_xt[GLFW_KEY_PRINT_SCREEN] = 0x37;
+    key_lookup_xt[GLFW_KEY_LEFT_ALT] = 0x38;
+    key_lookup_xt[GLFW_KEY_SPACE] = 0x39;
+    key_lookup_xt[GLFW_KEY_CAPS_LOCK] = 0x3A;
+    key_lookup_xt[GLFW_KEY_F1] = 0x3B;
+    key_lookup_xt[GLFW_KEY_F2] = 0x3C;
+    key_lookup_xt[GLFW_KEY_F3] = 0x3D;
+    key_lookup_xt[GLFW_KEY_F4] = 0x3E;
+    key_lookup_xt[GLFW_KEY_F5] = 0x3F;
+    key_lookup_xt[GLFW_KEY_F6] = 0x40;
+    key_lookup_xt[GLFW_KEY_F7] = 0x41;
+    key_lookup_xt[GLFW_KEY_F8] = 0x42;
+    key_lookup_xt[GLFW_KEY_F9] = 0x43;
+    key_lookup_xt[GLFW_KEY_F10] = 0x44;
+    key_lookup_xt[GLFW_KEY_NUM_LOCK] = 0x45;
+    key_lookup_xt[GLFW_KEY_SCROLL_LOCK] = 0x46;
+    key_lookup_xt[GLFW_KEY_KP_7] = 0x47;
+    key_lookup_xt[GLFW_KEY_KP_8] = 0x48;
+    key_lookup_xt[GLFW_KEY_KP_9] = 0x49;
+    key_lookup_xt[GLFW_KEY_KP_SUBTRACT] = 0x4A;
+    key_lookup_xt[GLFW_KEY_KP_4] = 0x4B;
+    key_lookup_xt[GLFW_KEY_KP_5] = 0x4C;
+    key_lookup_xt[GLFW_KEY_KP_6] = 0x4D;
+    key_lookup_xt[GLFW_KEY_KP_ADD] = 0x4E;
+    key_lookup_xt[GLFW_KEY_KP_1] = 0x4F;
+    key_lookup_xt[GLFW_KEY_KP_2] = 0x50;
+    key_lookup_xt[GLFW_KEY_KP_3] = 0x51;
+    key_lookup_xt[GLFW_KEY_KP_0] = 0x52;
+    key_lookup_xt[GLFW_KEY_KP_DECIMAL] = 0x53;
 }
 
 
@@ -879,14 +874,18 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             globalsettings.entertrace = false;
             //mem.dump_memory("memory.raw");
         }
-        u8 pc_scancode = key_lookup[key];
+        u8 pc_scancode = key_lookup_xt[key];
         if (pc_scancode != 0)
         {
-            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+            /*if (globalsettings.machine == GlobalSettings::MACHINE_AT)
             {
                 if (action == GLFW_RELEASE)
                     mac.p.kbd_at.press(0xF0);
                 mac.p.kbd_at.press(pc_scancode);
+            }*/
+            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+            {
+                mac.p.kbd_at.press(pc_scancode | (action == GLFW_RELEASE ? 0x80 : 0));
             }
             else
                 mac.p.kbd_xt.press(pc_scancode | (action == GLFW_RELEASE ? 0x80 : 0));
@@ -1069,7 +1068,6 @@ void configline(std::string line)
                 break;
         }
 
-        std::cout << filename << " stride = " << rom.stride << std::endl;
 
         // Convert hex address to integer
         rom.start_address = std::stoul(address_str, nullptr, 16);
@@ -1079,6 +1077,7 @@ void configline(std::string line)
         if (!file)
         {
             std::cerr << "Error: Unable to open ROM file: " << filename << std::endl;
+            std::abort();
             return;
         }
 
@@ -1093,18 +1092,8 @@ void configline(std::string line)
 
         for(int i=0; i<fileSize; ++i)
         {
-            //file.read(reinterpret_cast<char*>(&mac.p.membytes.bytes[address+i*stride]),1);
             file.read(reinterpret_cast<char*>(&rom.data[i]),1);
         }
-
-        /*if (address + fileSize <= 0x100000)
-        {
-            file.read(reinterpret_cast<char*>(&mem.memory_bytes[address]), fileSize);
-        }
-        else
-        {
-            std::cerr << "Error: ROM file too large or invalid address" << std::endl;
-        }*/
         roms.push_back(rom);
     }
     else if (command == "load")
@@ -1171,6 +1160,13 @@ void configline(std::string line)
             cout << "Unknown machine type. Supported machine types: pc,xt" << endl;
             std::abort();
         }
+    }
+    else if (command == "cmos_file")
+    {
+        std::string filename;
+        iss >> mac.p.cmos.filename;
+        mac.p.cmos.load();
+        mac.p.cmos.update_time();
     }
     else if (command == "trace")
     {
@@ -1389,6 +1385,8 @@ void readConfigFile(const std::string& filename)
 
     for(auto& rom: roms)
     {
+        std::cout << "rom start=" << rom.start_address << ", stride=" << rom.stride << ", datasize=" << rom.data.size() << std::endl;
+
         for(int i=0; i<rom.data.size(); ++i)
             mac.p.membytes.bytes[rom.start_address+i*rom.stride] = rom.data[i];
     }
@@ -1626,7 +1624,7 @@ int main(int argc, char* argv[])
         configFilename = argv[1];
     }
 
-    mac.p.membytes.set_size(1<<21);
+    mac.p.membytes.set_size((2)<<20);
     readConfigFile(configFilename);
     initialize_key_lookup();
     screen.SCREEN_start();
@@ -1659,6 +1657,8 @@ int main(int argc, char* argv[])
         updatejoysticks();
         screen.render();
         glfwWaitEventsTimeout(0.01);
+        if (mac.p.cmos.changed)
+            mac.p.cmos.save();
         //last_render = now;
         //screen.clear();
     }

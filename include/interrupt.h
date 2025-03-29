@@ -146,12 +146,12 @@ struct CHIP8259 //PIC
         }
 
         //send to CPU
-        irq_cpu = -1;
+        irq_to_cpu = -1;
         for(u8 irq=0; irq<8; ++irq)
         {
             if (!masked(irq) && serviced(irq))
             {
-                irq_cpu = irq;
+                irq_to_cpu = irq;
                 break;
             }
         }

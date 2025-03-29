@@ -216,9 +216,6 @@ struct CPU80286
         load_segment(SEG::CS, 0xF000);
         load_segment(SEG::SS, 0x0000);
         load_segment(SEG::DS, 0x0000);
-
-        pic.reset();
-
     }
 
     static const u32 PREFETCH_QUEUE_SIZE = 8;
