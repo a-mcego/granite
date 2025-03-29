@@ -22,10 +22,11 @@
 ## Memory & System
 - [x] Conventional memory in a separate struct
 - [x] LoTech EMS (up to 2 MB)
-- [x] use a big "Machine" struct to allow multiple machines simultaneously eventually
-- [x] configurable devices so that PC/XT/AT doesn't require recompiling
-- [x] ability to set CPU MHz (or multiplier)
-- [ ] save CMOS info between sessions (where?)
+- [x] Use a big "Machine" struct to allow multiple machines simultaneously eventually
+- [x] Configurable devices so that PC/XT/AT doesn't require recompiling
+- [x] Ability to set CPU MHz (or multiplier)
+- [ ] Configurable memory size
+- [ ] Save CMOS info between sessions
 
 ## I/O & Peripherals
 - [x] PIT
@@ -34,8 +35,8 @@
 - [x] RTC (GLaTICK compatible)
 - [x] Set RTC clock automatically at launch
 - [x] Bus mouse (works with mouse.com /b)
-- [.] AT keyboard (buggy)
-- [ ] 16-bit PIC, DMA
+- [x] AT keyboard
+- [ ] AT second PIC, second DMA
 - [ ] Configurable I/O base per device
 - [ ] Keep RTC clock in time when the machine is running
 - [ ] Serial port
@@ -49,6 +50,7 @@
 - [x] Floppy seek timing
 - [x] Floppy seek sounds (sample by GloriousCow)
 - [.] Floppy rotation timing
+- [ ] ATA HD (for 286)
 - [ ] HDD seek sounds
 - [ ] HDD seek/rotation timing
 - [ ] IDE HD (XTIDE or similar)
@@ -73,17 +75,21 @@
 - [x] 8-bit Sound Blaster
 - [.] Creative Game Blaster / Music System (missing noise channels)
 - [ ] 16-bit Sound Blaster
+- [ ] AdLib Gold (PCM part)
 - [ ] OPL3
 - [ ] CQM (Creative Labs OPL3 clone, sounds different)
+- [ ] ESFM (ESS extended OPL3)
 - [ ] AWE32 wavetable midi
 
 ## Input
+- [x] Keyboard to xt/at kbd subsystem
+- [x] Mouse to bus mouse subsystem
 - [x] Gamepad as joystick
 - [ ] Gamepad calibration routine
 
 ## Development & Structure
-- [x] put every device in its own file
-- [x] make compilable on msvc
+- [x] Put every device in its own file
+- [x] Make compilable on msvc
 
 ## UI & Debug
 - [ ] Make a quit button
