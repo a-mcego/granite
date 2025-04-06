@@ -159,7 +159,7 @@ const int HARM[16] = {0,1,2,3,4,5,6,7,8,9,10,10,12,12,15,15};
 const double AMPMOD_DEPTH[2] = {1.0, 4.8};
 
 extern int AMPMOD[2][AMPMOD_SIZE];
-extern int VIBRATO[2][VIBRATO_SIZE];
+//extern int VIBRATO[2][VIBRATO_SIZE];
 
 //convert adsr_volume to dr_state&dr_div:
 extern int VOL2STATE[ADSR_MAX];
@@ -198,8 +198,13 @@ struct OP
 	word rof;
 	double_word freq_harmonic; //frequency adjusted with harmonic
 	double_word freq;
+	int vibrato_amount{};
+	uchar oct{};
 
 	int update(int fm, Opl2& opl2);
+	void update_phase();
+	void keyoff();
+	bool note{};
 };
 
 struct CHANNEL
@@ -218,6 +223,7 @@ struct CHANNEL
 	void updfreq(Opl2& opl);
 	bit note;
 	bit rhythm; //rhythm mode on for this channel? if opl2.rhythm is true, channels 6-8 will have rhythm on, others will have it off
+	int fnum3{};
 };
 
 
@@ -253,6 +259,7 @@ public:
 
 	uchar status; //OPL2 Status byte!
 	int rate;
+	bool bass_on{}, snare_on{}, cymbal_on{}, hihat_on{};
 
 	void writebyte(int port, int val);
 

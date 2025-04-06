@@ -1,5 +1,5 @@
 #include "opl2.h"
-
+#include <iostream>
 #include <cmath>
 #include <cstring>
 
@@ -15,7 +15,13 @@ int LKS[LKS_N][LKS_SIZE];
 unsigned int pow4rt2[256];
 
 int AMPMOD[2][AMPMOD_SIZE];
-int VIBRATO[2][VIBRATO_SIZE];
+//int VIBRATO[2][VIBRATO_SIZE];
+
+//const int VIBRATO_SIZE = 8*1024;
+const int VIBRATO_SHIFT = 10;
+const int VIBRATO[VIBRATO_SIZE>>VIBRATO_SHIFT] = {-1,-2,8,2,1,2,8,-2};
+
+
 
 int VOL2STATE[ADSR_MAX] = {};
 int VOL2DIV[ADSR_MAX] = {};
@@ -143,9 +149,7 @@ void Opl2::write(unsigned char r, unsigned char d)
 	case 0x20:
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].ampmod = d&0x80;
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].vibrato = d&0x40;
-		//if (d&0x40)
-		//	cout << "Vibrato not implemented yet" << endl;
-		//TODO: copy vibrato over from the other project
+
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].hold_instr = d&0x20;
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].ksr = d&0x10;
 
@@ -155,55 +159,70 @@ void Opl2::write(unsigned char r, unsigned char d)
 	case 0x40:
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].volume = uchar(d&0x3F);
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].lks = uchar(d>>6);
+		opl2.chans[chn[r&0x1F]].updfreq(opl2);
 		break;
 	case 0x60:
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].A = uchar(d>>4);
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].D = uchar(d&0x0F);
+		opl2.chans[chn[r&0x1F]].updfreq(opl2);
 		break;
 	case 0x80:
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].S = uchar(d>>4);
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].R = uchar(d&0x0F);
+		opl2.chans[chn[r&0x1F]].updfreq(opl2);
 		break;
 	case 0xA0:
 		if (r==0xBD)
 		{
+		    std::cout << "BD:" << uint(d) << std::endl;
 			opl2.ampmod_depth = (d>>7)&0x01;
-			opl2.vibrato_depth = (d>>6)&0x01;
+			opl2.vibrato_depth = 2-((d>>6)&0x01);
 			opl2.rhythm = d&0x20;
 			if (opl2.rhythm)
 			{
-				//this should be OK
-				if (d&0x10)
+				if ((d&0x10))
+					chans[6].keyon(opl2);
+				else
+					chans[6].keyoff(opl2);
+
+				if ((d&0x08) && snare_on==false)
 				{
-					//opl2.chans[6].ops[0].reset_ADSR();
-					//opl2.chans[6].ops[1].reset_ADSR();
-					opl2.chans[6].keyon(opl2);
-					//cout << "BASSDRUM" << endl;
+					chans[7].ops[1].reset_ADSR();
+					snare_on=true;
 				}
-				//this sounds probably wrong
-				if (d&0x08)
+				else if (!(d&0x08) && snare_on==true)
 				{
-					opl2.chans[7].ops[1].reset_ADSR();
-					//cout << "SNARE" << endl;
+					chans[7].ops[1].keyoff();
+					snare_on=false;
 				}
-				//this sounds friggin' awful. for now.
-				if (d&0x04)
+
+				if (d&0x04) //tuk tuk
 				{
-					//opl2.chans[8].ops[0].reset_ADSR();
-					//cout << "TOMTOM" << endl;
+					chans[8].ops[0].reset_ADSR();
 				}
-				//these sound inadequate, until i come up with a better implementation
-				if (d&0x02)
+
+				if ((d&0x02) && cymbal_on == false)
 				{
-					opl2.chans[8].ops[1].reset_ADSR();
-					//cout << "CYMBAL" << endl;
+					chans[8].ops[1].reset_ADSR();
+					cymbal_on=true;
+					//cout << "syntipukki" << endl;
 				}
-				if (d&0x01)
+				else if (!(d&0x02) && cymbal_on == true)
 				{
-					opl2.chans[7].ops[0].reset_ADSR();
-					//cout << "HI-HAT" << endl;
+					chans[8].ops[1].keyoff();
+					cymbal_on=false;
 				}
-				//cout << "|||||||||||||||||||" << endl;
+
+				if ((d&0x01) && hihat_on == false)
+				{
+					chans[7].ops[0].reset_ADSR();
+					hihat_on = true;
+				}
+				else if (!(d&0x01) && hihat_on == true)
+				{
+					chans[7].ops[0].keyoff();
+					hihat_on = false;
+				}
 			}
 			break;
 		}
@@ -211,6 +230,7 @@ void Opl2::write(unsigned char r, unsigned char d)
 		{
 			opl2.chans[r&0x0F].hifnum = word(d&0x03);
 			opl2.chans[r&0x0F].oct = uchar((d>>2)&0x07);
+			opl2.chans[r&0x0F].updfreq(opl2);
 			if ((d>>5)&0x01)
 				opl2.chans[r&0x0F].keyon(opl2);
 			else
@@ -248,7 +268,7 @@ void Opl2::update_ADSR()
 					op.ADSR_volume = 8192;
 					break;
 				}
-				op.ADSR_volume = ADSR_A[op.A_state];
+				op.ADSR_volume = ADSR_A[op.A_state&0xFFFFF000];
 				if (op.A > 0)
 					op.A_state += pow4rt2[op.A*4+op.rof];
 				break;
@@ -259,9 +279,19 @@ void Opl2::update_ADSR()
 					op.adsr = (op.hold_instr?S:R);
 					break;
 				}
-#if __cplusplus >= 201703L && !defined(_MSC_VER)
-            [[fallthrough]];
-#endif
+                op.ADSR_volume = (unsigned short)(ADSR_DR[op.DR_state]>>op.DR_div);
+                if (op.D > 0)
+                    op.DR_state += pow4rt2[(op.adsr==D?op.D:op.R)*4+op.rof];
+				while (op.DR_state >= ADSR_DR_SIZE)
+				{
+					op.DR_state -= ADSR_DR_SIZE;
+					++op.DR_div;
+				}
+                break;
+			case S:
+				if (chans[c].note == false)
+					op.adsr = R;
+				break;
 			case R:
 				if (op.DR_div <= 16)
                     op.ADSR_volume = ADSR_DR[op.DR_state]>>op.DR_div;
@@ -277,15 +307,18 @@ void Opl2::update_ADSR()
 				if (op.ADSR_volume < 32 || op.DR_div > 16)
 					op.adsr = N;
 				break;
-			case S:
-				if (chans[c].note == false)
-					op.adsr = R;
-				break;
 			default:
 				break;
 			}
 		}
 	}
+}
+
+void OP::update_phase()
+{
+	if (vibrato)
+		sinestate += vibrato_amount*HARM[harmonic]*(1<<oct);
+	sinestate += freq_harmonic;
 }
 
 int OP::update(int fm, Opl2& opl2)
@@ -299,7 +332,8 @@ int OP::update(int fm, Opl2& opl2)
 		*LKS[lks][freq]/ADSR_MAX;
 	if (ampmod)
 		sample = sample*AMPMOD[opl2.ampmod_depth][opl2.ampmod_state]/ADSR_MAX;
-	sinestate = (sinestate+freq_harmonic)&(PERIOD_SIZE-1);
+    update_phase();
+	//sinestate = (sinestate+freq_harmonic)&(PERIOD_SIZE-1);
 	wanha2 = wanha1;
 	wanha1 = sample;
 	return sample;
@@ -318,6 +352,7 @@ short Opl2::update()
 	ampmod_state++;
 	if (ampmod_state >= AMPMOD_SIZE)
 		ampmod_state=0;
+
 	int sini=0, fb=0;
 
 	int maxc;
@@ -328,15 +363,29 @@ short Opl2::update()
 	update_ADSR();
 	for(int c=0; c<maxc; c++)
 	{
+		bool vibcalced = false;
 		fb = FB[chans[c].feedback]*(chans[c].ops[0].wanha1+chans[c].ops[0].wanha2)/(2*SAMPLERATE_DIV);
 		int sample=0;
 
 		if (chans[c].ops[0].adsr != N)
 		{
 			sample = chans[c].ops[0].update(fb, opl2);
+			if (chans[c].ops[0].vibrato)
+			{
+				chans[c].ops[0].vibrato_amount = (chans[c].fnum3/VIBRATO[vibrato_state>>VIBRATO_SHIFT])>>vibrato_depth;
+				vibcalced = true;
+			}
 		}
 		if (chans[c].ops[1].adsr != N)
 		{
+			if (chans[c].ops[1].vibrato)
+			{
+				if (vibcalced)
+					chans[c].ops[1].vibrato_amount = chans[c].ops[0].vibrato_amount;
+				else
+					chans[c].ops[1].vibrato_amount = (chans[c].fnum3/VIBRATO[vibrato_state>>VIBRATO_SHIFT])>>vibrato_depth;
+			}
+
 			switch(chans[c].algo)
 			{
 			case 0://FM
@@ -352,31 +401,80 @@ short Opl2::update()
 	}
 	if (opl2.rhythm)
 	{
-		//bass drum
+
+		//bass drum, should be OK
 		{
-			int sample = 0;
-			switch(chans[6].algo)
+			if (chans[6].ops[1].adsr != N)
 			{
-			case 0://FM
-				sample = chans[6].ops[1].update(chans[6].ops[0].update(0, opl2), opl2);
-				break;
-			case 1://only OP1!!
-				sample = chans[6].ops[1].update(0, opl2);
-				break;
+			    //std::cout << 'B';
+				int sample = 0;
+				switch(chans[6].algo)
+				{
+				case 0://FM
+					sample = chans[6].ops[1].update(FM_AMOUNT*chans[6].ops[0].update(0, opl2), opl2);
+					break;
+				case 1://only OP1
+					sample = chans[6].ops[1].update(0, opl2);
+					break;
+				}
+				sini += sample*2;
 			}
-			sini += sample;
 		}
 
-		//the rest
-		for(int c=OPL2_CHANNELS-2; c<OPL2_CHANNELS; c++)
+		//tomtom, should also be OK
 		{
-			for(int o=0; o<2; o++)
+			if (chans[8].ops[0].adsr != N)
 			{
-				int sample=(((rand()&0xFF)|((rand()&0xFF)<<8))-32768)*2;
-				sample = sample*TOTLVL[chans[c].ops[o].volume]/ADSR_MAX
-					*chans[c].ops[o].ADSR_volume/ADSR_MAX
-					*LKS[chans[c].ops[o].lks][chans[c].freq]/ADSR_MAX;
-				sini += sample;
+			    //std::cout << 'T';
+				int sample = chans[8].ops[0].update(0, opl2);
+				sini += sample*2;
+			}
+		}
+
+		chans[7].ops[0].update_phase();//snare, hihat
+		chans[8].ops[1].update_phase();//hihat
+
+		//snare, probably not OK yet
+		{
+			if (chans[7].ops[1].adsr != N || snare_on == true)
+			{
+			    //std::cout << 'S';
+				sini += (int(rand()&0xFFFF)+((!!(chans[7].ops[0].sinestate&0x40000))*0x4000-0x2000))
+					*TOTLVL[chans[7].ops[1].volume]/ADSR_MAX
+					*chans[7].ops[1].ADSR_volume/ADSR_MAX*4;
+
+			}
+		}
+
+		//hihat, beta version
+		{
+			if (chans[7].ops[0].adsr != N || hihat_on == true)
+			{
+			    //std::cout << 'H';
+				sini += (int(rand()&0xFFFF)+((!((chans[7].ops[0].sinestate>>12)&1))&(!((chans[8].ops[1].sinestate>>15)&1))&(!((chans[8].ops[1].sinestate>>13)&1)))*16384)
+				//sini += (((!((chans[7].ops[0].sinestate>>12)&1))&(!((chans[8].ops[1].sinestate>>15)&1))&(!((chans[8].ops[1].sinestate>>13)&1)))*16384)
+					*TOTLVL[chans[7].ops[0].volume]/ADSR_MAX
+					*chans[7].ops[0].ADSR_volume/ADSR_MAX*4;
+			}
+		}
+
+		//and now we only have the cymbal left to implement! the cymbal. <3
+		{
+			if (chans[8].ops[1].adsr != N || cymbal_on == true)
+			{
+			    //std::cout << 'C';
+				bool c70b12 = ((chans[7].ops[0].sinestate>>8)&1);
+				bool c70b13 = ((chans[7].ops[0].sinestate>>9)&1);
+				bool c70b17 = ((chans[7].ops[0].sinestate>>13)&1);
+				bool c81b15 = ((chans[8].ops[1].sinestate>>11)&1);
+				bool c81b13 = ((chans[8].ops[1].sinestate>>9)&1);
+				//int sample = (c70b12^c70b16) & c81b15 & c81b13;
+				int sample = ((c70b12^c70b17)|c70b13) &  !(c81b15 ^ c81b13);
+				sample *= 65536;
+				sample -= 32768;
+				sini += sample
+					*TOTLVL[chans[8].ops[1].volume]/ADSR_MAX
+					*chans[8].ops[1].ADSR_volume/ADSR_MAX*2;
 			}
 		}
 	}
@@ -392,19 +490,43 @@ void OP::reset_ADSR()
 		A_state = ADSR_A_SIZE;
 }
 
+
+void OP::keyoff()
+{
+	if (adsr != N)
+	{
+		if (adsr == A)
+		{
+			DR_div = VOL2DIV[ADSR_volume];
+			DR_state = VOL2STATE[ADSR_volume];
+		}
+		adsr = ADSR_STATE::S;
+	}
+	note = false;
+}
+
 void CHANNEL::keyon(Opl2& opl2)
 {
 	updfreq(opl2);
 	if (note == false)
 	{
 		ops[0].reset_ADSR();
+		ops[0].note = true;
 		ops[1].reset_ADSR();
+		ops[1].note = true;
 		note = true;
 	}
 }
 
 void CHANNEL::keyoff(Opl2& opl2)
 {
+    for(int i=0; i<2; i++)
+	{
+		ops[i].keyoff();
+	}
+	note = false;
+	return;
+
 	updfreq(opl2);
 	//if the note is turned off during attack phase,
 	//we now enter sustain phase
@@ -432,9 +554,18 @@ void CHANNEL::updfreq(Opl2& opl2)
 	freq = ((hifnum<<8)+lofnum)*pow2[oct];
 	//calculate ROF (almost) based on the information on the YMF262 datasheet.
 	//if we did things exactly like on the sheet, the last bit would read:
-	//(2-2*int(ops[n].ksr). but that makes some sounds too quick.
+	//(2-2*int(ops[n].ksr). but that makes some sounds too quick.'
+
+	//25.2.2009: okey the "adjusted" version also screws up some sounds
+	//on at least titlermx.imf. gotta get into this a bit more now that
+	//every feature has been implemented.
+
+	//6.4.2025: yeah i think so
+
+    fnum3 = (hifnum<<1)+(lofnum>>7);
 	for(int i=0; i<2; i++)
 	{
+	    ops[i].oct = oct;
 		ops[i].freq = freq;
 		ops[i].rof = word((((hifnum>>int(opl2.keysplit))&0x01)+2*oct)>>(3-3*int(ops[i].ksr)));
 		if (ops[i].harmonic == 0)
