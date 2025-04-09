@@ -36,7 +36,8 @@
 - [x] Set RTC clock automatically at launch
 - [x] Bus mouse (works with mouse.com /b)
 - [x] AT keyboard
-- [ ] AT second PIC, second DMA
+- [x] AT second PIC
+- [ ] AT second DMA
 - [ ] Configurable I/O base per device
 - [ ] Keep RTC clock in time when the machine is running
 - [ ] Serial port
