@@ -10,9 +10,7 @@ add_compile_definitions(CMAKE)
 
 option (DEBUG "Enable Debug Mode" OFF)
 if (DEBUG)
-    add_compile_definitions(DEBUG_MODE, 1)
-else ()
-    add_compile_definitions(DEBUG_MODE, 0)
+    add_compile_definitions(DEBUG_MODE)
 endif()
 
 add_executable(granite
