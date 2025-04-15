@@ -1,142 +1,156 @@
 #pragma once
 
-
-struct HARDDISK
+struct DISK
 {
-    CHIP8237& dma;
-    CHIP8259& pic;
-
-    HARDDISK(CHIP8237& dma_, CHIP8259& pic_) : dma(dma_), pic(pic_) {}
-
-    struct DISK
+    struct DiskType
     {
-        struct DiskType
+        DiskType(){}
+
+        DiskType(int c, int h, int s):cylinders(c),heads(h),sectors(s)
         {
-            DiskType(){}
-
-            DiskType(int c, int h, int s):cylinders(c),heads(h),sectors(s)
+            if (s != 17)
             {
-                if (s != 17)
-                {
-                    std::cout << "Xebec v1 requires 17 sectors per track." << std::endl;
-                    std::abort();
-                }
+                std::cout << "Xebec v1 requires 17 sectors per track." << std::endl;
+                std::abort();
             }
+        }
 
-            static const u32 BYTES_PER_SECTOR = 512;
-            u32 cylinders=0;
-            u32 heads=0;
-            u32 sectors=0;
+        static const u32 BYTES_PER_SECTOR = 512;
+        u32 cylinders=0;
+        u32 heads=0;
+        u32 sectors=0;
 
-            u32 get_byte_offset(u32 cylinder, u32 head, u32 sector)
-            {
-                return ((cylinder*heads+head)*sectors+sector)*BYTES_PER_SECTOR;
-            }
-
-            bool is_valid(u32 cylinder, u32 head, u32 sector)
-            {
-                return (cylinder < cylinders) && (head < heads) && (sector < sectors);
-            }
-
-            u32 totalsize()
-            {
-                std::cout << "C=" << cylinders << ", H=" << heads << ", S=" << sectors << std::endl;
-                return cylinders*heads*sectors*BYTES_PER_SECTOR;
-            }
-        };
-        /* static constexpr disktypes[4] =
+        u32 get_byte_offset(u32 cylinder, u32 head, u32 sector)
         {
-            {306, 2, 17},
-            {375, 8, 17},
-            {306, 6, 17},
-            {306, 4, 17}
-        };
+            return ((cylinder*heads+head)*sectors+sector)*BYTES_PER_SECTOR;
+        }
 
-        static const u32 DISKTYPE_ID = 1;
-        DiskType type{disktypes[DISKTYPE_ID]};*/
-        DiskType type;
-        vector<u8> data;
-        std::string filename;
-
-        void flush()
+        bool is_valid(u32 cylinder, u32 head, u32 sector)
         {
-            if (data.empty())
-            {
-                return;
-            }
-            const u64 BLOCK_SIZE = 0x10000;
+            return (cylinder < cylinders) && (head < heads) && (sector < sectors);
+        }
 
-            FILE* filu = fopen(filename.c_str(), "rb+");
+        bool size_is(u32 cylinder, u32 head, u32 sector)
+        {
+            return (cylinder == cylinders) && (head == heads) && (sector == sectors);
+        }
 
-            if (filu == nullptr)
-            {
-                filu = fopen(filename.c_str(), "wb");
-                fwrite(data.data(), data.size(), 1, filu);
-                fclose(filu);
-                return;
-            }
+        u32 totalsize()
+        {
+            std::cout << "C=" << cylinders << ", H=" << heads << ", S=" << sectors << std::endl;
+            return cylinders*heads*sectors*BYTES_PER_SECTOR;
+        }
+    };
 
-            fseek(filu, 0, SEEK_END);
-            u64 filesize = ftell(filu);
-            if (data.size() != filesize)
-            {
-                cout << filename << " Data size " << data.size() << " is not file size " << filesize << endl;
-                return;
-                //std::abort();
-            }
-            fseek(filu, 0, SEEK_SET);
+    DiskType type;
+    vector<u8> data;
+    std::string filename;
 
-            vector<u8> filedata(BLOCK_SIZE,0);
-            for(u64 pos=0; pos<data.size(); pos += BLOCK_SIZE)
-            {
-                fseek(filu, pos, SEEK_SET);
-                int sectors_read = fread(filedata.data(), 512, BLOCK_SIZE/512, filu);
+    void flush()
+    {
+        if (data.empty())
+        {
+            return;
+        }
+        const u64 BLOCK_SIZE = 0x10000;
 
-                if (memcmp(filedata.data(), data.data()+pos, sectors_read*512) != 0)
-                {
-                    cout << "Block " << pos/BLOCK_SIZE << " changed." << endl;
-                    fseek(filu, pos, SEEK_SET);
-                    fwrite(data.data()+pos, 512, BLOCK_SIZE/512, filu);
-                }
-            }
+        FILE* filu = fopen(filename.c_str(), "rb+");
+
+        if (filu == nullptr)
+        {
+            filu = fopen(filename.c_str(), "wb");
+            fwrite(data.data(), data.size(), 1, filu);
             fclose(filu);
+            return;
         }
 
-        DISK()
+        fseek(filu, 0, SEEK_END);
+        u64 filesize = ftell(filu);
+        if (data.size() != filesize)
         {
+            cout << filename << " Data size " << data.size() << " is not file size " << filesize << endl;
+            return;
+            //std::abort();
         }
+        fseek(filu, 0, SEEK_SET);
 
-        DISK(const std::string& filename_, int c, int h, int s):filename(filename_)
+        vector<u8> filedata(BLOCK_SIZE,0);
+        for(u64 pos=0; pos<data.size(); pos += BLOCK_SIZE)
         {
-            type = DiskType(c,h,s);
-            data.assign(type.totalsize(),0);
-            cout << "HD: " << data.size() << " bytes." << endl;
+            fseek(filu, pos, SEEK_SET);
+            int sectors_read = fread(filedata.data(), 512, BLOCK_SIZE/512, filu);
 
-            FILE* filu = fopen(filename.c_str(), "rb");
-            if (filu != nullptr)
+            if (memcmp(filedata.data(), data.data()+pos, sectors_read*512) != 0)
             {
-                fseek(filu,0,SEEK_END);
-                u32 size = ftell(filu);
-                if (size == data.size())
-                {
-                    fseek(filu,0,SEEK_SET);
-                    data.assign(size,0);
-                    fread(data.data(), size, 1, filu);
-                }
-                else
-                {
-                    cout << "File " << filename << " doesnt contain an image of " << data.size() << " bytes." << endl;
-                    filename.clear();
-                    data.clear();
-                }
-                fclose(filu);
+                cout << "Block " << pos/BLOCK_SIZE << " changed." << endl;
+                fseek(filu, pos, SEEK_SET);
+                fwrite(data.data()+pos, 512, BLOCK_SIZE/512, filu);
+            }
+        }
+        fclose(filu);
+    }
+
+    DISK()
+    {
+    }
+
+    DISK(const std::string& filename_, int c, int h, int s):filename(filename_)
+    {
+        type = DiskType(c,h,s);
+        data.assign(type.totalsize(),0);
+        cout << "HD: " << data.size() << " bytes." << endl;
+
+        FILE* filu = fopen(filename.c_str(), "rb");
+        if (filu != nullptr)
+        {
+            fseek(filu,0,SEEK_END);
+            u32 size = ftell(filu);
+            if (size == data.size())
+            {
+                fseek(filu,0,SEEK_SET);
+                data.assign(size,0);
+                fread(data.data(), size, 1, filu);
             }
             else
             {
-                cout << "File " << filename << " not found when loading harddisk." << endl;
+                cout << "File " << filename << " doesnt contain an image of " << data.size() << " bytes." << endl;
+                filename.clear();
+                data.clear();
+                std::abort();
             }
+            fclose(filu);
         }
-    } disks[2];
+        else
+        {
+            cout << "File " << filename << " not found when loading harddisk. Creating it." << endl;
+            filu = fopen(filename.c_str(), "wb");
+            if (filu == NULL)
+            {
+                cout << "File " << filename << " not found when loading harddisk and can't create it." << endl;
+                std::abort();
+            }
+
+
+            fwrite(data.data(), data.size(), 1, filu);
+
+            fclose(filu);
+            std::cout << "File " << filename << " created." << std::endl;
+        }
+    }
+};
+
+struct DISKS
+{
+    DISK disk[2];
+};
+
+struct HARDDISK_XEBEC
+{
+    DISKS& disks;
+    CHIP8237& dma;
+    CHIP8259& pic;
+
+    HARDDISK_XEBEC(DISKS& disks_, CHIP8237& dma_, CHIP8259& pic_) : disks(disks_), dma(dma_), pic(pic_) {}
 
     enum COMMAND
     {
@@ -245,7 +259,7 @@ struct HARDDISK
         current_head = (data_in[1]&0x1F);
         current_drive = (data_in[1]&0x20)>>5;
 
-        address_valid = disks[current_drive].type.is_valid(current_cylinder,current_head,current_sector);
+        address_valid = disks.disk[current_drive].type.is_valid(current_cylinder,current_head,current_sector);
     }
 
     void write(u8 port, u8 data) //port from 0 to 3! inclusive.
@@ -288,12 +302,12 @@ struct HARDDISK
                     else if (data_in[0] == READ)
                     {
                         set_current_params();
-                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        u32 offset = disks.disk[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
                         //cout << "HD READ offset: " << offset << endl;
                         if (address_valid)
                         {
                             //dma.print_params(3);
-                            dma.transfer(3, &disks[current_drive].data, offset);
+                            dma.transfer(3, &disks.disk[current_drive].data, offset);
                             dma_in_progress = true;
                         }
                         else
@@ -306,7 +320,7 @@ struct HARDDISK
                     else if (data_in[0] == WRITE)
                     {
                         set_current_params();
-                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        u32 offset = disks.disk[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
                         //cout << "HD WRITE offset: " << offset << endl;
                         if (address_valid)
                         {
@@ -316,7 +330,7 @@ struct HARDDISK
                             }
 
                             //dma.print_params(3);
-                            dma.transfer(3, &disks[current_drive].data, offset);
+                            dma.transfer(3, &disks.disk[current_drive].data, offset);
                             dma_in_progress = true;
                         }
                         else
@@ -396,12 +410,12 @@ struct HARDDISK
                     else if (data_in[0] == READ_LONG)
                     {
                         set_current_params();
-                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        u32 offset = disks.disk[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
                         cout << "HD READ LONG offset: " << offset << ", transfercount=" << dma.chans[3].transfer_count << endl;
                         if (address_valid)
                         {
                             //dma.print_params(3);
-                            dma.transfer(3, &disks[current_drive].data, offset);
+                            dma.transfer(3, &disks.disk[current_drive].data, offset);
                             dma_in_progress = true;
                         }
                         else
@@ -414,7 +428,7 @@ struct HARDDISK
                     else if (data_in[0] == WRITE_LONG)
                     {
                         set_current_params();
-                        u32 offset = disks[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
+                        u32 offset = disks.disk[current_drive].type.get_byte_offset(current_cylinder, current_head, current_sector);
                         cout << "HD WRITE LONG offset: " << offset << ", transfercount=" << dma.chans[3].transfer_count << endl;
                         if (address_valid)
                         {
@@ -424,7 +438,7 @@ struct HARDDISK
                             }
 
                             //dma.print_params(3);
-                            dma.transfer(3, &disks[current_drive].data, offset);
+                            dma.transfer(3, &disks.disk[current_drive].data, offset);
                             dma_in_progress = true;
                         }
                         else
