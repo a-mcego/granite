@@ -137,7 +137,7 @@ struct CHIP8253 //PIT
             if (channel_n == 3 && globalsettings.machine != GlobalSettings::MACHINE_AT)
             {
                 cout << "Channel 3 non-existent on PIT! (trying to run AT code? this is an PC emulator.)" << endl;
-                std::abort();
+                return;
             }
             Channel& c = channels[channel_n];
             if (((data>>4)&0x03) == 0)
