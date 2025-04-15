@@ -7,8 +7,9 @@ struct CPU80286
 {
     MemoryManager286& mem;
     CHIP8259& pic;
+    CHIP8259& pic2;
     IOSystem& iosystem;
-    CPU80286(MemoryManager286& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
+    CPU80286(MemoryManager286& mem_, CHIP8259& pic_,  CHIP8259& pic2_, IOSystem& iosystem_) : mem(mem_), pic(pic_), pic2(pic2_), iosystem(iosystem_) {}
 
 
     static const u16 FLAG_MASK = 0b0000'1111'1101'0101;
@@ -551,10 +552,10 @@ struct CPU80286
         return interrupt_true_cycles >= 2 && !inhibit_ss && delay==0;
     }
 
-    void interrupt(u8 n, bool forced=false, bool has_code=false, u16 code=0)
+    bool interrupt(u8 n, bool forced=false, bool has_code=false, u16 code=0)
     {
         if (inhibit_ss)
-            return;
+            return false;
         if (accepts_interrupts() || forced)
         {
             if (startprinting)
@@ -587,9 +588,12 @@ struct CPU80286
             {
                 if (startprinting)
                     cout << "IRQ: CPU ACK " << u32(n-8) << endl;
-                pic.cpu_ack_irq(n-8);
+                //pic.cpu_ack_irq(n-pic.vector_pos());
+                return true;
             }
+            return false;
         }
+        return false;
     }
 
     u32 full_ip()
@@ -625,7 +629,21 @@ struct CPU80286
 
     void irq(u8 n)
     {
-        interrupt(n+8, false);
+        if (n >= 8)
+        {
+            if (interrupt(n-8+pic2.vector_pos(), false))
+            {
+                pic2.cpu_ack_irq(n-8);
+                pic.cpu_ack_irq(2);
+            }
+        }
+        else
+        {
+            if (interrupt(n+pic.vector_pos(), false))
+            {
+                pic.cpu_ack_irq(n);
+            }
+        }
     }
 
     void push(u16 data)
@@ -759,7 +777,7 @@ struct CPU80286
                 mem.direct16(addr) = gdtr.n_entries;
                 mem.direct16(addr+2) = (gdtr.base)&0xFFFF;
                 mem.direct16(addr+4) = (gdtr.base>>16)&0xFFFF;
-                std::cout << "store gdtr" << std::endl;
+                //std::cout << "store gdtr" << std::endl;
                 //startprinting = true;
             }
             else if (secondbyte == 0x01 && op == 0x02) // LGDT
@@ -769,7 +787,7 @@ struct CPU80286
                 gdtr.n_entries = mem.direct16(addr);
                 gdtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
 
-                std::cout << "Loaded gdtr with n_entries=0x" << std::hex << gdtr.n_entries << " and base=0x" << gdtr.base << std::endl;
+                //std::cout << "Loaded gdtr with n_entries=0x" << std::hex << gdtr.n_entries << " and base=0x" << gdtr.base << std::endl;
                 //startprinting = true;
             }
             else if (secondbyte == 0x01 && op == 0x01) // SIDT
@@ -779,7 +797,7 @@ struct CPU80286
                 mem.direct16(addr) = idtr.n_entries;
                 mem.direct16(addr+2) = (idtr.base)&0xFFFF;
                 mem.direct16(addr+4) = (idtr.base>>16)&0xFFFF;
-                std::cout << "store idtr" << std::endl;
+                //std::cout << "store idtr" << std::endl;
             }
             else if (secondbyte == 0x01 && op == 0x03) // LIDT
             {
@@ -788,12 +806,12 @@ struct CPU80286
                 idtr.n_entries = mem.direct16(addr);
                 idtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
 
-                std::cout << "Loaded idtr from fulladdr=" << addr << " with n_entries=0x" << std::hex << idtr.n_entries << " and base=0x" << idtr.base << std::endl;
+                //std::cout << "Loaded idtr from fulladdr=" << addr << " with n_entries=0x" << std::hex << idtr.n_entries << " and base=0x" << idtr.base << std::endl;
             }
             else if (secondbyte == 0x01 && op == 0x06) // LMSW
             {
                 msw = (msw & 0xFFF1) | (decode_modrm_u16(modrm) & 0x000F);
-                std::cout << "New msw: " << msw << std::endl;
+                //std::cout << "New msw: " << msw << std::endl;
 
                 /*std::cout << std::dec << gdtr.n_entries << " global entries." << std::endl;
                 std::cout << std::hex;
@@ -814,9 +832,9 @@ struct CPU80286
             }
             else
             {
-                std::cout << "popcs - " << u32(secondbyte) << " op=" << u32(modrm>>3)%0x08 << std::endl;
-                std::cout << "with address: " << effective_address(modrm) << std::endl;
-                std::abort();
+                //std::cout << "popcs - " << u32(secondbyte) << " op=" << u32(modrm>>3)%0x08 << std::endl;
+                //std::cout << "with address: " << effective_address(modrm) << std::endl;
+                invalid_instruction(original_ip);
             }
             cycles_used += 10; //TODO: right values
             //invalid_instruction(original_ip); //TODO: v20, 286
@@ -918,7 +936,7 @@ struct CPU80286
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in(port);
+                    mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in<u8>(port);
                     registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                     cycles_used += 5; //286
                 }
@@ -926,7 +944,7 @@ struct CPU80286
                 {
                     while (registers[CX] != 0)
                     {
-                        mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in(port);
+                        mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in<u8>(port);
                         registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
                         cycles_used += 5; //286
@@ -938,9 +956,8 @@ struct CPU80286
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    u8 low = iosystem.io_in(port);
-                    u8 high = iosystem.io_in(port + 1);
-                    mem.direct16(get_offset(SEG::ES) + registers[DI]) = (high << 8) | low;
+                    u16 word = iosystem.io_in<u16>(port);
+                    mem.direct16(get_offset(SEG::ES) + registers[DI]) = word;
                     registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                     cycles_used += 5; //286
                 }
@@ -948,9 +965,8 @@ struct CPU80286
                 {
                     while (registers[CX] != 0)
                     {
-                        u8 low = iosystem.io_in(port);
-                        u8 high = iosystem.io_in(port + 1);
-                        mem.direct16(get_offset(SEG::ES) + registers[DI]) = (high << 8) | low;
+                        u16 word = iosystem.io_in<u16>(port);
+                        mem.direct16(get_offset(SEG::ES) + registers[DI]) = word;
                         registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
                         cycles_used += 5; //286
@@ -962,7 +978,7 @@ struct CPU80286
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    iosystem.io_out(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
+                    iosystem.io_out<u8>(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                     registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                     cycles_used += 5; //286
                 }
@@ -970,7 +986,7 @@ struct CPU80286
                 {
                     while (registers[CX] != 0)
                     {
-                        iosystem.io_out(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
+                        iosystem.io_out<u8>(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                         registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
                         cycles_used += 5; //286
@@ -983,8 +999,7 @@ struct CPU80286
                 if (string_prefix == 0)
                 {
                     u16 value = mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]);
-                    iosystem.io_out(port, value & 0xFF);
-                    iosystem.io_out(port + 1, value >> 8);
+                    iosystem.io_out<u16>(port, value);
                     registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
                     cycles_used += 5; //286
                 }
@@ -993,8 +1008,7 @@ struct CPU80286
                     while (registers[CX] != 0)
                     {
                         u16 value = mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]);
-                        iosystem.io_out(port, value & 0xFF);
-                        iosystem.io_out(port + 1, value >> 8);
+                        iosystem.io_out<u16>(port, value);
                         registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
                         cycles_used += 5; //286
@@ -1973,27 +1987,24 @@ struct CPU80286
         }
         else if (instruction == 0xE4) // IN
         {
-            get_r8(0) = iosystem.io_in(read_inst<u8>());
+            get_r8(0) = iosystem.io_in<u8>(read_inst<u8>());
             cycles_used += 5; //286
         }
         else if (instruction == 0xE5) // IN
         {
             u8 port = read_inst<u8>();
-            u8 low = iosystem.io_in(port);
-            u8 high = iosystem.io_in(port+1);
-            registers[AX] = (high<<8)|low;
+            registers[AX] = iosystem.io_in<u16>(port);
             cycles_used += 5; //286
         }
         else if (instruction == 0xE6) // OUT
         {
-            iosystem.io_out(read_inst<u8>(), registers[AX]&0xFF);
+            iosystem.io_out<u8>(read_inst<u8>(), registers[AX]&0xFF);
             cycles_used += 3; //286
         }
         else if (instruction == 0xE7) // OUT
         {
             u8 port = read_inst<u8>();
-            iosystem.io_out(port, registers[AX]&0xFF);
-            iosystem.io_out(port+1, registers[AX]>>8);
+            iosystem.io_out<u16>(port, registers[AX]);
             cycles_used += 3; //286
         }
         else if (instruction == 0xE8)
@@ -2026,26 +2037,23 @@ struct CPU80286
         }
         else if (instruction == 0xEC) // IN
         {
-            get_r8(0) = iosystem.io_in(registers[DX]);
+            get_r8(0) = iosystem.io_in<u8>(registers[DX]);
             cycles_used += 5; //286
         }
         else if (instruction == 0xED) // IN
         {
             u16 port = registers[DX];
-            u8 low = iosystem.io_in(port);
-            u8 high = iosystem.io_in(port+1);
-            registers[AX] = (high<<8)|low;
+            registers[AX] = iosystem.io_in<u16>(port);
             cycles_used += 5; //286
         }
         else if (instruction == 0xEE) // OUT
         {
-            iosystem.io_out(registers[DX], registers[AX]&0xFF);
+            iosystem.io_out<u8>(registers[DX], registers[AX]&0xFF);
             cycles_used += 3; //286
         }
         else if (instruction == 0xEF) // OUT
         {
-            iosystem.io_out(registers[DX], registers[AX]&0xFF);
-            iosystem.io_out(registers[DX]+1, registers[AX]>>8);
+            iosystem.io_out<u16>(registers[DX], registers[AX]);
             cycles_used += 3; //286
         }
         else if (instruction == 0xF1)

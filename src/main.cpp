@@ -67,7 +67,7 @@ struct GlobalSettings
     void SetA20(bool value)
     {
         A20 = value;
-        std::cout << "A20 is now: " << A20 << std::endl;
+        //std::cout << "A20 is now: " << A20 << std::endl;
     }
 
     u32 current_IP{};
@@ -144,6 +144,7 @@ const u8 byte_parity[256] =
 #include "dma.h"
 #include "pit.h"
 #include "harddisk.h"
+#include "harddisk_ata.h"
 #include "diskette.h"
 #include "busmouse.h"
 
@@ -170,12 +171,30 @@ struct IOSystem
     CHIP8237 dma{0, dmapage, mem286}, dma2{1, dmapage, mem286};
     CHIP8253 pit{pic, beeper};
     SoundBlaster soundblaster{dma, pic};
-    HARDDISK harddisk{dma, pic};
+    DISKS disks; //two disks
+    HARDDISK_XEBEC harddisk{disks, dma, pic};
+    HARDDISK_ATA harddisk_ata{disks, dma, pic, pic2};
     DISKETTECONTROLLER diskettecontroller{dma, pic};
     MiniAudio miniaudio{beeper, ym3812, gameblaster, soundblaster};
 
-    void io_out(u16 port, u16 data)
+    template<typename IOSIZE> requires (std::same_as<IOSIZE, u8> || std::same_as<IOSIZE, u16>)
+    void io_out(u16 port, IOSIZE data)
     {
+        if constexpr(std::same_as<IOSIZE,u16>)
+        {
+            //TODO: 16-bit I/O properly
+            if (port == 0x1F0)
+            {
+                harddisk_ata.write(port-0x1F0, data);
+                return;
+            }
+
+
+            io_out<u8>(port, data&0xFF);
+            io_out<u8>(port+1, data>>8);
+            return;
+        }
+
         //if (startprinting)
         //cout << "Write Port 0x" << u32(port) << " ----> 0x" << u32(data) << endl;
         if (false);
@@ -233,7 +252,10 @@ struct IOSystem
         }
         else if (port >= 0x3F0 && port <= 0x3F7)
         {
-            diskettecontroller.write(port-0x3F0, data&0xFF);
+            if (port != 0x3F6)
+                diskettecontroller.write(port-0x3F0, data&0xFF);
+            if (port >= 0x3F6)
+                harddisk_ata.write(port-0x3F0+8, data&0xFF);
         }
         else if (globalsettings.opl_enabled && port >= 0x388 && port <= 0x389)
         {
@@ -242,6 +264,10 @@ struct IOSystem
         else if (port >= 0x320 && port <= 0x323)
         {
             harddisk.write(port-0x320, data&0xFF);
+        }
+        else if (port >= 0x1F0 && port <= 0x1F7)
+        {
+            harddisk_ata.write(port-0x1F0, data&0xFF);
         }
         else if (port == 0x201)
         {
@@ -266,9 +292,21 @@ struct IOSystem
             //std::abort();
         }
     }
-    u16 io_in(u16 port)
+
+    template<typename IOSIZE> requires (std::is_same_v<IOSIZE, u8> || std::is_same_v<IOSIZE, u16>)
+    IOSIZE io_in(u16 port)
     {
-        u16 data = 0xff;
+        if constexpr(std::same_as<IOSIZE,u16>)
+        {
+            //TODO: 16-bit I/O properly
+            if (port == 0x1F0)
+                return harddisk_ata.read(port-0x1F0);
+
+            return io_in<u8>(port) | (io_in<u8>(port+1) << 8);
+        }
+
+        IOSIZE data = 0xff;
+
         if (false);
         else if (port >= 0x40 && port <= 0x43)
         {
@@ -321,7 +359,10 @@ struct IOSystem
         }
         else if (port >= 0x3F0 && port <= 0x3F7)
         {
-            data = diskettecontroller.read(port-0x3F0);
+            if (port != 0x3F6)
+                data = diskettecontroller.read(port-0x3F0);
+            if (port >= 0x3F6)
+                data |= harddisk_ata.read(port-0x3F0+8);
         }
         else if (globalsettings.opl_enabled && port >= 0x388 && port <= 0x389)
         {
@@ -330,6 +371,10 @@ struct IOSystem
         else if (port >= 0x320 && port <= 0x323)
         {
             data = harddisk.read(port-0x320);
+        }
+        else if (port >= 0x1F0 && port <= 0x1F7)
+        {
+            data = harddisk_ata.read(port-0x1F0);
         }
         else if (port == 0x201)
         {
@@ -372,10 +417,10 @@ struct Machine
 {
     IOSystem p;
 
-    CPU8086 cpu8086{p.mem88, p.pic, p};
-    CPU8088MC cpu8088mc{p.mem88, p.pic, p};
-    CPU80186 cpu80186{p.mem186, p.pic, p};
-    CPU80286 cpu80286{p.mem286, p.pic, p};
+    CPU8086 cpu8086{p.mem88, p.pic, p.pic2, p};
+    CPU8088MC cpu8088mc{p.mem88, p.pic, p.pic2, p};
+    CPU80186 cpu80186{p.mem186, p.pic, p.pic2, p};
+    CPU80286 cpu80286{p.mem286, p.pic, p.pic2, p};
 
     u32 current_cpu{};
     u64 cpu_steps{};
@@ -413,6 +458,8 @@ struct Machine
             reset_fn = &Machine::reset_80286;
             irq_fn = &Machine::irq_if_accept_80286;
         }
+
+        p.pic2.main_pic = &p.pic;
     }
 
     void cycle_8086() { cpu8086.cycle(); ++cpu_steps; }
@@ -467,7 +514,10 @@ struct Machine
                 p.cga.cycle();
             if (p.pic.irq_to_cpu != -1)
             {
-                irq_if_accept(p.pic.irq_to_cpu);
+                if (p.pic.irq_to_cpu == 2 && p.pic.irq_to_cpu != -1)
+                    irq_if_accept(p.pic2.irq_to_cpu+8);
+                else
+                    irq_if_accept(p.pic.irq_to_cpu);
             }
         }
         if (clock%16 == 0)
@@ -491,6 +541,7 @@ struct Machine
         if (clock%215 == 0) //ca. every 15 microseconds.
         {
             global_port0x61 ^= 0x10;
+            p.harddisk_ata.cycle();
         }
         if (clock%12 == 0)
         {
@@ -776,8 +827,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             else if (key == GLFW_KEY_F)
             {
                 cout << "Flushing disks." << endl;
-                mac.p.harddisk.disks[0].flush();
-                mac.p.harddisk.disks[1].flush();
+                mac.p.harddisk.disks.disk[0].flush();
+                mac.p.harddisk.disks.disk[1].flush();
                 cout << "Disks flushed." << endl;
             }
             else if (key == GLFW_KEY_Q)
@@ -1132,7 +1183,7 @@ void configline(std::string line)
                     break;
             }
 
-            mac.p.harddisk.disks[drive_number-2] = HARDDISK::DISK(image_filename, c, h, s);
+            mac.p.disks.disk[drive_number-2] = DISK(image_filename, c, h, s);
         }
         else
         {
@@ -1210,7 +1261,7 @@ void configline(std::string line)
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
             //startprinting=true;
             bool test_passed = true;
-            CPU8088MC testcpu(mac.p.mem88, mac.p.pic, mac.p);
+            CPU8088MC testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
             testcpu.mem.testmode = true;
             testcpu.reset();
             memset(mac.p.membytes.bytes, 0, (1<<20)+65536);
@@ -1364,9 +1415,9 @@ void readConfigFile(const std::string& filename)
 
             for(int disk_i=0; disk_i<2; ++disk_i)
             {
-                u16 c = mac.p.harddisk.disks[disk_i].type.cylinders;
-                u16 h = mac.p.harddisk.disks[disk_i].type.heads;
-                //u16 s = harddisk.disk[0].type.sectors; //ignored until i have xebec v3
+                u16 c = mac.p.disks.disk[disk_i].type.cylinders;
+                u16 h = mac.p.disks.disk[disk_i].type.heads;
+                //u16 s = mac.p.disks.disk[disk_i].type.sectors; //ignored until i have xebec v3
 
                 const u32 type_offset = chs_data_offset + 16*disk_i;
 
@@ -1578,8 +1629,8 @@ void run_emu()
 
                 cout << endl;
 
-                mac.p.harddisk.disks[0].flush();
-                mac.p.harddisk.disks[1].flush();
+                mac.p.disks.disk[0].flush();
+                mac.p.disks.disk[1].flush();
                 mac.cpu_steps = 0;
                 totalframes = 0;
                 mac.p.cga.totalvsync = 0;

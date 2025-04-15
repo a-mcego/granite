@@ -10,6 +10,7 @@ struct CHIP8259 //PIC
     u8 ocw[4] = {}; // Operation Command Words
     int irq_to_cpu = -1;
     bool is_initialized = false;
+    CHIP8259* main_pic{nullptr};
 
     void reset()
     {
@@ -27,6 +28,15 @@ struct CHIP8259 //PIC
         ocw[2] = 0;
         ocw[3] = 0;
         is_initialized = false;
+    }
+
+    bool is_cascade()
+    {
+        return !(icw[1]&0x02);
+    }
+    bool icw4_present()
+    {
+        return icw[1]&0x01;
     }
 
     u8 read(u8 port) // port from 0 to 1 inclusive
@@ -82,18 +92,27 @@ struct CHIP8259 //PIC
                     {
                         if ((data&0x07) != 0)
                             cout << "EOI isr " << u32(data & 0x07) << endl;
-                        isr &= ~(1 << (data & 0x07));
-                        update();
+                        //isr &= ~(1 << (data & 0x07));
+                        cpu_ack_irq(data&0x07);
                     }
                 }
             }
         }
         else if (port == 1)
         {
+            if (!is_cascade() && init_state == 2)
+            {
+                init_state = 3;
+            }
+            if (!icw4_present() && init_state == 3)
+            {
+                init_state = 0;
+                is_initialized = true;
+            }
             if (init_state == 1) // ICW2
             {
                 icw[2] = data;
-                init_state = 3; //TODO: support multiple DMA chips. we skip ICW3 when there's only one
+                init_state = 2;
             }
             else if (init_state == 2) // ICW3
             {
@@ -110,6 +129,7 @@ struct CHIP8259 //PIC
             {
                 // Write to Interrupt Mask Register (IMR)
                 imr = data;
+                update();
                 if constexpr (DEBUG_LEVEL > 0)
                 {
                     cout << "new interrupt mask: " << u32(imr) << endl;
@@ -123,6 +143,11 @@ struct CHIP8259 //PIC
         isr &= ~(1 << irq);
         irr &= ~(1 << irq);
         update();
+    }
+
+    u8 vector_pos()
+    {
+        return icw[2]&0xF8;
     }
 
     void update()
@@ -141,11 +166,10 @@ struct CHIP8259 //PIC
                     cout << "IRQ: SERVICE " << u32(i) << endl;
                 isr |= (1 << i);
                 irr &= ~(1 << i);
-                update();
             }
         }
 
-        //send to CPU
+        //update current IRQ value
         irq_to_cpu = -1;
         for(u8 irq=0; irq<8; ++irq)
         {
@@ -155,6 +179,16 @@ struct CHIP8259 //PIC
                 break;
             }
         }
+        if (main_pic != nullptr)
+        {
+            if (irq_to_cpu == -1)
+                main_pic->cpu_ack_irq(2);
+            else
+                main_pic->request_interrupt(2);
+        }
+
+        if (startprinting)
+            std::cout << "irq 2 cpu now: " << u32(irq_to_cpu) << ", isr=" << u32(isr) << ", imr=" << u32(imr) << " irr=" << u32(irr) << std::endl;
     }
 
     bool masked(u8 irq)

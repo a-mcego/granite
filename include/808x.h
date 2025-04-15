@@ -7,8 +7,9 @@ struct CPU8086
 {
     MemoryManager8088& mem;
     CHIP8259& pic;
+    CHIP8259& pic2;
     IOSystem& iosystem;
-    CPU8086(MemoryManager8088& mem_, CHIP8259& pic_, IOSystem& iosystem_) : mem(mem_), pic(pic_), iosystem(iosystem_) {}
+    CPU8086(MemoryManager8088& mem_, CHIP8259& pic_, CHIP8259& pic2_, IOSystem& iosystem_) : mem(mem_), pic(pic_), pic2(pic2_), iosystem(iosystem_) {}
 
     auto divcord_byte(u16 ax, u8 m, u16 startflags)
     {
@@ -264,8 +265,6 @@ struct CPU8086
             registers[i] = 0x0000;
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
         registers[FLAGS] = 0xF002;
-
-        pic.reset();
     }
 
 
@@ -556,10 +555,10 @@ struct CPU8086
         return interrupt_true_cycles >= 2 && !inhibit_ss && delay==0;
     }
 
-    void interrupt(u8 n, bool forced=false)
+    bool interrupt(u8 n, bool forced=false)
     {
         if (inhibit_ss)
-            return;
+            return false;
         if (flag(F_INTERRUPT) || forced)
         {
             if (startprinting)
@@ -570,7 +569,9 @@ struct CPU8086
             ++interrupt_table[n];
 
             push(registers[FLAGS]);
+            mem.update();
             push(registers[CS]);
+            mem.update();
             push(registers[IP]);
             mem.update();
 
@@ -578,17 +579,27 @@ struct CPU8086
             registers[CS] = mem._16(0, n*4+2);
             set_flag(F_INTERRUPT,false);
             set_flag(F_TRAP,false);
-            if (!forced)
-            {
-                if constexpr(DEBUG_LEVEL > 0)
-                    cout << "IRQ: CPU ACK " << u32(n-8) << endl;
-                pic.cpu_ack_irq(n-8);
-            }
+            return true;
         }
+        return false;
     }
     void irq(u8 n)
     {
-        interrupt(n+8, false);
+        if (n >= 8)
+        {
+            if (interrupt(n-8+pic2.vector_pos(), false))
+            {
+                pic.cpu_ack_irq(2);
+                pic2.cpu_ack_irq(n-8);
+            }
+        }
+        else
+        {
+            if (interrupt(n+pic.vector_pos(), false))
+            {
+                pic.cpu_ack_irq(n);
+            }
+        }
     }
 
     void push(u16 data)
@@ -1453,27 +1464,27 @@ struct CPU8086
         }
         else if (instruction == 0xE4) // IN
         {
-            get_r8(0) = iosystem.io_in(read_inst<u8>());
+            get_r8(0) = iosystem.io_in<u8>(read_inst<u8>());
             cycles_used += 14;
         }
         else if (instruction == 0xE5) // IN
         {
             u8 port = read_inst<u8>();
-            u8 low = iosystem.io_in(port);
-            u8 high = iosystem.io_in(port+1);
+            u8 low = iosystem.io_in<u8>(port);
+            u8 high = iosystem.io_in<u8>(port+1);
             registers[AX] = (high<<8)|low;
             cycles_used += 14;
         }
         else if (instruction == 0xE6) // OUT
         {
-            iosystem.io_out(read_inst<u8>(), registers[AX]&0xFF);
+            iosystem.io_out<u8>(read_inst<u8>(), registers[AX]&0xFF);
             cycles_used += 14;
         }
         else if (instruction == 0xE7) // OUT
         {
             u8 port = read_inst<u8>();
-            iosystem.io_out(port, registers[AX]&0xFF);
-            iosystem.io_out(port+1, registers[AX]>>8);
+            iosystem.io_out<u8>(port, registers[AX]&0xFF);
+            iosystem.io_out<u8>(port+1, registers[AX]>>8);
             cycles_used += 14;
         }
         else if (instruction == 0xE8)
@@ -1506,26 +1517,26 @@ struct CPU8086
         }
         else if (instruction == 0xEC) // IN
         {
-            get_r8(0) = iosystem.io_in(registers[DX]);
+            get_r8(0) = iosystem.io_in<u8>(registers[DX]);
             cycles_used += 12;
         }
         else if (instruction == 0xED) // IN
         {
             u16 port = registers[DX];
-            u8 low = iosystem.io_in(port);
-            u8 high = iosystem.io_in(port+1);
+            u8 low = iosystem.io_in<u8>(port);
+            u8 high = iosystem.io_in<u8>(port+1);
             registers[AX] = (high<<8)|low;
             cycles_used += 12;
         }
         else if (instruction == 0xEE) // OUT
         {
-            iosystem.io_out(registers[DX], registers[AX]&0xFF);
+            iosystem.io_out<u8>(registers[DX], registers[AX]&0xFF);
             cycles_used += 12;
         }
         else if (instruction == 0xEF) // OUT
         {
-            iosystem.io_out(registers[DX], registers[AX]&0xFF);
-            iosystem.io_out(registers[DX]+1, registers[AX]>>8);
+            iosystem.io_out<u8>(registers[DX], registers[AX]&0xFF);
+            iosystem.io_out<u8>(registers[DX]+1, registers[AX]>>8);
             cycles_used += 12;
         }
         else if (instruction == 0xF4) // HALT / HLT
