@@ -2,59 +2,14 @@
 <CodeBlocks_layout_file>
 	<FileVersion major="1" minor="0" />
 	<ActiveTarget name="Release" />
-	<File name="include\gameblaster.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="include\keyboard_xt.h" open="0" top="0" tabpos="15" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="0" topLine="26" />
+			<Cursor1 position="1097" topLine="139" />
 		</Cursor>
 	</File>
-	<File name="src\sampleplayer.h" open="1" top="0" tabpos="14" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="include\diskette.h" open="1" top="0" tabpos="6" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="727" topLine="18" />
-		</Cursor>
-	</File>
-	<File name="include\diskette.h" open="1" top="0" tabpos="12" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="18725" topLine="493" />
-		</Cursor>
-	</File>
-	<File name="include\soundblaster.h" open="0" top="0" tabpos="11" split="0" active="1" splitpos="0" zoom_1="1" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="453" topLine="3" />
-		</Cursor>
-	</File>
-	<File name="include\harddisk.h" open="1" top="0" tabpos="9" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="19316" topLine="512" />
-		</Cursor>
-	</File>
-	<File name="include\cga.h" open="1" top="0" tabpos="6" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="4289" topLine="207" />
-		</Cursor>
-	</File>
-	<File name="include\membytes.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="66" topLine="0" />
-		</Cursor>
-	</File>
-	<File name="include\mem286.h" open="1" top="0" tabpos="1" split="0" active="1" splitpos="0" zoom_1="2" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="1250" topLine="27" />
-		</Cursor>
-	</File>
-	<File name="include\audio.h" open="1" top="0" tabpos="8" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="3399" topLine="109" />
-		</Cursor>
-	</File>
-	<File name="include\mem186.h" open="0" top="0" tabpos="4" split="0" active="1" splitpos="0" zoom_1="3" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="2329" topLine="0" />
-		</Cursor>
-	</File>
-	<File name="include\YM3812.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="999" topLine="21" />
+			<Cursor1 position="12417" topLine="366" />
 		</Cursor>
 	</File>
 	<File name="src\miniaudio.cpp" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
@@ -62,51 +17,14 @@
 			<Cursor1 position="272" topLine="0" />
 		</Cursor>
 	</File>
-	<File name="include\keyboard_at.h" open="0" top="0" tabpos="14" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="include\mem186.h" open="0" top="0" tabpos="4" split="0" active="1" splitpos="0" zoom_1="3" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="5311" topLine="147" />
+			<Cursor1 position="2329" topLine="0" />
 		</Cursor>
 	</File>
-	<File name="include\80286.h" open="0" top="0" tabpos="17" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="include\gameblaster.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="61860" topLine="1653" />
-		</Cursor>
-	</File>
-	<File name="src\opl2.cpp" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="3" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="9984" topLine="421" />
-		</Cursor>
-	</File>
-	<File name="include\80186.h" open="0" top="0" tabpos="16" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="25886" topLine="744" />
-		</Cursor>
-	</File>
-	<File name="include\interrupt.h" open="1" top="0" tabpos="7" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="685" topLine="15" />
-		</Cursor>
-	</File>
-	<File name="src\main.cpp" open="1" top="1" tabpos="13" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="14661" topLine="480" />
-		</Cursor>
-		<Folding>
-			<Collapse line="1181" />
-			<Collapse line="1273" />
-			<Collapse line="1288" />
-			<Collapse line="1293" />
-			<Collapse line="1308" />
-		</Folding>
-	</File>
-	<File name="include\dma.h" open="1" top="0" tabpos="10" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="8957" topLine="261" />
-		</Cursor>
-	</File>
-	<File name="include\hega.h" open="1" top="0" tabpos="3" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="0" topLine="0" />
+			<Cursor1 position="2257" topLine="63" />
 		</Cursor>
 	</File>
 	<File name="include\screen.h" open="1" top="0" tabpos="2" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
@@ -114,9 +32,114 @@
 			<Cursor1 position="1566" topLine="30" />
 		</Cursor>
 	</File>
-	<File name="include\opl2.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="src\sampleplayer.h" open="0" top="0" tabpos="14" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="0" topLine="87" />
+			<Cursor1 position="727" topLine="18" />
+		</Cursor>
+	</File>
+	<File name="src\main.cpp" open="1" top="0" tabpos="8" split="0" active="1" splitpos="0" zoom_1="2" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1706" topLine="77" />
+		</Cursor>
+	</File>
+	<File name="include\80186.h" open="1" top="0" tabpos="18" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="13526" topLine="463" />
+		</Cursor>
+	</File>
+	<File name="include\rtccmos.h" open="1" top="0" tabpos="10" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1725" topLine="43" />
+		</Cursor>
+	</File>
+	<File name="include\harddisk.h" open="1" top="0" tabpos="14" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1267" topLine="244" />
+		</Cursor>
+	</File>
+	<File name="include\pit.h" open="1" top="1" tabpos="19" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3884" topLine="130" />
+		</Cursor>
+	</File>
+	<File name="include\dma.h" open="0" top="0" tabpos="10" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="9081" topLine="264" />
+		</Cursor>
+	</File>
+	<File name="include\808x_microcoded.h" open="1" top="0" tabpos="13" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="76955" topLine="2144" />
+		</Cursor>
+	</File>
+	<File name="include\opl2.h" open="1" top="0" tabpos="16" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="2418" topLine="63" />
+		</Cursor>
+	</File>
+	<File name="include\8088mc.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1721" topLine="0" />
+		</Cursor>
+	</File>
+	<File name="include\mem286.h" open="1" top="0" tabpos="1" split="0" active="1" splitpos="0" zoom_1="2" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="1250" topLine="27" />
+		</Cursor>
+	</File>
+	<File name="include\harddisk_ata.h" open="1" top="0" tabpos="15" split="0" active="1" splitpos="0" zoom_1="2" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="9410" topLine="285" />
+		</Cursor>
+	</File>
+	<File name="include\interrupt.h" open="1" top="0" tabpos="7" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="4968" topLine="163" />
+		</Cursor>
+	</File>
+	<File name="include\membytes.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="152" topLine="0" />
+		</Cursor>
+	</File>
+	<File name="include\hega.h" open="1" top="0" tabpos="3" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="10321" topLine="349" />
+		</Cursor>
+	</File>
+	<File name="include\busmouse.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3946" topLine="138" />
+		</Cursor>
+	</File>
+	<File name="include\808x.h" open="1" top="0" tabpos="12" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="51169" topLine="1572" />
+		</Cursor>
+	</File>
+	<File name="include\80286.h" open="1" top="0" tabpos="11" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="44773" topLine="1223" />
+		</Cursor>
+	</File>
+	<File name="include\soundblaster.h" open="0" top="0" tabpos="11" split="0" active="1" splitpos="0" zoom_1="1" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3450" topLine="207" />
+		</Cursor>
+	</File>
+	<File name="src\opl2.cpp" open="1" top="0" tabpos="17" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="10893" topLine="431" />
+		</Cursor>
+	</File>
+	<File name="include\audio.h" open="0" top="0" tabpos="8" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3399" topLine="109" />
+		</Cursor>
+	</File>
+	<File name="include\keyboard_at.h" open="1" top="0" tabpos="9" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="6597" topLine="191" />
 		</Cursor>
 	</File>
 	<File name="include\mem8088.h" open="1" top="0" tabpos="4" split="0" active="1" splitpos="0" zoom_1="2" zoom_2="0">
@@ -124,19 +147,14 @@
 			<Cursor1 position="1619" topLine="48" />
 		</Cursor>
 	</File>
-	<File name="include\808x_microcoded.h" open="1" top="0" tabpos="5" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="include\cga.h" open="1" top="0" tabpos="5" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="15687" topLine="424" />
+			<Cursor1 position="11706" topLine="391" />
 		</Cursor>
 	</File>
-	<File name="include\keyboard_xt.h" open="0" top="0" tabpos="15" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+	<File name="include\YM3812.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
 		<Cursor>
-			<Cursor1 position="3116" topLine="90" />
-		</Cursor>
-	</File>
-	<File name="include\808x.h" open="1" top="0" tabpos="11" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
-		<Cursor>
-			<Cursor1 position="17197" topLine="609" />
+			<Cursor1 position="999" topLine="21" />
 		</Cursor>
 	</File>
 </CodeBlocks_layout_file>
