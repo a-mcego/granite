@@ -465,8 +465,6 @@ struct HEGA
             return (length[1]>length[0]);
         }
 
-
-
         bool cycle(bool data)
         {
             bool change{};
@@ -521,7 +519,7 @@ struct HEGA
         u32 renderline = linepos;
         u32 rendercol = colpos;
 
-        if (!vsync_ctr.get_polarity())
+        if (vsync_ctr.get_polarity())
         {
             color = (color&0x07) | ((color&0x38)?0x38:0x00);
         }
@@ -531,7 +529,6 @@ struct HEGA
             screen.pixels[renderline * screen.X + rendercol] = getpalette_ega(color);
         }
     }
-
 
     u32 column{};
     u32 logical_line{};
@@ -637,6 +634,8 @@ struct HEGA
         retrace = (vertical_retrace|horizontal_retrace);
         bool draw_bg = retrace|!output_enabled;
 
+        bool display_enable = !((column > (crtc_regs[H_DISPLAY_END])*hsync_mult) || (scan_line >= vblank_start));
+
         if (is_graphics_mode)
         {
             int x = column>>3;
@@ -646,8 +645,8 @@ struct HEGA
             {
                 int pel_panned_i = i + (attr_regs[HORIZONTAL_PEL_PANNING]&0x07);
                 const u32 mask = 0x80808080;
-                u32 color = 0;
-                if (!retrace)
+                u32 color = attr_regs[OVERSCAN_COLOR];
+                if (display_enable)
                 {
                     u32 data = r32(offset + (pel_panned_i>>3));
                     color = ((data<<(pel_panned_i&7))&mask)>>7; //pixel from 0 to 7
@@ -689,10 +688,8 @@ struct HEGA
                 u8 color = (char_row & mask) ? fg_color : bg_color;
                 if (draw_bg || is_graphics_mode)
                     color = palette[0];
-                if (hsync|vsync)
-                    color = 0;
-                //else
-                //    color = rand()&0x0F;
+                if (!display_enable)
+                    color = attr_regs[OVERSCAN_COLOR];
                 color = attr_regs[color];
                 monitor_cycle(color|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
             }
