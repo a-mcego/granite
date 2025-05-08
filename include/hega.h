@@ -455,6 +455,18 @@ struct HEGA
         u32 count = {};
         bool prev = {};
 
+        bool get_prev()
+        {
+            return prev^(!get_polarity());
+        }
+
+        bool get_polarity() //true = inverted polarity
+        {
+            return (length[1]>length[0]);
+        }
+
+
+
         bool cycle(bool data)
         {
             bool change{};
@@ -480,42 +492,46 @@ struct HEGA
         bool vc = vsync_ctr.cycle(pins & (1 << int(MONITOR::VSYNC)));
         bool hc = hsync_ctr.cycle(pins & (1 << int(MONITOR::HSYNC)));
 
-        if ((vc && !vsync_ctr.prev))
+        if ((vc && !vsync_ctr.get_prev()))
         {
-            //if (linepos >= 100)
-            {
-                prev_line_amount = linepos;
-                linepos = 0;
-            }
+            prev_line_amount = linepos;
+            linepos = 0;
         }
-        if (hc && !hsync_ctr.prev && !vsync_ctr.prev)
+        if (hc && !hsync_ctr.get_prev() && !vsync_ctr.get_prev())
         {
-            //if (colpos >= 400)
-            {
-                prev_col_amount = colpos;
-                colpos = 0;
-                ++linepos;
-            }
+            prev_col_amount = colpos;
+            colpos = 0;
+            ++linepos;
         }
-        if (!hsync_ctr.prev)
+        if (!hsync_ctr.get_prev())
         {
             ++colpos;
         }
 
         u32 color = pins&0x3F;
-        if (vc || hc)
+        if (hsync_ctr.get_prev() || vsync_ctr.get_prev())
         {
             color = 0;
         }
 
 
-        u32 renderline = screen.Y/2-prev_line_amount/2 + linepos;
-        u32 rendercol = screen.X/2-prev_col_amount/2 + colpos;
+        //u32 renderline = screen.Y/2-prev_line_amount/2 + linepos;
+        //u32 rendercol = screen.X/2-prev_col_amount/2 + colpos;
+
+        u32 renderline = linepos;
+        u32 rendercol = colpos;
+
+        if (!vsync_ctr.get_polarity())
+        {
+            color = (color&0x07) | ((color&0x38)?0x38:0x00);
+        }
+
         if (renderline < screen.Y && rendercol < screen.X)
         {
             screen.pixels[renderline * screen.X + rendercol] = getpalette_ega(color);
         }
     }
+
 
     u32 column{};
     u32 logical_line{};
@@ -601,13 +617,13 @@ struct HEGA
         else
             ++vsync_monitor_ctr;
 
-        bool monitor_vsync = vsync;
+        bool monitor_vsync = vsync ^ bool(misc&0x80);
 
         u16 hsync_start = (crtc_regs[H_RETRACE_START])*hsync_mult;
         //u16 hsync_end = (crtc_regs[H_RETRACE_END])*hsync_mult;
         u16 hsync_end = (crtc_regs[H_RETRACE_START]+6)*hsync_mult;
         hsync = (column >= hsync_start && column < hsync_end);
-        bool monitor_hsync = hsync;
+        bool monitor_hsync = hsync ^ bool(misc&0x40);
 
         vertical_retrace = (scan_line >= v_retrace_start && scan_line <= v_retrace_end);
         horizontal_retrace = (column >= (crtc_regs[H_RETRACE_START])*hsync_mult && column <= (h_retrace_end)*hsync_mult);
