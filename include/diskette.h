@@ -73,6 +73,11 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             DISKETTE(std::string filename)
             {
                 FILE* filu = fopen(filename.c_str(), "rb");
+                if (filu == NULL)
+                {
+                    std::cout << "file \"" << filename << "\" not found." << std::endl;
+                    std::abort();
+                }
                 fseek(filu,0,SEEK_END);
                 u32 size = ftell(filu);
                 fseek(filu,0,SEEK_SET);

@@ -30,8 +30,8 @@ struct MemoryManager186
         {
             if (globalsettings.graphics == GlobalSettings::CGA && (total_address&0xF8000) == 0xB8000)
                 return cga.memory8(total_address&0x7FFF);
-            if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
-                return hega.memory8(total_address&0x1FFFF);
+            //if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
+            //    return hega.memory8(total_address&0x1FFFF);
             if ((total_address&0xF0000) == 0xE0000)
                 return ltems._8(total_address&0xFFFF);
             if (total_address >= 0xA0000)
@@ -50,8 +50,8 @@ struct MemoryManager186
         {
             if (globalsettings.graphics == GlobalSettings::CGA && (total_address&0xF8000) == 0xB8000)
                 return cga.memory16(total_address&0x7FFF);
-            if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
-                return hega.memory16(total_address&0x1FFFF);
+            //if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
+            //    return hega.memory16(total_address&0x1FFFF);
             if ((total_address&0xF0000) == 0xE0000)
                 return ltems._16(total_address&0xFFFF);
             if (total_address >= 0xA0000)

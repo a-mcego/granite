@@ -101,9 +101,9 @@ struct CPU80286
                 u32 descriptor_addr = table.base + (index * 8);
 
                 // Read 8 bytes from physical memory
-                u16 word1 = mem.direct16(descriptor_addr);
-                u16 word2 = mem.direct16(descriptor_addr+2);
-                u16 word3 = mem.direct16(descriptor_addr+4);
+                u16 word1 = mem.r16(descriptor_addr);
+                u16 word2 = mem.r16(descriptor_addr+2);
+                u16 word3 = mem.r16(descriptor_addr+4);
 
                 // Fill descriptor fields
                 descriptor_cache[(int)segment_number].base = ((word3 & 0xFF) << 16) | word2;
@@ -120,9 +120,9 @@ struct CPU80286
                     std::cout << "first 16 entries: " << std::endl;
                     for(int i=0; i<16; ++i)
                     {
-                        u16 word1 = mem.direct16(table.base+(i*8));
-                        u16 word2 = mem.direct16(table.base+(i*8+2));
-                        u16 word3 = mem.direct16(table.base+(i*8+4));
+                        u16 word1 = mem.r16(table.base+(i*8));
+                        u16 word2 = mem.r16(table.base+(i*8+2));
+                        u16 word3 = mem.r16(table.base+(i*8+4));
                         std::cout << "entry " << i << " words: " << word1 << " " << word2 << " " << word3 << std::endl;
                     }
                 }
@@ -251,7 +251,7 @@ struct CPU80286
             prefetch_address = position;
             for(u32 i=0; i<PREFETCH_QUEUE_SIZE; ++i)
             {
-                prefetch_queue[i] = mem.direct8(position+i);
+                prefetch_queue[i] = mem.r8(position+i);
             }
         }
 
@@ -267,7 +267,7 @@ struct CPU80286
         }
         for(u32 i=PREFETCH_QUEUE_SIZE-sizeof(T); i<PREFETCH_QUEUE_SIZE; ++i)
         {
-            prefetch_queue[i] = mem.direct8(position+sizeof(T)+i);
+            prefetch_queue[i] = mem.r8(position+sizeof(T)+i);
         }
         return result;
     }
@@ -312,60 +312,152 @@ struct CPU80286
          0, 0, 0, 0, 0, 0, 0, 0, //reg
     };
     bool modrm_is_register{};
-    void decode_modrm(u8 mod, u8 rm, u32& segment, u16& offset)
+    u32 modrm_seg{};
+    u16 modrm_offset{};
+    u8 modrm_reg{}; //register from modRM part
+    //u8 modrm_width{};
+    u8 modrm_r{}; //register from R part
+
+    void writeM(u16 data, u8 modrm_width)
+    {
+        //std::cout << "writeM: " << std::hex;
+        if (modrm_is_register)
+        {
+            if (modrm_width == 16)
+                get_r16(modrm_reg) = data;
+            else
+                get_r8(modrm_reg) = data;
+        }
+        else
+        {
+            mem.w8(modrm_seg+modrm_offset, (data&0xFF));
+            if (modrm_width == 16)
+                mem.w8(modrm_seg+modrm_offset+1, ((data>>8)&0xFF));
+            //std::cout << modrm_seg << ":" << modrm_offset << " ";
+        }
+        //std::cout << data << std::endl;
+    }
+    u16 readM(u8 modrm_width)
+    {
+        //std::cout << "readM: " << std::hex;
+        u16 ret{};
+        if (modrm_is_register)
+        {
+            if (modrm_width == 16)
+                ret = get_r16(modrm_reg);
+            else
+                ret = get_r8(modrm_reg);
+        }
+        else
+        {
+            ret = mem.r8(modrm_seg+modrm_offset);
+            if (modrm_width == 16)
+                ret |= (mem.r8(modrm_seg+modrm_offset+1)<<8);
+            //std::cout << modrm_seg << ":" << modrm_offset << " ";
+        }
+        //std::cout << ret << std::endl;
+        return ret;
+    }
+
+    /*void decode_modrm(u8 mod, u8 rm)
     {
         //std::cout << "decode modrm: " << u16(mod) << " " << u16(rm) << " " << std::endl;
-        offset = 0;
+        modrm_offset = 0;
         SEG segname = SEG::DS;
 
 		if (mod == 0x1)
         {
-			offset = i16(read_inst<i8>());
+			modrm_offset = i16(read_inst<i8>());
         }
 		else if (mod == 0x2)
         {
-			offset = read_inst<u16>();
+			modrm_offset = read_inst<u16>();
         }
 
         cycles_used += effective_address_cycles[(mod<<3)+rm];
 
 		if (mod == 0x00 && rm == 0x06)
         {
-			offset += read_inst<u16>();
+			modrm_offset += read_inst<u16>();
         }
 		else
 		{
 			if (rm < 0x06)
             {
-				offset += registers[SI+(rm&0x01)]; //DI is after SI
+				modrm_offset += registers[SI+(rm&0x01)]; //DI is after SI
             }
 			if (((rm+1)&0x07) <= 2)
             {
-				offset += registers[BX];
+				modrm_offset += registers[BX];
             }
 			if ((rm&0x02) && rm != 7)
             {
-				offset += registers[BP], segname = SEG::SS;
+				modrm_offset += registers[BP], segname = SEG::SS;
             }
 		}
-        segment = get_offset(get_segment(segname));//registers[get_segment(segment)];
+        modrm_segment = get_offset(get_segment(segname));//registers[get_segment(segment)];
         //std::cout << "   result: " << segment << "+" << offset << "=" << segment+offset << std::endl;
-    }
+    }*/
 
-    u32 decode_modrm_fulladdr(u8 modrm)
+    void decode_modrm(u8 modrm)
     {
         u8 mod = (modrm >> 6) & 0x03;
-        u8 rm = modrm & 0x07;
+        modrm_r = (modrm>>3)&0x07;
+        modrm_reg = modrm & 0x07;
+        modrm_is_register = (mod==0x03);
+		if (mod != 0x03)
+        {
+            modrm_offset = 0;
+            SEG segname = SEG::DS;
+
+            if (mod == 0x1)
+            {
+                modrm_offset = i16(read_inst<i8>());
+            }
+            else if (mod == 0x2)
+            {
+                modrm_offset = read_inst<u16>();
+            }
+
+            cycles_used += effective_address_cycles[(mod<<3)+modrm_reg];
+
+            if (mod == 0x00 && modrm_reg == 0x06)
+            {
+                modrm_offset += read_inst<u16>();
+            }
+            else
+            {
+                if (modrm_reg < 0x06)
+                {
+                    modrm_offset += registers[SI+(modrm_reg&0x01)]; //DI is after SI
+                }
+                if (((modrm_reg+1)&0x07) <= 2)
+                {
+                    modrm_offset += registers[BX];
+                }
+                if ((modrm_reg&0x02) && modrm_reg != 7)
+                {
+                    modrm_offset += registers[BP], segname = SEG::SS;
+                }
+            }
+            modrm_seg = get_offset(get_segment(segname));//registers[get_segment(segment)];
+            if (startprinting)
+                std::cout << "modrm read: " << readM(16) << std::endl;
+        }
+    }
+
+    /*u32 decode_modrm_fulladdr(u8 modrm)
+    {
+        u8 mod = (modrm >> 6) & 0x03;
+        modrm_rm = modrm & 0x07;
         modrm_is_register = (mod==0x03);
 		if (mod == 0x03)
         {
-            //FIXME: ???
-			return get_r8(rm);
+			return get_r8(modrm_rm);
         }
-        u16 offset{};
-        u32 segment{};
-        decode_modrm(mod,rm,segment,offset);
-        return segment+offset;
+        decode_modrm(mod,modrm_rm);
+        modrm_r = (modrm>>3)&0x07;
+        return modrm_seg+modrm_offset;
     }
 
     u8& decode_modrm_u8(u8 modrm)
@@ -399,9 +491,9 @@ struct CPU80286
         u32 segment{};
         decode_modrm(mod,rm,segment,offset);
         return mem.direct16(segment+offset);
-    }
+    }*/
 
-    u16 effective_address(u8 modrm)
+    /*u16 effective_address(u8 modrm)
     {
         u8 mod = (modrm >> 6) & 0x03;
         u8 rm = modrm & 0x07;
@@ -417,7 +509,7 @@ struct CPU80286
         //if constexpr (DEBUG_LEVEL > 1)
         //    cout << "LEA! " << segment << ":" << offset << " has " << mem._16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
         return offset;
-    }
+    }*/
 
 
     u8* reg8() { return (u8*)(void*)registers; }
@@ -580,8 +672,8 @@ struct CPU80286
                 idtr_base = idtr.base;
                 mult = 8;
             }
-            registers[IP] = mem.direct16(idtr_base + n*mult); //TODO: check n in protected mode
-            load_segment(SEG::CS, mem.direct16(idtr_base + n*mult+2));
+            registers[IP] = mem.r16(idtr_base + n*mult); //TODO: check n in protected mode
+            load_segment(SEG::CS, mem.r16(idtr_base + n*mult+2));
             set_flag(F_INTERRUPT,false);
             set_flag(F_TRAP, false);
             if (!forced)
@@ -624,7 +716,7 @@ struct CPU80286
         interrupt(13, true, true, error_code);
         std::cout << "-------------------PROTECTION FAULT----------------- at " << full_ip() << std::endl;
         print_regs();
-        std::abort();
+        //std::abort();
     }
 
     void irq(u8 n)
@@ -649,11 +741,11 @@ struct CPU80286
     void push(u16 data)
     {
         registers[SP] -= 2;
-        mem.direct16(get_offset(SEG::SS) + registers[SP]) = data;
+        mem.w16(get_offset(SEG::SS) + registers[SP], data);
     }
     u16 pop()
     {
-        u16 data = mem.direct16(get_offset(SEG::SS) + registers[SP]);
+        u16 data = mem.r16(get_offset(SEG::SS) + registers[SP]);
         registers[SP] += 2;
         return data;
     }
@@ -681,17 +773,21 @@ struct CPU80286
 
         inhibit_ss = false;
 
-        if (get_offset(SEG::CS)+registers[IP] == 0x7C00)
+        if (get_offset(SEG::CS) == 0xC0000)
         {
             //std::cout << "JAAAAAA " << registers[AX] << std::endl;
             //startprinting = true;
+        }
+        else
+        {
+            //startprinting = false;
         }
 
         if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
         {
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
-            std::abort();
+            //std::abort();
         }
         original_ip = registers[IP];
 
@@ -705,11 +801,11 @@ struct CPU80286
         {
             u32 totalplace = get_offset(SEG::CS) + registers[IP] - 1;
 
-            if (mem.direct8(totalplace-1) == 0x9D
-                && mem.direct8(totalplace-2) == 0x50
-                && mem.direct8(totalplace-3) == 0xC0
-                && mem.direct8(totalplace-4) == 0x33
-                && mem.direct8(totalplace-5) == 0x9C
+            if (mem.r8(totalplace-1) == 0x9D
+                && mem.r8(totalplace-2) == 0x50
+                && mem.r8(totalplace-3) == 0xC0
+                && mem.r8(totalplace-4) == 0x33
+                && mem.r8(totalplace-5) == 0x9C
             )
             {
                 std::cout << get_offset(SEG::CS) << " and " << registers[IP] << std::endl;
@@ -741,51 +837,57 @@ struct CPU80286
             if (false);
             else if (secondbyte == 0x00 && op == 0x00) // SLDT
             {
-                u32 addr = decode_modrm_fulladdr(modrm);
-                mem.direct16(addr) = ldtr.n_entries;
-                mem.direct16(addr+2) = (ldtr.base)&0xFFFF;
-                mem.direct16(addr+4) = (ldtr.base>>16)&0xFFFF;
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                mem.w16(addr, ldtr.n_entries);
+                mem.w16(addr+2, (ldtr.base)&0xFFFF);
+                mem.w16(addr+4, (ldtr.base>>16)&0xFFFF);
                 std::cout << "store ldtr" << std::endl;
                 //startprinting = true;
             }
             else if (secondbyte == 0x00 && op == 0x02) // LLDT
             {
                 //TODO: check cpl
-                u32 addr = decode_modrm_fulladdr(modrm);
-                ldtr.n_entries = mem.direct16(addr);
-                ldtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                ldtr.n_entries = mem.r16(addr);
+                ldtr.base = (mem.r16(addr+2) | (u32(mem.r16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
 
                 std::cout << "Loaded ldtr with n_entries=0x" << std::hex << ldtr.n_entries << " and base=0x" << ldtr.base << std::endl;
                 //startprinting = true;
             }
             else if (secondbyte == 0x00 && op == 0x01) // STR
             {
-                u32 addr = decode_modrm_fulladdr(modrm);
-                mem.direct16(addr) = task.data;
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                mem.w16(addr, task.data);
                 std::cout << "store task" << std::endl;
             }
             else if (secondbyte == 0x00 && op == 0x03) // LTR
             {
                 //TODO: check cpl
-                u32 addr = decode_modrm_fulladdr(modrm);
-                task.data = mem.direct16(addr);
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                task.data = mem.r16(addr);
                 std::cout << "load task" << std::endl;
             }
             else if (secondbyte == 0x01 && op == 0x00) // SGDT
             {
-                u32 addr = decode_modrm_fulladdr(modrm);
-                mem.direct16(addr) = gdtr.n_entries;
-                mem.direct16(addr+2) = (gdtr.base)&0xFFFF;
-                mem.direct16(addr+4) = (gdtr.base>>16)&0xFFFF;
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                mem.w16(addr, gdtr.n_entries);
+                mem.w16(addr+2, (gdtr.base)&0xFFFF);
+                mem.w16(addr+4, (gdtr.base>>16)&0xFFFF);
                 //std::cout << "store gdtr" << std::endl;
                 //startprinting = true;
             }
             else if (secondbyte == 0x01 && op == 0x02) // LGDT
             {
                 //TODO: check cpl
-                u32 addr = decode_modrm_fulladdr(modrm);
-                gdtr.n_entries = mem.direct16(addr);
-                gdtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                gdtr.n_entries = mem.r16(addr);
+                gdtr.base = (mem.r16(addr+2) | (u32(mem.r16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
 
                 //std::cout << "Loaded gdtr with n_entries=0x" << std::hex << gdtr.n_entries << " and base=0x" << gdtr.base << std::endl;
                 //startprinting = true;
@@ -793,24 +895,27 @@ struct CPU80286
             else if (secondbyte == 0x01 && op == 0x01) // SIDT
             {
                 //TODO: check cpl
-                u32 addr = decode_modrm_fulladdr(modrm);
-                mem.direct16(addr) = idtr.n_entries;
-                mem.direct16(addr+2) = (idtr.base)&0xFFFF;
-                mem.direct16(addr+4) = (idtr.base>>16)&0xFFFF;
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                mem.w16(addr, idtr.n_entries);
+                mem.w16(addr+2, (idtr.base)&0xFFFF);
+                mem.w16(addr+4, (idtr.base>>16)&0xFFFF);
                 //std::cout << "store idtr" << std::endl;
             }
             else if (secondbyte == 0x01 && op == 0x03) // LIDT
             {
                 //TODO: check cpl
-                u32 addr = decode_modrm_fulladdr(modrm);
-                idtr.n_entries = mem.direct16(addr);
-                idtr.base = (mem.direct16(addr+2) | (u32(mem.direct16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
+                decode_modrm(modrm);
+                u32 addr = modrm_seg + modrm_offset;
+                idtr.n_entries = mem.r16(addr);
+                idtr.base = (mem.r16(addr+2) | (u32(mem.r16(addr+4))<<16))&0x00FFFFFF; //mask to 24bit max
 
                 //std::cout << "Loaded idtr from fulladdr=" << addr << " with n_entries=0x" << std::hex << idtr.n_entries << " and base=0x" << idtr.base << std::endl;
             }
             else if (secondbyte == 0x01 && op == 0x06) // LMSW
             {
-                msw = (msw & 0xFFF1) | (decode_modrm_u16(modrm) & 0x000F);
+                decode_modrm(modrm);
+                msw = (msw & 0xFFF1) | (readM(16) & 0x000F);
                 //std::cout << "New msw: " << msw << std::endl;
 
                 /*std::cout << std::dec << gdtr.n_entries << " global entries." << std::endl;
@@ -828,7 +933,8 @@ struct CPU80286
             }
             else if (secondbyte == 0x01 && op == 0x04) // SMSW
             {
-                decode_modrm_u16(modrm) = msw;
+                decode_modrm(modrm);
+                writeM(msw, 16);
             }
             else
             {
@@ -872,10 +978,11 @@ struct CPU80286
             else if (instruction == 0x62) // BOUND
             {
                 u8 modrm = read_inst<u8>();
-                u16& rm = decode_modrm_u16(modrm);
-                u16& r = get_r16((modrm>>3)&0x07);
-                u16 lower_bound = mem.direct16(get_offset(get_segment(SEG::DS)) + rm);
-                u16 upper_bound = mem.direct16(get_offset(get_segment(SEG::DS)) + rm + 2);
+                decode_modrm(modrm);
+                u16 rm = readM(16);
+                u16 r = get_r16((modrm>>3)&0x07);
+                u16 lower_bound = mem.r16(get_offset(get_segment(SEG::DS)) + rm);
+                u16 upper_bound = mem.r16(get_offset(get_segment(SEG::DS)) + rm + 2);
                 if (r < lower_bound || r > upper_bound)
                 {
                     outside_bound(original_ip);
@@ -893,7 +1000,8 @@ struct CPU80286
             {
                 //0x69 mul modrm, immed word
                 u8 modrm = read_inst<u8>();
-                u16& rm = decode_modrm_u16(modrm);
+                decode_modrm(modrm);
+                u16 rm = readM(16);
                 u16 op2 = read_inst<u16>();
                 i32 result = i32(i16(rm))*i32(i16(op2));
                 set_flag(F_SIGN,result&0x80000000);
@@ -918,7 +1026,8 @@ struct CPU80286
             {
                 //0x6B mul modrm, immed byte
                 u8 modrm = read_inst<u8>();
-                u8& rm = decode_modrm_u8(modrm);
+                decode_modrm(modrm);
+                u8 rm = readM(8);
                 u8 op2 = read_inst<u8>();
                 i16 result = i16(i8(rm))*i16(i8(op2));
 
@@ -936,7 +1045,7 @@ struct CPU80286
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in<u8>(port);
+                    mem.w8(get_offset(SEG::ES) + registers[DI], iosystem.io_in<u8>(port));
                     registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                     cycles_used += 5; //286
                 }
@@ -944,7 +1053,7 @@ struct CPU80286
                 {
                     while (registers[CX] != 0)
                     {
-                        mem.direct8(get_offset(SEG::ES) + registers[DI]) = iosystem.io_in<u8>(port);
+                        mem.w8(get_offset(SEG::ES) + registers[DI], iosystem.io_in<u8>(port));
                         registers[DI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
                         cycles_used += 5; //286
@@ -957,7 +1066,7 @@ struct CPU80286
                 if (string_prefix == 0)
                 {
                     u16 word = iosystem.io_in<u16>(port);
-                    mem.direct16(get_offset(SEG::ES) + registers[DI]) = word;
+                    mem.w16(get_offset(SEG::ES) + registers[DI], word);
                     registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                     cycles_used += 5; //286
                 }
@@ -966,7 +1075,7 @@ struct CPU80286
                     while (registers[CX] != 0)
                     {
                         u16 word = iosystem.io_in<u16>(port);
-                        mem.direct16(get_offset(SEG::ES) + registers[DI]) = word;
+                        mem.w16(get_offset(SEG::ES) + registers[DI], word);
                         registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
                         cycles_used += 5; //286
@@ -978,7 +1087,7 @@ struct CPU80286
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    iosystem.io_out<u8>(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
+                    iosystem.io_out<u8>(port, mem.r8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                     registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                     cycles_used += 5; //286
                 }
@@ -986,7 +1095,7 @@ struct CPU80286
                 {
                     while (registers[CX] != 0)
                     {
-                        iosystem.io_out<u8>(port, mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]));
+                        iosystem.io_out<u8>(port, mem.r8(get_offset(get_segment(SEG::DS)) + registers[SI]));
                         registers[SI] += flag(F_DIRECTIONAL) ? -1 : 1;
                         registers[CX] -= 1;
                         cycles_used += 5; //286
@@ -998,7 +1107,7 @@ struct CPU80286
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    u16 value = mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]);
+                    u16 value = mem.r16(get_offset(get_segment(SEG::DS)) + registers[SI]);
                     iosystem.io_out<u16>(port, value);
                     registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
                     cycles_used += 5; //286
@@ -1007,7 +1116,7 @@ struct CPU80286
                 {
                     while (registers[CX] != 0)
                     {
-                        u16 value = mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]);
+                        u16 value = mem.r16(get_offset(get_segment(SEG::DS)) + registers[SI]);
                         iosystem.io_out<u16>(port, value);
                         registers[SI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
@@ -1025,7 +1134,8 @@ struct CPU80286
             //cout << "BLAH: " << u32(instruction) << endl; std::abort();
             //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm);
+            u8 rm = readM(8);
             u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
 
             u8 inst_type = (modrm >> 3) & 0x07;
@@ -1067,13 +1177,15 @@ struct CPU80286
                 }
                 rm = result;
             }
+            writeM(rm, 8);
         }
         else if (instruction == 0xC1)
         {
             //cout << "BLAH: " << u32(instruction) << endl; std::abort();
             //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
+            u8 rm = readM(16);
             u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
 
             u8 inst_type = (modrm >> 3) & 0x07;
@@ -1115,6 +1227,7 @@ struct CPU80286
                 }
                 rm = result;
             }
+            writeM(rm, 16);
         }
         else if (instruction == 0xC8)
         {
@@ -1129,7 +1242,7 @@ struct CPU80286
                 for (u8 i = 1; i < nesting_level; ++i)
                 {
                     registers[BP] -= 2;
-                    push(mem.direct16(get_offset(SEG::SS) + registers[BP]));
+                    push(mem.r16(get_offset(SEG::SS) + registers[BP]));
                 }
                 push(frame_temp);
             }
@@ -1139,7 +1252,6 @@ struct CPU80286
         }
         else if (instruction == 0xC9)
         {
-            cout << "BLARGH: " << u32(instruction) << endl; std::abort();
             //0xC9 LEAVE
             registers[SP] = registers[BP];
             registers[BP] = pop();
@@ -1167,21 +1279,32 @@ struct CPU80286
             else //reg, r/m
             {
                 u8 modrm = read_inst<u8>();
+                decode_modrm(modrm);
                 if (instruction&0x01)//16bit
                 {
-                    u16& rm = decode_modrm_u16(modrm);
+                    u16 rm = readM(16);
                     u16& r = get_r16((modrm>>3)&0x07);
                     u16& rout = (instruction&0x02?r:rm);
                     u16& rin = (instruction&0x02?rm:r);
                     rout = run_arith(rout, rin, instr_choice);
+
+                    if (!(instruction&0x02))
+                    {
+                        writeM(rout, 16);
+                    }
                 }
                 else//8bit
                 {
-                    u8& rm = decode_modrm_u8(modrm);
+                    u8 rm = readM(8);
                     u8& r = get_r8((modrm>>3)&0x07);
                     u8& rout = (instruction&0x02?r:rm);
                     u8& rin = (instruction&0x02?rm:r);
                     rout = run_arith(rout, rin, instr_choice);
+
+                    if (!(instruction&0x02))
+                    {
+                        writeM(rout, 8);
+                    }
                 }
                 cycles_used += (modrm_is_register?2:7); //286
             }
@@ -1331,81 +1454,114 @@ struct CPU80286
         else if (instruction == 0x80 || instruction == 0x82)
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm);
+            u8 rm = readM(8);
             u8 imm = read_inst<u8>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            writeM(rm,8);
             cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x81)
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
+            u16 rm = readM(16);
             u16 imm = read_inst<u16>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            writeM(rm,16);
             cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x83)
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
+            u16 rm = readM(16);
             u16 imm = i16(read_inst<i8>());
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            writeM(rm,16);
             cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x84) //TEST
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
-            u8& r = get_r8((modrm>>3)&0x07);
+            decode_modrm(modrm);
+            u8 rm = readM(8);
+            u8 r = get_r8((modrm>>3)&0x07);
             test_flags(u8(rm&r));
             cycles_used += (modrm_is_register?2:6); //286
         }
         else if (instruction == 0x85) //TEST
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            u16& r = get_r16((modrm>>3)&0x07);
+            decode_modrm(modrm);
+            u16 rm = readM(16);
+            u16 r = get_r16((modrm>>3)&0x07);
             test_flags(u16(rm&r));
             cycles_used += (modrm_is_register?2:6); //286
         }
         else if (instruction == 0x86) //XCHG
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm);
+            u8 rm = readM(8);
             u8& r = get_r8((modrm>>3)&0x07);
             u8 temp = rm;
             rm = r;
             r = temp;
+            writeM(rm,8);
             cycles_used += (modrm_is_register?3:5); //286
         }
         else if (instruction == 0x87) //XCHG
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
+            u16 rm = readM(16);
             u16& r = get_r16((modrm>>3)&0x07);
             u16 temp = rm;
             rm = r;
             r = temp;
+            writeM(rm,16);
             cycles_used += (modrm_is_register?3:5); //286
         }
         else if ((instruction&0xFC) == 0x88) // MOV EbGb, EvGv, GbEb, GvEv
         {
             u8 modrm = read_inst<u8>();
+            decode_modrm(modrm);
             if (instruction&0x01)//16bit
             {
-                u16& rm = decode_modrm_u16(modrm);
+                u16& r = get_r16((modrm>>3)&0x07);
+                if (instruction&0x02) // towards general register
+                {
+                   r = readM(16);
+                }
+                else
+                {
+                    writeM(r, 16);
+                }
+
+                /*u16& rm = decode_modrm_u16(modrm);
                 u16& r = get_r16((modrm>>3)&0x07);
                 u16& rout = (instruction&0x02?r:rm);
                 u16& rin = (instruction&0x02?rm:r);
-                rout = rin;
+                rout = rin;*/
             }
             else//8bit
             {
-                u8& rm = decode_modrm_u8(modrm);
+                u8& r = get_r8((modrm>>3)&0x07);
+                if (instruction&0x02) // towards general register
+                {
+                   r = readM(8);
+                }
+                else
+                {
+                    writeM(r, 8);
+                }
+
+                /*u8& rm = decode_modrm_u8(modrm);
                 u8& r = get_r8((modrm>>3)&0x07);
                 u8& rout = (instruction&0x02?r:rm);
                 u8& rin = (instruction&0x02?rm:r);
-                rout = rin;
+                rout = rin;*/
             }
 
             if (modrm_is_register)
@@ -1427,10 +1583,10 @@ struct CPU80286
         else if (instruction == 0x8C) // MOV EwSw
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
             if (((modrm>>3)&0x07) < 4)
             {
-                rm = descriptor_cache[(modrm>>3)&0x07].data;
+                writeM(descriptor_cache[(modrm>>3)&0x07].data, 16);
             }
             else
             {
@@ -1441,7 +1597,8 @@ struct CPU80286
         else if (instruction == 0x8E) // MOV SwEw
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
+            u16 rm = readM(16);
             u8 seg_n = (modrm>>3)&0x07;
 
             if(seg_n >= 4) //not valid segment registers, we only have four.
@@ -1493,15 +1650,16 @@ struct CPU80286
         else if (instruction == 0x8D) // LEA Gv M
         {
             u8 modrm = read_inst<u8>();
+            decode_modrm(modrm);
             u16& r = get_r16((modrm>>3)&0x07);
-            r = effective_address(modrm);
+            r = modrm_offset;
             cycles_used += 3; //286
         }
         else if (instruction == 0x8F) //POP modrm
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            rm = pop();
+            decode_modrm(modrm);
+            writeM(pop(), 16);
             cycles_used += 5; //286
         }
         else if ((instruction&0xF8) == 0x90) // XCHG AX, r16 - note how 0x90 is effectively NOP :-)
@@ -1567,10 +1725,10 @@ struct CPU80286
             u16 source_offset = read_inst<u16>();
             switch(instruction)
             {
-                case 0xA0: get_r8(0) = mem.direct8(source_segment + source_offset); break;
-                case 0xA1: registers[AX] = mem.direct16(source_segment + source_offset); break;
-                case 0xA2: mem.direct8(source_segment + source_offset) = get_r8(0); break;
-                case 0xA3: mem.direct16(source_segment + source_offset) = registers[AX]; break;
+                case 0xA0: get_r8(0) = mem.r8(source_segment + source_offset); break;
+                case 0xA1: registers[AX] = mem.r16(source_segment + source_offset); break;
+                case 0xA2: mem.w8(source_segment + source_offset, get_r8(0)); break;
+                case 0xA3: mem.w16(source_segment + source_offset, registers[AX]); break;
             }
             cycles_used += (instruction&0x02)?3:5; //286
         }
@@ -1619,15 +1777,15 @@ struct CPU80286
                 if (big)
                 {
                     if (program&0x01)
-                        value1 = mem.direct16(get_offset(get_segment(SEG::DS)) +registers[SI]);
+                        value1 = mem.r16(get_offset(get_segment(SEG::DS)) +registers[SI]);
                     if (program&0x02)
-                        value2 = mem.direct16(get_offset(SEG::ES) +registers[DI]);
+                        value2 = mem.r16(get_offset(SEG::ES) +registers[DI]);
                     if (program&0x04)
                         value1 = registers[AX];
                     if (program&0x10)
-                        mem.direct16(get_offset(get_segment(SEG::DS)) + registers[SI]) = value1;
+                        mem.w16(get_offset(get_segment(SEG::DS)) + registers[SI], value1);
                     if (program&0x20)
-                        mem.direct16(get_offset(SEG::ES) + registers[DI]) = value1;
+                        mem.w16(get_offset(SEG::ES) + registers[DI], value1);
                     if (program&0x40)
                         registers[AX] = value1;
                     if (program&0x100)
@@ -1636,15 +1794,15 @@ struct CPU80286
                 else
                 {
                     if (program&0x01)
-                        value1 = mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]);
+                        value1 = mem.r8(get_offset(get_segment(SEG::DS)) + registers[SI]);
                     if (program&0x02)
-                        value2 = mem.direct8(get_offset(SEG::ES) + registers[DI]);
+                        value2 = mem.r8(get_offset(SEG::ES) + registers[DI]);
                     if (program&0x04)
                         value1 = get_r8(0);
                     if (program&0x10)
-                        mem.direct8(get_offset(get_segment(SEG::DS)) + registers[SI]) = value1;
+                        mem.w8(get_offset(get_segment(SEG::DS)) + registers[SI], value1);
                     if (program&0x20)
-                        mem.direct8(get_offset(SEG::ES) + registers[DI]) = value1;
+                        mem.w8(get_offset(SEG::ES) + registers[DI], value1);
                     if (program&0x40)
                         get_r8(0) = value1;
                     if (program&0x100)
@@ -1727,24 +1885,25 @@ struct CPU80286
         else if ((instruction&0xFE) == 0xC4) // LES LDS
         {
             u8 modrm = read_inst<u8>();
-            u32 addr = decode_modrm_fulladdr(modrm);
+            decode_modrm(modrm);
+            u32 addr = modrm_seg+modrm_offset;
             u16& r = get_r16((modrm>>3)&0x07);
-            r = mem.direct16(addr);
-            load_segment((instruction&1)?SEG::DS:SEG::ES, mem.direct16(addr+2)); //ES or DS, based on the opcode
+            r = mem.r16(addr);
+            load_segment((instruction&1)?SEG::DS:SEG::ES, mem.r16(addr+2)); //ES or DS, based on the opcode
             cycles_used += (msw&1)?21:7; //286
         }
         else if (instruction == 0xC6) //MOV
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
-            rm = read_inst<u8>();
+            decode_modrm(modrm);
+            writeM(read_inst<u8>(), 8);
             cycles_used += (modrm_is_register?2:3); //286
         }
         else if (instruction == 0xC7) //MOV
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            rm = read_inst<u16>();
+            decode_modrm(modrm);
+            writeM(read_inst<u16>(), 16);
             cycles_used += (modrm_is_register?2:3); //286
         }
         else if (instruction == 0xCC) // INT 3
@@ -1789,7 +1948,9 @@ struct CPU80286
         {
             bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0x1F) == 1);
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm);
+            //u8& rm = decode_modrm_u8(modrm);
+            u8 rm = readM(8);
 
             u8 inst_type = (modrm>>3)&0x07;
             if (inst_type == 6)
@@ -1841,13 +2002,15 @@ struct CPU80286
                     }
                     rm = result;
                 }
+                writeM(rm, 8);
             }
         }
         else if (instruction == 0xD1 || instruction == 0xD3)
         {
             bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0x1F) == 1);
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
+            u16 rm = readM(16);
 
             u8 inst_type = (modrm>>3)&0x07;
             if (inst_type == 6)
@@ -1898,6 +2061,7 @@ struct CPU80286
                     }
                     rm = result;
                 }
+                writeM(rm, 16);
             }
         }
         else if (instruction == 0xD4) // AAM
@@ -1959,7 +2123,7 @@ struct CPU80286
         }
         else if (instruction == 0xD7) // XLAT
         {
-            u8 result = mem.direct8(get_offset(get_segment(SEG::DS))+registers[BX]+(registers[AX]&0xFF));
+            u8 result = mem.r8(get_offset(get_segment(SEG::DS))+registers[BX]+(registers[AX]&0xFF));
             get_r8(0) = result;
             cycles_used += 5; //286
         }
@@ -1967,7 +2131,8 @@ struct CPU80286
         {
             //cout << "Trying to run floating point instruction! :(" << endl;
             u8 modrm = read_inst<u8>(); //read modrm data anyway to sync up
-            decode_modrm_u8(modrm);
+            //decode_modrm_u8(modrm);
+            decode_modrm(modrm);
 
             //FLOATING POINT INSTRUCTIONS! 80287! we don't have this. yet?
             cycles_used += 3; //TODO: check that this is right!
@@ -2074,7 +2239,9 @@ struct CPU80286
         else if(instruction == 0xF6) //byte param
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm);
+            //u8& rm = decode_modrm_u8(modrm);
+            u8 rm = readM(8);
             u8 op = ((modrm>>3)&0x07);
             if (op == 0) // TEST
             {
@@ -2088,14 +2255,14 @@ struct CPU80286
             }
             else if (op==2) // NOT
             {
-                rm = ~rm;
+                writeM(~rm, 8);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op == 3) // NEG
             {
                 cmp_flags(u8(0),rm,u8(-rm));
                 set_flag(F_CARRY,rm!=0);
-                rm = -rm;
+                writeM(-rm, 8);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op==4) // MUL
@@ -2178,7 +2345,9 @@ struct CPU80286
         else if(instruction == 0xF7) //word param
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm);
+            u16 rm = readM(16);
+            //u16& rm = decode_modrm_u16(modrm);
             u8 op = ((modrm>>3)&0x07);
             if (op == 0) // TEST
             {
@@ -2192,14 +2361,16 @@ struct CPU80286
             }
             else if (op==2) // NOT
             {
-                rm = ~rm;
+                //rm = ~rm;
+                writeM(~rm, 16);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op == 3) // NEG
             {
                 cmp_flags(u16(0),rm,u16(-rm));
                 set_flag(F_CARRY,rm!=0);
-                rm = -rm;
+                //rm = -rm;
+                writeM(-rm, 16);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op==4) // MUL
@@ -2291,7 +2462,8 @@ struct CPU80286
         else if (instruction == 0xFE)
         {
             u8 modrm = read_inst<u8>();
-            u8& reg = decode_modrm_u8(modrm);
+            decode_modrm(modrm);
+            u8 reg = readM(8);
             u8 op = (modrm>>3)&0x07;
             u8 result = reg+1-(op<<1);
             if (op >= 2)
@@ -2307,39 +2479,40 @@ struct CPU80286
                 set_flag(F_SIGN,result&0x80);
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
                 //no carry!
-                reg = result;
+                //reg = result;
+                writeM(result,8);
                 cycles_used = (modrm_is_register?2:7); //286
             }
         }
         else if (instruction == 0xFF)
         {
             u8 modrm = read_inst<u8>();
+            decode_modrm(modrm);
             u8 op = (modrm>>3)&0x07;
             if (op == 0 || op == 1)
             {
-                u16& reg = decode_modrm_u16(modrm);
+                u16 reg = readM(16);
                 u16 result = reg+1-(op<<1);
                 set_flag(F_OVERFLOW,result==(0x8000-op));
                 set_flag(F_AUX_CARRY,(result&0x0F) == ((op&0x01)?0x0F:0x00));
                 set_flag(F_ZERO,result==0);
                 set_flag(F_SIGN,result&0x8000);
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
-                reg = result;
+                writeM(result,16);
                 cycles_used = (modrm_is_register?2:7); //286
             }
             else if (op == 2) //call near
             {
-                u16& reg = decode_modrm_u16(modrm);
-                u16 address = reg;
+                u16 address = readM(16);
                 push(registers[IP]);
                 registers[IP] = address; //have to do this because reg could be SP :')
                 cycles_used += (modrm_is_register?7:11); //286
             }
             else if (op == 3) //call far
             {
-                u32 addr = decode_modrm_fulladdr(modrm);
-                u16 address = mem.direct16(addr);
-                u16 segment = mem.direct16(addr+2);
+                u32 addr = modrm_seg+modrm_offset;
+                u16 address = mem.r16(addr);
+                u16 segment = mem.r16(addr+2);
                 push(descriptor_cache[(int)SEG::CS].data);
                 push(registers[IP]);
                 load_segment(SEG::CS, segment);
@@ -2348,22 +2521,21 @@ struct CPU80286
             }
             else if (op == 4) //jmp near
             {
-                u16& reg = decode_modrm_u16(modrm);
-                registers[IP] = reg;
+                registers[IP] = readM(16);
                 cycles_used += (modrm_is_register?7:11); //286
             }
             else if (op == 5) //jmp far
             {
-                u32 addr = decode_modrm_fulladdr(modrm);
-                u16 address = mem.direct16(addr);
-                u16 segment = mem.direct16(addr+2);
+                u32 addr = modrm_seg+modrm_offset;
+                u16 address = mem.r16(addr);
+                u16 segment = mem.r16(addr+2);
                 registers[IP] = address;
                 load_segment(SEG::CS, segment);
                 cycles_used += (modrm_is_register?15:26); //286, TODO: protected mode
             }
             else if (op == 6)
             {
-                u16& reg = decode_modrm_u16(modrm);
+                u16 reg = readM(16);
                 push(reg);
                 cycles_used += 5; //286
             }
@@ -2376,7 +2548,7 @@ struct CPU80286
         {
             //std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
             std::cout << "# " << std::dec << cycles << std::hex << ", Unknown opcode: 0x" << u32(instruction) << std::endl;
-            std::abort();
+            //std::abort();
         }
 
         clear_prefix();
@@ -2391,13 +2563,10 @@ struct CPU80286
             interrupt_true_cycles = 0;
         }
 
-        if (flag(F_TRAP) && previous_trap && !mem.testmode)
+        if (flag(F_TRAP) && previous_trap)
         {
-            registers[IP] = original_ip;
             interrupt(1, true);
         }
-
-        mem.update();
 
         if (cycles_used > 0)
         {

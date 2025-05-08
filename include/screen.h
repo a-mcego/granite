@@ -6,8 +6,8 @@
 
 struct SCREEN
 {
-    u32 pixels[912*264] = {};
-    u16 X{912}, Y{262};
+    u32 pixels[1024*1025] = {};
+    u16 X{1024}, Y{512};
 
     void clear()
     {

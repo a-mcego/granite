@@ -21,17 +21,32 @@ struct MemoryManager286
         fclose(filu);
     }
 
-    u16 readonly_words[256] = {};
-    u8 readonly_word{};
-    u8 readonly_bytes[256] = {};
-    u8 readonly_byte{};
+    u8 r8(u32 address)
+    {
+        u8 data = 0xFF;
+        if (!globalsettings.A20)
+            address &= 0xFFEFFFFF;
 
-    u16 rw_words[256] = {};
-    u8 rw_word{};
-
-    u16 INVALID_ADDRESS_16[16];
-    u8 INVALID_ADDRESS_8[16];
-    u16& direct16(u32 address)
+        if (!testmode)
+        {
+            if (globalsettings.graphics == GlobalSettings::CGA && address >= 0xB8000 && address <= 0xBFFFF)
+                data = cga.memory8(address&0x7FFF);
+            else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
+                data = hega.r8(address&0x1FFFF);
+            else if (address >= 0xE0000 && address <= 0xEFFFF)
+                data = ltems._8(address&0xFFFF);
+            else if (address < membytes.size)
+            {
+                data = membytes.bytes[address];
+            }
+        }
+        else
+        {
+            data = membytes.bytes[address];
+        }
+        return data;
+    }
+    void w8(u32 address, u8 data)
     {
         if (!globalsettings.A20)
             address &= 0xFFEFFFFF;
@@ -39,61 +54,34 @@ struct MemoryManager286
         if (!testmode)
         {
             if (globalsettings.graphics == GlobalSettings::CGA && address >= 0xB8000 && address <= 0xBFFFF)
-                return cga.memory16(address&0x7FFF);
-            if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
-                return hega.memory16(address&0x1FFFF);
-            if (address >= 0xE0000 && address <= 0xEFFFF)
-                return ltems._16(address&0xFFFF);
-            if (address >= 0xA0000 && address <= 0xFFFFF) //upper memory area, make read-only
+                cga.memory8(address&0x7FFF) = data;
+            else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
+                hega.w8(address&0x1FFFF, data);
+            else if (address >= 0xE0000 && address <= 0xEFFFF)
+                ltems._8(address&0xFFFF) = data;
+            else if (address < membytes.size)
             {
-                ++readonly_word;
-                readonly_words[readonly_word] = *(u16*)(void*)(membytes.bytes+address);
-                return readonly_words[readonly_word];
-            }
-            if (address >= membytes.size)
-            {
-                INVALID_ADDRESS_16[0] = 0xFFFF;
-                return INVALID_ADDRESS_16[0];
+                if (address >= 0xC0000 && address < 0x100000);
+                else
+                    membytes.bytes[address] = data;
             }
         }
-        return *(u16*)(void*)(membytes.bytes+address);
-    }
-    u8& direct8(u32 address)
-    {
-        if (!globalsettings.A20)
-            address &= 0xFFEFFFFF;
-        //std::cout << "direct8 " << std::hex << address << std::endl;
-        if (!testmode)
+        else
         {
-            if (address >= 0xB8000 && address <= 0xBFFFF)
-            {
-                //std::cout << '.';
-                return cga.memory8(address&0x7FFF);
-            }
-            if (address >= 0xE0000 && address <= 0xEFFFF)
-            {
-                return ltems._8(address&0xFFFF);
-            }
-            if (address >= 0xF0000 && address <= 0xFFFFF)
-            {
-                ++readonly_byte;
-                readonly_bytes[readonly_byte] = membytes.bytes[address];
-                return readonly_bytes[readonly_byte];
-            }
-            if (address >= membytes.size)
-            {
-                //std::cout << "invalid addr " << u32(address) << std::endl;
-                INVALID_ADDRESS_8[0] = 0xFF;
-                return INVALID_ADDRESS_8[0];
-            }
-            //std::cout << "good addr " << u32(address) << std::endl;
+            membytes.bytes[address] = data;
         }
-        return *(u8*)(void*)(membytes.bytes+address);
     }
-
-    void update()
+    u16 r16(u32 address)
     {
-
+        u16 data{};
+        data |= r8(address);
+        data |= u16(r8(address+1))<<8;
+        return data;
+    }
+    void w16(u32 address, u16 data)
+    {
+        w8(address,data&0xFF);
+        w8(address+1,(data>>8));
     }
 };
 

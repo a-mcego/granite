@@ -85,7 +85,7 @@ struct GlobalSettings
     {
         CGA,
         HEGA
-    } graphics=CGA;
+    } graphics=HEGA;
 
     bool opl_enabled{true};
     bool gblast_enabled{true};
@@ -806,7 +806,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     {
         if (action == GLFW_PRESS)
         {
-            if (key == GLFW_KEY_S)
+            if (false);
+            else if (key == GLFW_KEY_S)
             {
                 globalsettings.sound_on = !globalsettings.sound_on;
                 cout << "Sound " << (globalsettings.sound_on?"on":"off") << endl;
@@ -1261,8 +1262,9 @@ void configline(std::string line)
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
             //startprinting=true;
             bool test_passed = true;
-            CPU8088MC testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
+            CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
             testcpu.mem.testmode = true;
+            globalsettings.A20 = false;
             testcpu.reset();
             memset(mac.p.membytes.bytes, 0, (1<<20)+65536);
 
@@ -1283,14 +1285,16 @@ void configline(std::string line)
                 mac.p.membytes.bytes[address] = value;
             }
 
-            //testcpu.load_tmp_segs_for_test();
+            testcpu.load_tmp_segs_for_test();
+            //testcpu.print_regs();
             do
             {
                 testcpu.cycle();
             } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
 
             //std::cout << "cycles:" << cycles << std::endl;
-            //testcpu.store_tmp_segs_for_test();
+            testcpu.store_tmp_segs_for_test();
+            //testcpu.print_regs();
 
             for(int i=0; i<14; ++i)
             {
@@ -1299,6 +1303,8 @@ void configline(std::string line)
 
             for(int i=0; i<14; ++i)
             {
+                if (i==12)
+                    continue;
                 const char* const regnames[14] =
                 {
                     "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "ES", "CS", "SS", "DS", "FL", "IP"

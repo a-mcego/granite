@@ -30,7 +30,6 @@ struct CPU8088MC
 
     void writeM(u16 data)
     {
-        cycles_used += (modrm_width == 16?7:3);
         //std::cout << "writeM: " << std::hex;
         if (modrm_is_register)
         {
@@ -50,7 +49,6 @@ struct CPU8088MC
     }
     u16 readM()
     {
-        cycles_used += (modrm_width == 16?8:4);
         //std::cout << "readM: " << std::hex;
         u16 ret{};
         if (modrm_is_register)

@@ -1657,7 +1657,7 @@ struct CPU8086
             else
             {
                 std::cout << "0xF6 op " << u32(op) << " is invalid!" << std::endl;
-                std::abort();
+                //std::abort();
             }
         }
         else if(instruction == 0xF7) //word param
@@ -1761,7 +1761,7 @@ struct CPU8086
             else
             {
                 std::cout << "0xF7 op " << u32(op) << " is invalid!" << std::endl;
-                std::abort();
+                //std::abort();
             }
         }
         else if ((instruction&0xFE) == 0xF8) //CLC STC carry flag bit 0

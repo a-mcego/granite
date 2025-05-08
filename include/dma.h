@@ -69,11 +69,11 @@ struct CHIP8237 //DMA
             }
             else if (transfer_direction == DIR_TO_MEMORY)
             {
-                mem.direct8((page()<<16U)+curr_addr) = (*device_vector)[curr_vector_offset];
+                mem.w8((page()<<16U)+curr_addr, (*device_vector)[curr_vector_offset]);
             }
             else if (transfer_direction == DIR_FROM_MEMORY)
             {
-                (*device_vector)[curr_vector_offset] = mem.direct8((page()<<16U)+curr_addr);
+                (*device_vector)[curr_vector_offset] = mem.r8((page()<<16U)+curr_addr);
             }
             else if (transfer_direction == DIR_VERIFY)
             {

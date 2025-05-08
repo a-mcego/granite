@@ -38,7 +38,11 @@ struct SoundBlaster
         OUTPUT_8_ONEBLOCK=0x14, //two bytes: low byte, high byte
         OUTPUT_8_AUTOINIT=0x1C,
         SET_TIME_CONSTANT=0x40, //requires one more write: the time constant
+        SET_OUTPUT_SAMPLERATE=0x41, //two bytes, high byte and low byte DSP 4+
+        SET_INPUT_SAMPLERATE=0x42, //two bytes, high byte and low byte DSP 4+
         SET_BLOCK_TRANSFER_SIZE=0x48, //two bytes. low byte and high byte.
+        SET_16BIT_TRANSFER=0xB0, //not implemented yet
+        SET_8BIT_TRANSFER=0xC0, //three bytes. mode, length low, length high
         PAUSE = 0xD0,
         SPEAKER_ON=0xD1,
         SPEAKER_OFF=0xD3,
@@ -64,10 +68,17 @@ struct SoundBlaster
     u8 current_command{};
     u16 block_transfer_size{};
     u16 current_block_transfer{};
+    u8 io_command{};
+    u8 io_mode{};
+
     u16 clocks_per_cycle{};
     u16 current_clock{};
 
+
     u8 time_constant{};
+
+    u16 output_samplerate{};
+    u16 input_samplerate{};
 
     u8 read(u8 port) // port from 0 to F inclusive
     {
@@ -116,7 +127,8 @@ struct SoundBlaster
             if (bytes_left_to_write)
             {
                 --bytes_left_to_write;
-                if (current_command == SET_TIME_CONSTANT)
+                if (false);
+                else if (current_command == SET_TIME_CONSTANT)
                 {
                     //for example: 0xD2 is 22050 samples per second
                     //it's the high byte of: 65536 - (256'000'000 / (samplerate*channels))
@@ -124,6 +136,53 @@ struct SoundBlaster
                     clocks_per_cycle = 315*(256-time_constant)/22;
                     current_clock = 0;
                     std::cout << "Time constant set to " << u32(data) << std::endl;
+                }
+                else if (current_command == SET_OUTPUT_SAMPLERATE)
+                {
+                    if (bytes_left_to_write == 1)
+                        output_samplerate = (data<<8);
+                    else
+                    {
+                        output_samplerate |= data;
+                        if (output_samplerate != 0)
+                            clocks_per_cycle = 14318180/output_samplerate;
+                        current_clock = 0;
+                        std::cout << "Output sample rate set to " << u32(output_samplerate) << std::endl;
+                    }
+                }
+                else if (current_command == SET_INPUT_SAMPLERATE) //input not used yet!
+                {
+                    if (bytes_left_to_write == 1)
+                        input_samplerate = (data<<8);
+                    else
+                    {
+                        input_samplerate |= data;
+                        //TODO:
+                        //if (input_samplerate != 0)
+                        //    clocks_per_cycle = 14318180/output_samplerate;
+                        //current_clock = 0;
+                        std::cout << "Input sample rate set to " << u32(output_samplerate) << std::endl;
+                    }
+                }
+                else if ((current_command&0xF0) == SET_8BIT_TRANSFER)
+                {
+                    if (false);
+                    else if (bytes_left_to_write == 2)
+                    {
+                        io_command = current_command;
+                        io_mode = data;
+                    }
+                    else if (bytes_left_to_write == 1)
+                    {
+                        block_transfer_size = (block_transfer_size&0xFF00)|data;
+                    }
+                    else
+                    {
+                        block_transfer_size = (block_transfer_size&0x00FF)|(data<<8);
+                        current_block_transfer = block_transfer_size;
+                        std::cout << "SB: " << u32(current_command) << " " << std::dec << block_transfer_size << std::endl;
+                        play=true;
+                    }
                 }
                 else if (current_command == OUTPUT_8_ONEBLOCK)
                 {
@@ -134,6 +193,8 @@ struct SoundBlaster
                         block_transfer_size = (block_transfer_size&0x00FF)|(data<<8);
                         current_block_transfer = block_transfer_size;
                         std::cout << "SB single-block size: " << std::dec << block_transfer_size << std::endl;
+                        io_command = 0xC0;
+                        io_mode = 0x00;
                         play=true;
                     }
                 }
@@ -145,6 +206,8 @@ struct SoundBlaster
                     {
                         block_transfer_size = (block_transfer_size&0x00FF)|(data<<8);
                         current_block_transfer = block_transfer_size;
+                        io_command = 0xC0;
+                        io_mode = 0x00;
                         std::cout << "SB block transfer size: " << std::dec << block_transfer_size << std::endl;
                     }
                 }
@@ -166,7 +229,7 @@ struct SoundBlaster
                 {
                     bytes_left_to_write=1;
                 }
-                else if (data == SET_BLOCK_TRANSFER_SIZE)
+                else if (data == SET_BLOCK_TRANSFER_SIZE || data == SET_OUTPUT_SAMPLERATE || data == SET_INPUT_SAMPLERATE)
                     bytes_left_to_write=2;
                 else if (data == SPEAKER_ON)
                     speaker = true;
@@ -179,6 +242,10 @@ struct SoundBlaster
                 else if (data == OUTPUT_8_ONEBLOCK)
                 {
                     bytes_left_to_write=2;
+                }
+                else if ((data&0xF0) == SET_8BIT_TRANSFER)
+                {
+                    bytes_left_to_write=3;
                 }
                 else if (data == OUTPUT_8_AUTOINIT)
                 {
