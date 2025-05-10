@@ -319,6 +319,7 @@ struct CGA
     u32 colpos{};
     u32 prev_line_amount{};
     u32 prev_col_amount{};
+    u32 prev_col_times{};
     void monitor_cycle(u8 pins)
     {
         bool vc = vsync_ctr.cycle(pins & (1 << int(MONITOR::VSYNC)));
@@ -329,6 +330,7 @@ struct CGA
             if (linepos >= 100)
             {
                 prev_line_amount = linepos;
+                screen.screenSizeY = prev_line_amount;
                 linepos = 0;
             }
         }
@@ -336,7 +338,10 @@ struct CGA
         {
             if (colpos >= 400)
             {
+                prev_col_times = (prev_col_amount==colpos)?prev_col_times+1:0;
                 prev_col_amount = colpos;
+                if (prev_col_times >= 4)
+                    screen.screenSizeX = prev_col_amount;
                 colpos = 0;
                 ++linepos;
             }

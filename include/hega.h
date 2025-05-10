@@ -512,7 +512,6 @@ struct HEGA
     u32 linepos{};
     u32 colpos{};
     u32 prev_line_amount{};
-    u32 prev_line_times{};
     u32 prev_col_amount{};
     u32 prev_col_times{};
     void monitor_cycle(u8 pins)
@@ -522,7 +521,6 @@ struct HEGA
 
         if ((vc && !vsync_ctr.get_prev()))
         {
-            prev_line_times = (prev_line_amount==linepos)?prev_line_times+1:0;
             prev_line_amount = linepos;
             screen.screenSizeY = prev_line_amount;
             linepos = 0;

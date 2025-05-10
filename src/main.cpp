@@ -1100,6 +1100,18 @@ void configline(std::string line)
             }
         }
     }
+    else if (command == "gpu")
+    {
+        std::string gputype;
+        iss >> gputype;
+
+        if (gputype == "cga")
+            globalsettings.graphics = GlobalSettings::GRAPHICS::CGA;
+        else if (gputype == "ega" || gputype == "hega")
+            globalsettings.graphics = GlobalSettings::GRAPHICS::HEGA;
+        else
+            std::cout << "ERROR unknown gpu: " << gputype << std::endl;
+    }
     else if (command == "rom")
     {
         std::string address_str, filename;
