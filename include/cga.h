@@ -352,12 +352,9 @@ struct CGA
             color = 0;
         }
 
-
-        u32 renderline = screen.Y/2-prev_line_amount/2 + linepos;
-        u32 rendercol = screen.X/2-prev_col_amount/2 + colpos;
-        if (renderline < screen.Y && rendercol < screen.X)
+        if (linepos < screen.Y && colpos < screen.X)
         {
-            screen.pixels[renderline * screen.X + rendercol] = getpalette(color);
+            screen.pixels[linepos * screen.X + colpos] = getpalette(color);
         }
     }
 

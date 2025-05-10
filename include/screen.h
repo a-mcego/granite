@@ -8,6 +8,8 @@ struct SCREEN
 {
     u32 pixels[1024*1025] = {};
     u16 X{1024}, Y{512};
+    std::atomic<u32> screenSizeX{1024};
+    std::atomic<u32> screenSizeY{512};
 
     void clear()
     {
@@ -20,6 +22,8 @@ struct SCREEN
 
     void render()
     {
+        glUniform1f(glGetUniformLocation(shaderProgram,"screenSizeX"), float(screenSizeX));
+        glUniform1f(glGetUniformLocation(shaderProgram,"screenSizeY"), float(screenSizeY));
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, textures[0]);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, X, Y, GL_RGBA, GL_UNSIGNED_BYTE, pixels);

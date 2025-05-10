@@ -12,20 +12,33 @@
 
 struct HEGA
 {
+    static constexpr u32 BYTELOOKUP[16] =
+    {
+        0x00000000,
+        0x000000FF,
+        0x0000FF00,
+        0x0000FFFF,
+        0x00FF0000,
+        0x00FF00FF,
+        0x00FFFF00,
+        0x00FFFFFF,
+        0xFF000000,
+        0xFF0000FF,
+        0xFF00FF00,
+        0xFF00FFFF,
+        0xFFFF0000,
+        0xFFFF00FF,
+        0xFFFFFF00,
+        0xFFFFFFFF,
+    };
+
     u32 mem[0x10000] = {}; //0x10000 per plane
 
     u32 latch{};
 
     u32 get_write_mask()
     {
-        u8 val = seq_regs[MAP_MASK];
-
-        u32 mask{};
-        mask |= (val&0x01)?0xFF:0x00;
-        mask |= (val&0x02)?0xFF00:0x00;
-        mask |= (val&0x04)?0xFF0000:0x00;
-        mask |= (val&0x08)?0xFF000000:0x00;
-        return mask;
+        return BYTELOOKUP[seq_regs[MAP_MASK]&0x0F];
     }
 
     bool chain()
@@ -38,7 +51,7 @@ struct HEGA
     }
     bool w_oddeven()
     {
-        return seq_regs[MEMORY_MODE]&0x04;
+        return !(seq_regs[MEMORY_MODE]&0x04);
     }
 
     bool adjust_address_for_memory_map(u32& address)
@@ -70,16 +83,17 @@ struct HEGA
         if (!adjust_address_for_memory_map(address))
             return;
 
-        u32 mask = get_write_mask();
+        u32 bmask = gfx_regs[BIT_MASK];
+        bmask |= bmask<<8;
+        bmask |= bmask<<16;
+        u32 mask = BYTELOOKUP[seq_regs[MAP_MASK]&0x0F] & bmask;
 
-        u32 data32 = data;
-        data32 |= (data32<<16);
+        u32 data32{};
 
-        if (chain())
+        if (chain() || w_oddeven())
         {
             if (address&1)
             {
-                data32 <<= 8;
                 mask &= 0xFF00FF00;
             }
             else
@@ -88,26 +102,11 @@ struct HEGA
             }
             address >>= 1;
         }
-        else
-        {
-            data32 |= (data32<<8);
-        }
         address &= 0xFFFF;
-
-        u32 bmask = gfx_regs[BIT_MASK];
-        bmask |= bmask<<8;
-        bmask |= bmask<<16;
-        u8 function_select = (gfx_regs[DATA_ROTATE]>>3)&3;
 
         if ((gfx_regs[MODE_REGISTER]&0x03)==2)
         {
-            data32 = 0;
-            data32 |= (data&0x01)?0xFF:0x00;
-            data32 |= (data&0x02)?0xFF00:0x00;
-            data32 |= (data&0x04)?0xFF0000:0x00;
-            data32 |= (data&0x08)?0xFF000000:0x00;
-            data32 &= bmask;
-            mask &= bmask;
+            data32 = BYTELOOKUP[data&0x0F];
         }
         else if ((gfx_regs[MODE_REGISTER]&0x03)==1)
         {
@@ -115,7 +114,12 @@ struct HEGA
         }
         else if ((gfx_regs[MODE_REGISTER]&0x03)==0)
         {
+            data32 = data;
+            data32 |= (data32<<16);
+            data32 |= (data32<<8);
+
             u8 rotate_amount = (gfx_regs[DATA_ROTATE]&0x07);
+            u8 function_select = (gfx_regs[DATA_ROTATE]>>3)&0x03;
 
             u32 lomask = 0xFF>>rotate_amount;
             lomask |= lomask<<8;
@@ -123,16 +127,38 @@ struct HEGA
 
             data32 = ((data32>>rotate_amount)&lomask) | ((data32<<(8-rotate_amount))&~lomask);
 
+            u32 enable_set_reset = BYTELOOKUP[gfx_regs[ENABLE_SET_RESET]&0x0F];
+            u32 set_reset = BYTELOOKUP[gfx_regs[SET_RESET]&0x0F];
+
+            data32 = (data32&~enable_set_reset) | (set_reset&enable_set_reset);
+
             if (false);
             else if(function_select == 1)
-                data32 &= latch&mask;
+                data32 &= latch;
             else if(function_select == 2)
-                data32 |= latch&mask;
+                data32 |= latch;
             else if(function_select == 3)
-                data32 ^= latch&mask;
-
+                data32 ^= latch;
         }
+        else
+        {
+            mask=0;
+        }
+
         mem[address] = (data32&mask) | (mem[address]&~mask);
+    }
+
+
+    u8 reverse_bits(u8 byte)
+    {
+        u8 result = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            result <<= 1;
+            result |= (byte&1);
+            byte >>= 1;
+        }
+        return result;
     }
 
     u8 r8(u32 address)
@@ -140,33 +166,35 @@ struct HEGA
         if (!adjust_address_for_memory_map(address))
             return 0xFF;
 
-        u32 plane_id = (gfx_regs[READ_MAP_SELECT])&0x03;
-        if (r_oddeven() || chain())
+        u32 plane_id = (gfx_regs[READ_MAP_SELECT])&0x07;
+        if (chain())
         {
-            plane_id = (gfx_regs[READ_MAP_SELECT])&0x02;
-            plane_id |= (address & 1);
+            plane_id = (plane_id&0xFE) | (address & 1);
             address >>= 1;
         }
 
+        u32 bmask = gfx_regs[BIT_MASK];
+        bmask |= bmask<<8;
+        bmask |= bmask<<16;
         latch = mem[address];
 
         u8 ret{};
-        if(((gfx_regs[MODE_REGISTER]>>3)&0x01)==1) // color compare
+        if(gfx_regs[MODE_REGISTER]&0x08) // color compare
         {
-            u8 color_compare = gfx_regs[COLOR_COMPARE]&0x0F;
-            u8 color_dontcare = gfx_regs[COLOR_DONT_CARE]&0x0F;
-            ret = 0xFF;
-            for(int i=0; i<4; ++i)
-            {
-                u8 databyte = latch>>(i<<3);
-                u8 cmpbyte = (color_compare&(1<<i))?0xFF:0x00;
-                u8 dontcare = (color_dontcare&(1<<i))?0xFF:0x00;
-                ret &= (~databyte^cmpbyte)|dontcare;
-            }
+            u32 color_compare = BYTELOOKUP[gfx_regs[COLOR_COMPARE]&0x0F];
+            u32 color_dontcare = BYTELOOKUP[gfx_regs[COLOR_DONT_CARE]&0x0F];
+
+            u32 ret32 = ((latch^color_compare)&color_dontcare);
+            ret32 |= (ret32>>16);
+            ret32 |= (ret32>>8);
+            ret = ~ret32;
         }
         else //normal read
         {
-            ret = (latch>>(plane_id<<3));
+            u32 mask = get_write_mask();
+            ret = ((latch&mask)>>(plane_id<<3));
+            if (plane_id >= 4)
+                ret = 0;
         }
         return ret;
     }
@@ -484,7 +512,9 @@ struct HEGA
     u32 linepos{};
     u32 colpos{};
     u32 prev_line_amount{};
+    u32 prev_line_times{};
     u32 prev_col_amount{};
+    u32 prev_col_times{};
     void monitor_cycle(u8 pins)
     {
         bool vc = vsync_ctr.cycle(pins & (1 << int(MONITOR::VSYNC)));
@@ -492,12 +522,17 @@ struct HEGA
 
         if ((vc && !vsync_ctr.get_prev()))
         {
+            prev_line_times = (prev_line_amount==linepos)?prev_line_times+1:0;
             prev_line_amount = linepos;
+            screen.screenSizeY = prev_line_amount;
             linepos = 0;
         }
         if (hc && !hsync_ctr.get_prev() && !vsync_ctr.get_prev())
         {
+            prev_col_times = (prev_col_amount==colpos)?prev_col_times+1:0;
             prev_col_amount = colpos;
+            if (prev_col_times >= 4)
+                screen.screenSizeX = prev_col_amount;
             colpos = 0;
             ++linepos;
         }
@@ -600,11 +635,6 @@ struct HEGA
                 scan_line = 0;
                 line_inside_character = 0;
             }
-
-            if (logical_line == 0 && line_inside_character == 0)
-            {
-                current_startaddress = ((crtc_regs[START_ADDRESS_H]<<8) | crtc_regs[START_ADDRESS_L]);
-            }
         }
 
         vsync = (scan_line >= vblank_start && scan_line < vblank_start + 8);
@@ -613,6 +643,12 @@ struct HEGA
             vsync_monitor_ctr = 0;
         else
             ++vsync_monitor_ctr;
+
+        if (vsync_monitor_ctr==1)
+        {
+            current_startaddress = ((crtc_regs[START_ADDRESS_H]<<8) | crtc_regs[START_ADDRESS_L]);
+        }
+
 
         bool monitor_vsync = vsync ^ bool(misc&0x80);
 
@@ -632,14 +668,32 @@ struct HEGA
         const u8 palette[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 
         retrace = (vertical_retrace|horizontal_retrace);
-        bool draw_bg = retrace|!output_enabled;
 
         bool display_enable = !((column > (crtc_regs[H_DISPLAY_END])*hsync_mult) || (scan_line >= vblank_start));
 
         if (is_graphics_mode)
         {
+            bool cms0 = crtc_regs[MODE_CONTROL_CRTC]&0x01;
+
             int x = column>>3;
-            u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET]*2 + x;
+
+            u32 offset=0;
+            u32 chosen_line = logical_line;
+            if (!cms0)
+            {
+                if (line_inside_character)
+                {
+                    //12 for lores cga, 13 for hires cga
+                    if (w_oddeven())
+                        offset += (1<<12);
+                    else
+                        offset += (1<<13);
+
+                }
+
+            }
+
+            offset += current_startaddress + chosen_line*crtc_regs[OFFSET]*2 + x;
 
             for(int i=0; i<8; ++i)
             {
@@ -649,13 +703,24 @@ struct HEGA
                 if (display_enable)
                 {
                     u32 data = r32(offset + (pel_panned_i>>3));
-                    color = ((data<<(pel_panned_i&7))&mask)>>7; //pixel from 0 to 7
-                    //0b0000000a'0000000b'0000000c'0000000d
-                    color |= color >> 7;
-                    //0b0000000a'000000ab'000000bc'000000cd
+
+                    if(gfx_regs[MODE_REGISTER]&0x20) //shift register
+                    {
+                        color = ((data<<((i^0x04)*2))&0xC000C000)>>14;
+                        //0b00000000'000000ab'00000000'000000cd
+                    }
+                    else
+                    {
+                        color = ((data<<(pel_panned_i&7))&mask)>>7; //pixel from 0 to 7
+                        //0b0000000a'0000000b'0000000c'0000000d
+                        color |= color >> 7;
+                        //0b0000000a'000000ab'000000bc'000000cd
+                    }
                     color |= color >> 14;
                     //0b0000000a'000000ab'00000abc'0000abcd
-                    color &= 0x0F;
+                    //color &= seq_regs[MAP_MASK]&0x0F;
+                    color &= attr_regs[COLOR_PLANE_ENABLE]&0x0F;
+                    //color &= 0x0F;
                     //0b00000000'00000000'00000000'0000abcd
                 }
                 color = attr_regs[color];
@@ -664,18 +729,8 @@ struct HEGA
         }
         else
         {
-            bool cms0 = crtc_regs[MODE_CONTROL_CRTC]&0x01;
-
-            u32 chosen_line = logical_line;
-            u32 startaddr = current_startaddress;
-            if (!cms0)
-            {
-                chosen_line = logical_line / 2;
-                startaddr += (1<<13);
-            }
-
             int x = column>>3;
-            u32 offset = current_startaddress + chosen_line*crtc_regs[OFFSET]*2 + x;
+            u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET]*2 + x;
             u8 char_code = r32(offset);
             u8 attribute = (r32(offset)>>8);
             u8 fg_color = attribute & 0x0F;
@@ -686,8 +741,6 @@ struct HEGA
             {
                 u8 mask = 1 << (7 - x_off);
                 u8 color = (char_row & mask) ? fg_color : bg_color;
-                if (draw_bg || is_graphics_mode)
-                    color = palette[0];
                 if (!display_enable)
                     color = attr_regs[OVERSCAN_COLOR];
                 color = attr_regs[color];

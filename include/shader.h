@@ -8,20 +8,24 @@ void main()
 }
 )glsl";
 
-//const float SCREEN_X = 1280.0;
-//const float SCREEN_Y = 720.0;
+const float SCREEN_X = 1280.0;
+const float SCREEN_Y = 960.0;
 
-const float SCREEN_X = 912.0*1.5;
-const float SCREEN_Y = 262.0*3.0;
+//const float SCREEN_X = 912.0*1.5;
+//const float SCREEN_Y = 262.0*3.0;
 
 const char* fragmentSource = R"glsl(#version 430
 out vec4 color;
 uniform sampler2D TextureSampler;
+uniform float screenSizeX;
+uniform float screenSizeY;
 #define SCREEN_X %f
 #define SCREEN_Y %f
 void main()
 {
-    ivec2 tex_coord = ivec2(gl_FragCoord.x*(%f/SCREEN_X), (SCREEN_Y-gl_FragCoord.y)*(%f/SCREEN_Y));
+    float texX = %f;
+    float texY = %f;
+    ivec2 tex_coord = ivec2(gl_FragCoord.x*(texX/SCREEN_X)*(screenSizeX/texX), (SCREEN_Y-gl_FragCoord.y)*(texY/SCREEN_Y)*(screenSizeY/texY));
     color.rgb = texelFetch(TextureSampler, tex_coord, 0).rgb;
     color.a = 1;
 }
