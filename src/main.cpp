@@ -85,7 +85,7 @@ struct GlobalSettings
     {
         CGA,
         HEGA
-    } graphics=HEGA;
+    } graphics=CGA;
 
     bool opl_enabled{true};
     bool gblast_enabled{true};
