@@ -29,8 +29,8 @@ struct MemoryManager286
 
         if (!testmode)
         {
-            if (globalsettings.graphics == GlobalSettings::CGA && address >= 0xB8000 && address <= 0xBFFFF)
-                data = cga.memory8(address&0x7FFF);
+            if (globalsettings.graphics == GlobalSettings::CGA && cga.address_in_memory_map(address))
+                data = cga.memory8(address-cga.MEMORY_MAP_START());
             else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
                 data = hega.r8(address&0x1FFFF);
             else if (address >= 0xE0000 && address <= 0xEFFFF)
@@ -53,8 +53,8 @@ struct MemoryManager286
 
         if (!testmode)
         {
-            if (globalsettings.graphics == GlobalSettings::CGA && address >= 0xB8000 && address <= 0xBFFFF)
-                cga.memory8(address&0x7FFF) = data;
+            if (globalsettings.graphics == GlobalSettings::CGA && cga.address_in_memory_map(address))
+                cga.memory8(address-cga.MEMORY_MAP_START()) = data;
             else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
                 hega.w8(address&0x1FFFF, data);
             else if (address >= 0xE0000 && address <= 0xEFFFF)

@@ -40,9 +40,9 @@ struct CPU8088MC
         }
         else
         {
-            mem._8(modrm_seg, modrm_offset) = (data&0xFF);
+            mem.w8(modrm_seg, modrm_offset, (data&0xFF));
             if (modrm_width == 16)
-                mem._8(modrm_seg, modrm_offset+1) = ((data>>8)&0xFF);
+                mem.w8(modrm_seg, modrm_offset+1, ((data>>8)&0xFF));
             //std::cout << modrm_seg << ":" << modrm_offset << " ";
         }
         //std::cout << data << std::endl;
@@ -60,9 +60,9 @@ struct CPU8088MC
         }
         else
         {
-            ret = mem._8(modrm_seg, modrm_offset);
+            ret = mem.r8(modrm_seg, modrm_offset);
             if (modrm_width == 16)
-                ret |= (mem._8(modrm_seg, modrm_offset+1)<<8);
+                ret |= (mem.r8(modrm_seg, modrm_offset+1)<<8);
             //std::cout << modrm_seg << ":" << modrm_offset << " ";
         }
         //std::cout << ret << std::endl;
@@ -842,15 +842,15 @@ struct CPU8088MC
 
                     if (is_write)
                     {
-                        mem._8(segment, registers[IND]) = registers[OPR];
+                        mem.w8(segment, registers[IND], registers[OPR]);
                         if (bitwidth==16)
-                            mem._8(segment, registers[IND]+1) = registers[OPR]>>8;
+                            mem.w8(segment, registers[IND]+1, registers[OPR]>>8);
                     }
                     else
                     {
-                        registers[OPR] = mem._8(segment, registers[IND]);
+                        registers[OPR] = mem.r8(segment, registers[IND]);
                         if (bitwidth==16)
-                            registers[OPR] |= (mem._8(segment, registers[IND]+1)<<8);
+                            registers[OPR] |= (mem.r8(segment, registers[IND]+1)<<8);
                     }
 
                     //addr_factor==1, modify IND according to word size and direction flag
@@ -989,7 +989,7 @@ struct CPU8088MC
             prefetch_address = position;
             for(u32 i=0; i<prefetch_queue_size; ++i)
             {
-                prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
+                prefetch_queue[i] = mem.r8(registers[CS], registers[IP]+i);
             }
         }
 
@@ -1003,7 +1003,7 @@ struct CPU8088MC
         }
         for(u32 i=prefetch_queue_size-sizeof(T); i<prefetch_queue_size; ++i)
         {
-            prefetch_queue[i] = mem._8(registers[CS], registers[IP]+i);
+            prefetch_queue[i] = mem.r8(registers[CS], registers[IP]+i);
         }
         if (startprinting)
         {
@@ -1055,117 +1055,51 @@ struct CPU8088MC
          0, 0, 0, 0, 0, 0, 0, 0, //reg
     };
 
-    void decode_modrm(u8 mod, u8 rm, u16& segment, u16& offset)
+    void decode_modrm(u8 modrm, u8 width)
     {
-        offset = 0;
-        segment = DS;
-
-		if (mod == 0x1)
+        modrm_width = width;
+        u8 mod = (modrm >> 6) & 0x03;
+        modrm_r = (modrm>>3)&0x07;
+        modrm_reg = modrm & 0x07;
+        modrm_is_register = (mod==0x03);
+		if (mod != 0x03)
         {
-			offset = i16(read_inst<i8>());
-        }
-		else if (mod == 0x2)
-        {
-			offset = read_inst<u16>();
-        }
+            modrm_offset = 0;
+            int segname = DS;
 
-        cycles_used += effective_address_cycles[(mod<<3)+rm];
-        //std::cout << "used " << u32(effective_address_cycles[(mod<<3)+rm]) << " for EA" << std::endl;
-
-		if (mod == 0x00 && rm == 0x06)
-        {
-			offset += read_inst<u16>();
-        }
-		else
-		{
-			if (rm < 0x06)
+            if (mod == 0x1)
             {
-				offset += registers[SI+(rm&0x01)]; //DI is after SI
+                modrm_offset = i16(read_inst<i8>());
             }
-			if (((rm+1)&0x07) <= 2)
+            else if (mod == 0x2)
             {
-				offset += registers[BX];
+                modrm_offset = read_inst<u16>();
             }
-			if ((rm&0x02) && rm != 7)
+
+            cycles_used += effective_address_cycles[(mod<<3)+modrm_reg];
+
+            if (mod == 0x00 && modrm_reg == 0x06)
             {
-				offset += registers[BP], segment = SS;
-				if (segment_override == 0)
-                    segment_override = SS+8;
+                modrm_offset += read_inst<u16>();
             }
-		}
-		//cycles_used += 4;//((offset&0x01)<<2); //4 cycles for odd accesses
-        segment = registers[get_segment(segment)];
-        modrm_seg = segment;
-        modrm_offset = offset;
-    }
-
-    u8& decode_modrm_u8(u8 modrm)
-    {
-        modrm_width = 8;
-        u8 mod = (modrm >> 6) & 0x03;
-        modrm_r = (modrm >> 3) & 0x07;
-        u8 rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-            modrm_reg = rm;
-			return get_r8(rm);
+            else
+            {
+                if (modrm_reg < 0x06)
+                {
+                    modrm_offset += registers[SI+(modrm_reg&0x01)]; //DI is after SI
+                }
+                if (((modrm_reg+1)&0x07) <= 2)
+                {
+                    modrm_offset += registers[BX];
+                }
+                if ((modrm_reg&0x02) && modrm_reg != 7)
+                {
+                    modrm_offset += registers[BP], segname = SS;
+                }
+            }
+            modrm_seg = registers[get_segment(segname)];
         }
-        u16 offset{}, segment{};
-        decode_modrm(mod,rm,segment,offset);
-        return mem._8(segment, offset);
     }
-
-    u16& decode_modrm_u16(u8 modrm)
-    {
-        modrm_width = 16;
-        u8 mod = (modrm >> 6) & 0x03;
-        modrm_r = (modrm >> 3) & 0x07;
-        u8 rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-            modrm_reg = rm;
-			return get_r16(rm);
-        }
-        u16 offset{}, segment{};
-        decode_modrm(mod,rm,segment,offset);
-        return mem._16(segment, offset);
-    }
-
-    void decode_modrm_mc(u8 modrm)
-    {
-        u8 mod = (modrm >> 6) & 0x03;
-        modrm_r = (modrm >> 3) & 0x07;
-        u8 rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-            modrm_reg = rm;
-            return;
-        }
-        u16 offset{}, segment{DS};
-        decode_modrm(mod,rm,segment,offset);
-        registers[IND] = offset;
-        registers[OPR] = mem._8(segment,offset);
-        registers[OPR] |= mem._8(segment,offset+1)<<8;
-    }
-
-    u32 effective_address(u8 modrm)
-    {
-        u8 mod = (modrm >> 6) & 0x03;
-        u8 rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-            cout << "Loading effective address of a register? are you gone mad?" << endl;
-            return 0;
-        }
-        u16 offset{}, segment{};
-        decode_modrm(mod,rm,segment,offset);
-        return offset | (segment << 16);
-    }
-
 
     u8* reg8() { return (u8*)(void*)(registers); }
 
@@ -1192,10 +1126,10 @@ struct CPU8088MC
         std::cout << " FL=" << std::setw(4) << std::setfill('0') << registers[FLAGS] << " IP=" << std::setw(4) << std::setfill('0') << registers[IP]-1;
 
         std::cout << " S ";
-        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]) << ' ';
-        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+2) << ' ';
-        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+4) << ' ';
-        std::cout << std::setw(4) << std::setfill('0') << mem._16(registers[SS],registers[SP]+6) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem.r16(registers[SS],registers[SP]) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem.r16(registers[SS],registers[SP]+2) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem.r16(registers[SS],registers[SP]+4) << ' ';
+        std::cout << std::setw(4) << std::setfill('0') << mem.r16(registers[SS],registers[SP]+6) << ' ';
         std::cout << std::endl;
     }
 
@@ -1309,10 +1243,9 @@ struct CPU8088MC
             push(registers[FLAGS]);
             push(registers[CS]);
             push(registers[IP]);
-            mem.update();
 
-            registers[IP] = mem._16(0, n*4);
-            registers[CS] = mem._16(0, n*4+2);
+            registers[IP] = mem.r16(0, n*4);
+            registers[CS] = mem.r16(0, n*4+2);
             set_flag(F_INTERRUPT,false);
             set_flag(F_TRAP,false);
             if (!forced)
@@ -1331,11 +1264,11 @@ struct CPU8088MC
     void push(u16 data)
     {
         registers[SP] -= 2;
-        mem._16(registers[SS], registers[SP]) = data;
+        mem.w16(registers[SS], registers[SP], data);
     }
     u16 pop()
     {
-        u16 data = mem._16(registers[SS], registers[SP]);
+        u16 data = mem.r16(registers[SS], registers[SP]);
         registers[SP] += 2;
         return data;
     }
@@ -1354,7 +1287,6 @@ struct CPU8088MC
             --delay;
             return;
         }
-        mem.update();
         inhibit_ss = false;
         if (halt)
         {
@@ -1414,31 +1346,40 @@ struct CPU8088MC
             else
             {
                 u8 modrm = read_inst<u8>();
+                decode_modrm(modrm, ((instruction&0x01)?16:8));
                 if (instruction&0x01)//16bit
                 {
-                    u16& rm = decode_modrm_u16(modrm);
+                    u16 rm = readM();
                     u16& r = get_r16((modrm>>3)&0x07);
                     u16& rout = (instruction&0x02?r:rm);
                     u16& rin = (instruction&0x02?rm:r);
                     rout = run_arith(rout, rin, instr_choice);
+
+                    if (!(instruction&0x02))
+                    {
+                        writeM(rout);
+                    }
                 }
                 else//8bit
                 {
-                    u8& rm = decode_modrm_u8(modrm);
+                    u8 rm = readM();
                     u8& r = get_r8((modrm>>3)&0x07);
                     u8& rout = (instruction&0x02?r:rm);
                     u8& rin = (instruction&0x02?rm:r);
                     rout = run_arith(rout, rin, instr_choice);
+
+                    if (!(instruction&0x02))
+                    {
+                        writeM(rout);
+                    }
                 }
                 if (instruction&0x02) //towards general reg
                 {
                     cycles_used += (modrm_is_register?3:13);
-                    //std::cout << "used " << (modrm_is_register?3:13) << " for inst=" << u32(instruction) << std::endl;
                 }
                 else //towards modrm byte
                 {
                     cycles_used += (modrm_is_register?3:24);
-                    //std::cout << "used " << (modrm_is_register?3:24) << " for inst=" << u32(instruction) << std::endl;
                 }
             }
         }
@@ -1517,61 +1458,73 @@ struct CPU8088MC
         else if (instruction == 0x80 || instruction == 0x82)
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm,8);
+            u8 rm = readM();
             u8 imm = read_inst<u8>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            writeM(rm);
             cycles_used += (modrm_is_register?4:23);
         }
         else if (instruction == 0x81)
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm,16);
+            u16 rm = readM();
             u16 imm = read_inst<u16>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            writeM(rm);
             cycles_used += (modrm_is_register?4:23);
         }
         else if (instruction == 0x83)
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm,16);
+            u16 rm = readM();
             u16 imm = i16(read_inst<i8>());
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
+            writeM(rm);
             cycles_used += (modrm_is_register?4:23);
         }
         else if (instruction == 0x84)
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
-            u8& r = get_r8((modrm>>3)&0x07);
+            decode_modrm(modrm,8);
+            u8 rm = readM();
+            u8 r = get_r8((modrm>>3)&0x07);
             test_flags(u8(rm&r));
             cycles_used += (modrm_is_register?5:11);
         }
         else if (instruction == 0x85)
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            u16& r = get_r16((modrm>>3)&0x07);
+            decode_modrm(modrm,16);
+            u16 rm = readM();
+            u16 r = get_r16((modrm>>3)&0x07);
             test_flags(u16(rm&r));
             cycles_used += (modrm_is_register?5:11);
         }
-        else if (instruction == 0x86)
+        else if (instruction == 0x86) //XCHG
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm,8);
+            u8 rm = readM();
             u8& r = get_r8((modrm>>3)&0x07);
             u8 temp = rm;
             rm = r;
             r = temp;
+            writeM(rm);
             cycles_used += (modrm_is_register?4:25);
         }
         else if (instruction == 0x87)
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm,16);
+            u16 rm = readM();
             u16& r = get_r16((modrm>>3)&0x07);
             u16 temp = rm;
             rm = r;
             r = temp;
+            writeM(rm);
             cycles_used += (modrm_is_register?4:25);
         }
         else if ((instruction&0xFC) == 0x88) // MOV EbGb, EvGv, GbEb, GvEv
@@ -1579,19 +1532,21 @@ struct CPU8088MC
             u8 modrm = read_inst<u8>();
             if (instruction&0x01)//16bit
             {
-                u16& rm = decode_modrm_u16(modrm);
+                decode_modrm(modrm,16);
                 u16& r = get_r16((modrm>>3)&0x07);
-                u16& rout = (instruction&0x02?r:rm);
-                u16& rin = (instruction&0x02?rm:r);
-                rout = rin;
+                if (instruction&0x02) // towards general register
+                    r = readM();
+                else
+                    writeM(r);
             }
             else//8bit
             {
-                u8& rm = decode_modrm_u8(modrm);
+                decode_modrm(modrm,8);
                 u8& r = get_r8((modrm>>3)&0x07);
-                u8& rout = (instruction&0x02?r:rm);
-                u8& rin = (instruction&0x02?rm:r);
-                rout = rin;
+                if (instruction&0x02) // towards general register
+                    r = readM();
+                else
+                    writeM(r);
             }
 
             if (modrm_is_register)
@@ -1613,32 +1568,33 @@ struct CPU8088MC
         else if (instruction == 0x8C) // MOV EwSw
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            u16& r = get_segment_r16((modrm>>3)&0x07);
-            rm = r;
+            decode_modrm(modrm,16);
+            u16 r = get_segment_r16((modrm>>3)&0x07);
+            writeM(r);
             cycles_used += (modrm_is_register?2:13);
         }
         else if (instruction == 0x8D) // LEA Gv M
         {
             u8 modrm = read_inst<u8>();
+            decode_modrm(modrm,16);
             u16& r = get_r16((modrm>>3)&0x07);
-            r = (effective_address(modrm)&0xFFFF);
+            r = modrm_offset;
             cycles_used += 2;
         }
         else if (instruction == 0x8E) // MOV SwEw
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm,16);
             u16& r = get_segment_r16((modrm>>3)&0x07);
-            r = rm;
+            r = readM();
             inhibit_ss = true;
             cycles_used += (modrm_is_register?2:12);
         }
         else if (instruction == 0x8F) //POP modrm
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            rm = pop();
+            decode_modrm(modrm,16);
+            writeM(pop());
             cycles_used += 25;
         }
         else if ((instruction&0xF8) == 0x90) // XCHG AX, r16 - note how 0x90 is effectively NOP :-)
@@ -1777,7 +1733,7 @@ struct CPU8088MC
         else if ((instruction&0xFE) == 0xC4) // LES LDS
         {
             u8 modrm = read_inst<u8>();
-            decode_modrm_mc(modrm);
+            decode_modrm(modrm,16);
             modrm_width = 16;
             mc_execute((instruction&0x01)?0xF4:0xF0, modrm_width, (instruction&0x08), string_prefix, 0);
 
@@ -1793,15 +1749,19 @@ struct CPU8088MC
         else if (instruction == 0xC6)
         {
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
-            rm = read_inst<u8>();
+            decode_modrm(modrm,8);
+            //u8& rm = decode_modrm_u8(modrm);
+            //rm = read_inst<u8>();
+            writeM(read_inst<u8>());
             cycles_used += (modrm_is_register?4:14);
         }
         else if (instruction == 0xC7)
         {
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
-            rm = read_inst<u16>();
+            decode_modrm(modrm,16);
+            //u16& rm = decode_modrm_u16(modrm);
+            //rm = read_inst<u16>();
+            writeM(read_inst<u16>());
             cycles_used += (modrm_is_register?4:14);
         }
         else if (instruction == 0xCC) // INT 3
@@ -1845,20 +1805,21 @@ struct CPU8088MC
         else if (instruction >= 0xD0 && instruction <= 0xD1)
         {
             u8 modrm = read_inst<u8>();
-            decode_modrm_mc(modrm);
+            decode_modrm(modrm, ((instruction&0x01)?16:8));
             mc_execute(0x088, (instruction&0x01)?16:8, 0, 0, modrm_r+8);
         }
         else if (instruction >= 0xD2 && instruction <= 0xD3)
         {
             u8 modrm = read_inst<u8>();
-            decode_modrm_mc(modrm);
+            decode_modrm(modrm, ((instruction&0x01)?16:8));
             mc_execute(0x08C, (instruction&0x01)?16:8, 0, 0, modrm_r+8);
         }
         else if (instruction == 0xD0 || instruction == 0xD2)
         {
             bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
             u8 modrm = read_inst<u8>();
-            u8& rm = decode_modrm_u8(modrm);
+            decode_modrm(modrm,8);
+            //u8& rm = decode_modrm_u8(modrm);
 
             u8 inst_type = (modrm>>3)&0x07;
             u8 amount = (single_shift)?1:(registers[CX]&0xFF);
@@ -1875,11 +1836,11 @@ struct CPU8088MC
             for(u32 i=0; i<amount; ++i)
             {
                 //F_OVERFLOW, F_SIGN, F_ZERO, F_AUX_CARRY, F_PARITY, F_CARRY
-                u8 original=rm;
+                u8 original=readM();
                 u8 result=0;
                 if (inst_type == 6)
                 {
-                    rm = 0xFF;
+                    writeM(0xFF);
                     set_flag(F_CARRY, false);
                     set_flag(F_OVERFLOW, false);
                     set_flag(F_SIGN, true);
@@ -1911,14 +1872,15 @@ struct CPU8088MC
                     set_flag(F_AUX_CARRY, (inst_type==4?result&0x10:false));
                     set_flag(F_PARITY, byte_parity[result&0xFF]);
                 }
-                rm = result;
+                writeM(result);
             }
         }
         else if (instruction == 0xD1 || instruction == 0xD3)
         {
             bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0xFF) == 1);
             u8 modrm = read_inst<u8>();
-            u16& rm = decode_modrm_u16(modrm);
+            //u16& rm = decode_modrm_u16(modrm);
+            decode_modrm(modrm,16);
 
             u8 inst_type = (modrm>>3)&0x07;
             u8 amount = (single_shift)?1:(registers[CX]&0xFF);
@@ -1935,11 +1897,11 @@ struct CPU8088MC
             for(u32 i=0; i<amount; ++i)
             {
                 //F_OVERFLOW, F_SIGN, F_ZERO, F_AUX_CARRY, F_PARITY, F_CARRY
-                u16 original=rm;
+                u16 original=readM();
                 u16 result=0;
                 if (inst_type == 6)
                 {
-                    rm = 0xFFFF;
+                    writeM(0xFFFF);
                     set_flag(F_CARRY, false);
                     set_flag(F_OVERFLOW, false);
                     set_flag(F_SIGN, true);
@@ -1971,7 +1933,7 @@ struct CPU8088MC
                     set_flag(F_AUX_CARRY, (inst_type==4?result&0x10:false));
                     set_flag(F_PARITY, byte_parity[result&0xFF]);
                 }
-                rm = result;
+                writeM(result);
             }
         }
         else if (instruction == 0xD4) // AAM
@@ -1994,7 +1956,8 @@ struct CPU8088MC
         {
             //cout << "Trying to run floating point instruction! :(" << endl;
             u8 modrm = read_inst<u8>(); //read modrm data anyway to sync up
-            decode_modrm_u8(modrm);
+            //decode_modrm_u8(modrm);
+            decode_modrm(modrm,16);
             //FLOATING POINT INSTRUCTIONS! 8087! we don't have this. yet?
             cycles_used += 4; //TODO: check that this is right!
         }
@@ -2101,8 +2064,7 @@ struct CPU8088MC
         else if(instruction == 0xF6) //byte param
         {
             u8 modrm = read_inst<u8>();
-            modrm_width = 8;
-            decode_modrm_mc(modrm);
+            decode_modrm(modrm, 8);
             u8 op = ((modrm>>3)&0x07);
 
             //cout << "DIV: " << std::dec << get_r16(AX)<< "/" << u32(*regM8) << std::hex << endl;
@@ -2117,8 +2079,7 @@ struct CPU8088MC
         else if(instruction == 0xF7) //word param
         {
             u8 modrm = read_inst<u8>();
-            modrm_width = 16;
-            decode_modrm_mc(modrm);
+            decode_modrm(modrm,16);
             u8 op = ((modrm>>3)&0x07);
 
             const u16 start_addr[8] =
@@ -2145,9 +2106,10 @@ struct CPU8088MC
         else if (instruction == 0xFE)
         {
             u8 modrm = read_inst<u8>();
-            u8& reg = decode_modrm_u8(modrm);
+            decode_modrm(modrm,8);
+            //u8& reg = decode_modrm_u8(modrm);
             u8 op = (modrm>>3)&0x07;
-            u8 result = reg+1-(op<<1);
+            u8 result = readM()+1-(op<<1);
             if (op == 0 || op == 1)
             {
                 set_flag(F_OVERFLOW,result==0x80-op);
@@ -2156,7 +2118,7 @@ struct CPU8088MC
                 set_flag(F_SIGN,result&0x80);
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
                 //no carry!
-                reg = result;
+                writeM(result);
                 cycles_used += (modrm_is_register?3:23);
             }
             else if (op >= 2)
@@ -2174,32 +2136,31 @@ struct CPU8088MC
         else if (instruction == 0xFF)
         {
             u8 modrm = read_inst<u8>();
+            decode_modrm(modrm,16);
             u8 op = (modrm>>3)&0x07;
             if (op == 0 || op == 1)
             {
-                u16& reg = decode_modrm_u16(modrm);
-                u16 result = reg+1-(op<<1);
+                u16 result = readM()+1-(op<<1);
                 set_flag(F_OVERFLOW,result==(0x8000-op));
                 set_flag(F_AUX_CARRY,(result&0x0F) == ((op&0x01)?0x0F:0x00));
                 set_flag(F_ZERO,result==0);
                 set_flag(F_SIGN,result&0x8000);
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
-                reg = result;
+                writeM(result);
                 cycles_used += (modrm_is_register?3:23);
             }
             else if (op == 2) //call near
             {
-                u16& reg = decode_modrm_u16(modrm);
-                u16 address = reg;
+                //u16& reg = decode_modrm_u16(modrm);
+                u16 address = readM();
                 push(registers[IP]);
                 registers[IP] = address; //have to do this because reg could be SP :')
                 cycles_used += (modrm_is_register?20:29);
             }
             else if (op == 3) //call far
             {
-                u32 addr = effective_address(modrm);
-                u16 address = mem._16(addr>>16, addr&0xFFFF);
-                u16 segment = mem._16(addr>>16, (addr&0xFFFF)+2);
+                u16 address = mem.r16(modrm_seg, modrm_offset);
+                u16 segment = mem.r16(modrm_seg, modrm_offset+2);
                 push(registers[CS]);
                 push(registers[IP]);
                 registers[CS] = segment;
@@ -2208,29 +2169,28 @@ struct CPU8088MC
             }
             else if (op == 4) //jmp near
             {
-                u16& reg = decode_modrm_u16(modrm);
-                registers[IP] = reg;
+                //u16& reg = decode_modrm_u16(modrm);
+                registers[IP] = readM();
                 cycles_used += (modrm_is_register?11:18);
             }
             else if (op == 5) //jmp far
             {
-                u32 addr = effective_address(modrm);
-                u16 address = mem._16(addr>>16, addr&0xFFFF);
-                u16 segment = mem._16(addr>>16, (addr&0xFFFF)+2);
+                u16 address = mem.r16(modrm_seg, modrm_offset);
+                u16 segment = mem.r16(modrm_seg, modrm_offset+2);
                 registers[CS] = segment;
                 registers[IP] = address;
                 cycles_used += (modrm_is_register?11:24);
             }
             else if (op == 6 || op == 7)
             {
-                u16& reg = decode_modrm_u16(modrm);
+                //u16& reg = decode_modrm_u16(modrm);
                 if ((modrm&0b11000111) == 0b11000100) //reg is SP
                 {
-                    push(reg-2);
+                    push(readM()-2);
                 }
                 else
                 {
-                    push(reg);
+                    push(readM());
                 }
                 cycles_used += (modrm_is_register?15:24);
             }
@@ -2259,8 +2219,6 @@ struct CPU8088MC
         {
             interrupt_true_cycles = 0;
         }
-
-        mem.update();
 
         if (flag(F_TRAP) && previous_trap)
         {

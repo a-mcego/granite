@@ -28,8 +28,8 @@ struct MemoryManager186
         u32 total_address = (((segment<<4)+index)&0xFFFFF);
         if (!testmode)
         {
-            if (globalsettings.graphics == GlobalSettings::CGA && (total_address&0xF8000) == 0xB8000)
-                return cga.memory8(total_address&0x7FFF);
+            if (globalsettings.graphics == GlobalSettings::CGA && cga.address_in_memory_map(total_address))
+                return cga.memory8(total_address-cga.MEMORY_MAP_START());
             //if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
             //    return hega.memory8(total_address&0x1FFFF);
             if ((total_address&0xF0000) == 0xE0000)
@@ -48,8 +48,8 @@ struct MemoryManager186
         u32 total_address = (((segment<<4)+index)&0xFFFFF);
         if (!testmode)
         {
-            if (globalsettings.graphics == GlobalSettings::CGA && (total_address&0xF8000) == 0xB8000)
-                return cga.memory16(total_address&0x7FFF);
+            if (globalsettings.graphics == GlobalSettings::CGA && cga.address_in_memory_map(total_address))
+                return cga.memory16(total_address-cga.MEMORY_MAP_START());
             //if (globalsettings.graphics == GlobalSettings::HEGA && (total_address&0xE0000) == 0xA0000)
             //    return hega.memory16(total_address&0x1FFFF);
             if ((total_address&0xF0000) == 0xE0000)

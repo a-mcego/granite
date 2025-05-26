@@ -1,6 +1,7 @@
 #pragma once
 
-struct CGA
+template<u64 N, bool COLORPLUS_ENABLED>
+struct GA
 {
     static const u8 REGISTER_COUNT = 18;
     static const u8 COLORBURST_START = 240;
@@ -8,6 +9,25 @@ struct CGA
     u8 current_register{};
     u8 mode_select{};
     u8 color_select{};
+    u8 aga_select{}; //for commodore aga: b4=320x200x4bit, b5=640x200x2bit, b6=swap planes, b7=640x200x4bit(AGA)
+
+    u32 MEMORY_MAP_START() const
+    {
+        if constexpr(COLORPLUS_ENABLED)
+        {
+            if (aga_select&0x80)
+                return 0xB0000;
+        }
+        return 0xB8000;
+    }
+    u32 MEMORY_MAP_END() const
+    {
+        return 0xBFFFF;
+    }
+    bool address_in_memory_map(u32 address) const
+    {
+        return address >= MEMORY_MAP_START() && address <= MEMORY_MAP_END();
+    }
 
     enum struct OUTPUT
     {
@@ -18,28 +38,28 @@ struct CGA
     bool snow{false};
     bool snow_enabled{false};
 
-    u8 mem[0x4000 + 1] = {};
+    u8 mem[N + 1] = {};
     u8& memory8(u16 address)
     {
         snow = snow_enabled;
-        return mem[address&0x3FFF];
+        return mem[address&(N-1)];
     }
     u16& memory16(u16 address)
     {
         snow = snow_enabled;
-        return *(u16*)(void*)(mem+(address&0x3FFF));
+        return *(u16*)(void*)(mem+(address&(N-1)));
     }
     u8 memory8_internal(u16 address)
     {
         if (snow)
             return 0xFF;
-        return mem[address&0x3FFF];
+        return mem[address&(N-1)];
     }
     u16 memory16_internal(u16 address)
     {
         if (snow)
             return 0xFF;
-        return *(u16*)(void*)(mem+(address&0x3FFF));
+        return *(u16*)(void*)(mem+(address&(N-1)));
     }
     void print_regs()
     {
@@ -228,6 +248,10 @@ struct CGA
         else if (port == 0x09) //color select register (UWAGA!! documentation had a mistake here, said port is 8 but it is 9)
         {
             color_select = data;
+        }
+        else if (port == 0x0D)
+        {
+            aga_select = data;
         }
         if constexpr(DEBUG_LEVEL > 1)
         {
@@ -442,7 +466,16 @@ struct CGA
         bool output_enabled = (mode_select&0x08);
 
         const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
-        const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+(no_colorburst?0:add)), u8(6+add)};
+
+        bool colorplan_mode{};
+
+        if constexpr(COLORPLUS_ENABLED)
+        {
+            if (aga_select&0x30)
+                colorplan_mode = true;
+        }
+
+        const u8 palette[4] = {u8(color_select&0x0F), u8(2+add), u8(4+((no_colorburst&&!colorplan_mode)?0:add)), u8(6+add)};
 
         retrace = (vertical_retrace|horizontal_retrace);
         bool draw_bg = retrace|!output_enabled;
@@ -452,28 +485,106 @@ struct CGA
             if (is_graphics_mode && !textmode_40_80)
             {
                 int x = column>>3;
-                u32 offset = current_startaddress + (line_inside_character&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
-                u8 gfx_byte = memory8_internal(offset);
-
-                for(int i=0; i<8; i+=2)
+                //u32 offset = current_startaddress + (line_inside_character&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
+                if (aga_select&0x80)
                 {
-                    u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
-                    u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
+                    u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
+                    u8 gfx_byte = memory8_internal(offset);
+                    u8 gfx_byte2 = memory8_internal(offset^0x8000);
 
-                    if (draw_bg)
+                    for(int i=0; i<8; i+=2)
                     {
-                        if (!resolution)
+                        u8 p1{},p2{};
+                        if (draw_bg)
+                        {
                             p1 = palette[0], p2 = palette[0];
-                        else
+                        }
+                        else if (hsync|vsync)
                             p1 = 0, p2 = 0;
-                    }
-                    if (hsync|vsync)
-                        p1 = 0, p2 = 0;
+                        else
+                        {
+                            p1 = (gfx_byte>>6)|((gfx_byte2>>4)&0x0C);
+                            p1 = ((p1>>3)&0x01) | ((p1<<1)&0x0E);
+                            p2 = p1;
+                        }
 
-                    monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-                    monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-                    gfx_byte <<= 2;
+                        monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                        //monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                        gfx_byte <<= 2;
+                        gfx_byte2 <<= 2;
+                    }
                 }
+                else if (colorplan_mode)
+                {
+                    resolution = bool(aga_select&0x20);
+                    u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
+                    u8 gfx_byte = memory8_internal(offset);
+                    u8 gfx_byte2 = memory8_internal(offset^0x4000);
+
+                    for(int i=0; i<8; i+=2)
+                    {
+                        u8 p1 = {};
+                        u8 p2 = {};
+
+                        if (draw_bg)
+                        {
+                            if (!resolution)
+                                p1 = palette[0], p2 = palette[0];
+                            else
+                                p1 = 0, p2 = 0;
+                        }
+                        else if (hsync|vsync)
+                            p1 = 0, p2 = 0;
+                        else
+                        {
+                            if (resolution)
+                            {
+                                p1 = (gfx_byte>>7)|((gfx_byte2>>7)<<1);
+                                p2 = ((gfx_byte>>6)&1)|((gfx_byte2>>5)&2);
+
+                                p1 = palette[p1];
+                                p2 = palette[p2];
+                            }
+                            else
+                            {
+                                p1 = (gfx_byte>>6)|((gfx_byte2>>4)&0x0C);
+                                p1 = ((p1>>3)&0x01) | ((p1<<1)&0x0E);
+                                p2 = p1;
+                            }
+                        }
+
+                        monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                        monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                        gfx_byte <<= 2;
+                        gfx_byte2 <<= 2;
+                    }
+                }
+                else
+                {
+                    u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
+                    u8 gfx_byte = memory8_internal(offset);
+
+                    for(int i=0; i<8; i+=2)
+                    {
+                        u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
+                        u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
+
+                        if (draw_bg)
+                        {
+                            if (!resolution)
+                                p1 = palette[0], p2 = palette[0];
+                            else
+                                p1 = 0, p2 = 0;
+                        }
+                        if (hsync|vsync)
+                            p1 = 0, p2 = 0;
+
+                        monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                        monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                        gfx_byte <<= 2;
+                    }
+                }
+
             }
             else
             {
@@ -556,3 +667,6 @@ struct CGA
         snow = false;
     }
 };
+
+using CGA = GA<0x4000, false>;
+using AGA = GA<0x10000, true>;

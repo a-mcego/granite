@@ -15,78 +15,70 @@ struct MemoryManager8088
         fclose(filu);
     }
 
-    u16 readonly_words[256] = {};
-    u8 readonly_word{};
-    u8 readonly_bytes[256] = {};
-    u8 readonly_byte{};
-
-    u16 rw_words[256] = {};
-    u16 rw_segs[256] = {};
-    u16 rw_offsets[256] = {};
-    u8 rw_word{};
-
     bool testmode{};
 
 
     bool cga_used{};
 
-    u8& _8(u16 segment, u16 index)
+    u8 r8(u16 segment, u16 index)
     {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
+        u8 data = 0xFF;
+
+        u32 address = ((segment<<4)+index)&0xFFFFF;
+
         if (!testmode)
         {
-            if ((total_address&0xF0000) == 0xE0000)
-                return ltems._8(total_address&0xFFFF);
-            if (total_address >= 0xC0000)
+            if (globalsettings.graphics == GlobalSettings::CGA && cga.address_in_memory_map(address))
+                data = cga.memory8(address-cga.MEMORY_MAP_START());
+            else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
+                data = hega.r8(address&0x1FFFF);
+            else if (address >= 0xE0000 && address <= 0xEFFFF)
+                data = ltems._8(address&0xFFFF);
+            else if (address < membytes.size)
             {
-                ++readonly_byte;
-                readonly_bytes[readonly_byte] = membytes.bytes[total_address];
-                return readonly_bytes[readonly_byte];
-            }
-
-            if ((total_address&0xF8000) == 0xB8000)
-            {
-                cga_used = true;
-                return cga.memory8(total_address&0x7FFF);
+                data = membytes.bytes[address];
             }
         }
-        return membytes.bytes[total_address];
+        else
+        {
+            data = membytes.bytes[address];
+        }
+        return data;
     }
-    u16& _16(u16 segment, u16 index)
+    void w8(u16 segment, u16 index, u8 data)
     {
-        u32 total_address = (((segment<<4)+index)&0xFFFFF);
+        u32 address = ((segment<<4)+index)&0xFFFFF;
         if (!testmode)
         {
-            if (total_address >= 0xF0000)
+            if (globalsettings.graphics == GlobalSettings::CGA && cga.address_in_memory_map(address))
+                cga.memory8(address-cga.MEMORY_MAP_START()) = data;
+            else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
+                hega.w8(address&0x1FFFF, data);
+            else if (address >= 0xE0000 && address <= 0xEFFFF)
+                ltems._8(address&0xFFFF) = data;
+            else if (address < membytes.size)
             {
-                ++readonly_word;
-                readonly_words[readonly_word] = *(u16*)(void*)(membytes.bytes+total_address);
-                return readonly_words[readonly_word];
-            }
-            if ((total_address&0xF0000) == 0xE0000)
-                return ltems._16(total_address&0xFFFF);
-            if ((total_address&0xF8000) == 0xB8000)
-            {
-                cga_used = true;
-                return cga.memory16(total_address&0x7FFF);
+                if (address >= 0xC0000 && address < 0x100000);
+                else
+                    membytes.bytes[address] = data;
             }
         }
-        rw_words[rw_word] = _8(segment,index);
-        rw_words[rw_word] |= (_8(segment,index+1) << 8);
-        rw_segs[rw_word] = segment;
-        rw_offsets[rw_word] = index;
-        ++rw_word;
-        return rw_words[rw_word-1];
-    }
-
-    void update()
-    {
-        for(int i=0; i<rw_word; ++i)
+        else
         {
-            _8(rw_segs[i], rw_offsets[i]) = (rw_words[i]&0xFF);
-            _8(rw_segs[i], rw_offsets[i]+1) = (rw_words[i]>>8);
+            membytes.bytes[address] = data;
         }
-        rw_word = 0;
+    }
+    u16 r16(u16 segment, u16 index)
+    {
+        u16 data{};
+        data |= r8(segment, index);
+        data |= u16(r8(segment, index+1))<<8;
+        return data;
+    }
+    void w16(u16 segment, u16 index, u16 data)
+    {
+        w8(segment,index,data&0xFF);
+        w8(segment,index+1,(data>>8));
     }
 };
 

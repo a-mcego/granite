@@ -131,7 +131,8 @@ struct CHIP8042 //AT keyboard etc
 
         //what
         cout << PRETTY_FUNCTION << " read from port: " << std::hex << 0x60+port << "??" << endl;
-        std::abort();
+        return 0;
+        //std::abort();
     }
 
     void write(u8 port, u8 data) //port from 0 to 4! inclusive. 0 is port 0x80, 4 is port 0x84 etc.
@@ -229,7 +230,7 @@ struct CHIP8042 //AT keyboard etc
             else
             {
                 std::cout << "Unknown kbd command: " << u32(command) << std::endl;
-                std::abort();
+                //std::abort();
             }
             command = 0x100;
             //std::cout << "result is " << u16(result) << std::endl;

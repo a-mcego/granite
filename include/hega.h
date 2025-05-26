@@ -32,6 +32,8 @@ struct HEGA
         0xFFFFFFFF,
     };
 
+    bool debugprint{};
+
     u32 mem[0x10000] = {}; //0x10000 per plane
 
     u32 latch{};
@@ -81,14 +83,19 @@ struct HEGA
     void w8(u32 address, u8 data)
     {
         if (!adjust_address_for_memory_map(address))
+        {
+            if (debugprint)
+                std::cout << "ega W?!" << std::endl;
             return;
+        }
+
+        if (debugprint)
+            std::cout << "ega W=" << std::hex << address << " writemode=" << (gfx_regs[MODE_REGISTER]&0x03) << std::endl;
 
         u32 bmask = gfx_regs[BIT_MASK];
         bmask |= bmask<<8;
         bmask |= bmask<<16;
-        u32 mask = BYTELOOKUP[seq_regs[MAP_MASK]&0x0F] & bmask;
-
-        u32 data32{};
+        u32 mask = BYTELOOKUP[seq_regs[MAP_MASK]&0x0F];// & bmask;
 
         if (chain() || w_oddeven())
         {
@@ -104,9 +111,26 @@ struct HEGA
         }
         address &= 0xFFFF;
 
+        u32 data32{};
         if ((gfx_regs[MODE_REGISTER]&0x03)==2)
         {
+            u8 function_select = (gfx_regs[DATA_ROTATE]>>3)&0x03;
             data32 = BYTELOOKUP[data&0x0F];
+
+            u8 rotate_amount = (gfx_regs[DATA_ROTATE]&0x07);
+            u32 lomask = 0xFF>>rotate_amount;
+            lomask |= lomask<<8;
+            lomask |= lomask<<16;
+            data32 = ((data32>>rotate_amount)&lomask) | ((data32<<(8-rotate_amount))&~lomask);
+
+            if (false);
+            else if(function_select == 1)
+                data32 &= latch;
+            else if(function_select == 2)
+                data32 |= latch;
+            else if(function_select == 3)
+                data32 ^= latch;
+
         }
         else if ((gfx_regs[MODE_REGISTER]&0x03)==1)
         {
@@ -145,7 +169,7 @@ struct HEGA
             mask=0;
         }
 
-        mem[address] = (data32&mask) | (mem[address]&~mask);
+        mem[address] = (data32&mask&bmask) | (latch&mask&~bmask) | (mem[address]&~mask);
     }
 
 
@@ -164,7 +188,15 @@ struct HEGA
     u8 r8(u32 address)
     {
         if (!adjust_address_for_memory_map(address))
+        {
+            if (debugprint)
+                std::cout << "ega R?!" << std::endl;
+            latch = 0xFFFFFFFF;
             return 0xFF;
+        }
+
+        if (debugprint)
+            std::cout << "ega R=" << std::hex << address << ", readmode=" << ((gfx_regs[MODE_REGISTER]&0x08)?"cmp":"norm") << " " << chain() << r_oddeven() << w_oddeven() << std::endl;
 
         u32 plane_id = (gfx_regs[READ_MAP_SELECT])&0x07;
         if (chain())
@@ -172,10 +204,12 @@ struct HEGA
             plane_id = (plane_id&0xFE) | (address & 1);
             address >>= 1;
         }
+        else if (r_oddeven() || w_oddeven())
+        {
+            plane_id = (plane_id&0xFE) | (address & 1);
+            address >>= 1;
+        }
 
-        u32 bmask = gfx_regs[BIT_MASK];
-        bmask |= bmask<<8;
-        bmask |= bmask<<16;
         latch = mem[address];
 
         u8 ret{};
@@ -191,10 +225,8 @@ struct HEGA
         }
         else //normal read
         {
-            u32 mask = get_write_mask();
-            ret = ((latch&mask)>>(plane_id<<3));
-            if (plane_id >= 4)
-                ret = 0;
+            u64 mask = 0xFFULL<<(plane_id<<3);
+            ret = (u64(latch&mask)>>(plane_id<<3));
         }
         return ret;
     }
@@ -361,14 +393,13 @@ struct HEGA
             //std::cout << "unknown" << std::endl;
             //std::abort();
         }
-        //if (port+0x3B0 != 0x3DA)
-        //    cout << globalsettings.current_IP << ": HEGA READ! " << u32(port+0x3B0) << ":" << u32(data) << std::endl;
+        if (debugprint)
+            cout << globalsettings.current_IP << ": HEGA READ! " << u32(port+port_add+0x3B0) << ":" << u32(data) << std::endl;
         return data;
     }
 
     void write(u8 port, u8 data) //port from 0 to 47! inclusive.
     {
-        //std::cout << std::hex;
         u8 port_add = (misc&0x01)?0x20:0x00;
 
         if (false);
@@ -381,14 +412,16 @@ struct HEGA
             else if(attr_choice < ATTR_REG_COUNT)
             {
                 attr_regs[attr_choice] = data;
-                //cout << globalsettings.current_IP << ": ega w attr " << u32(attr_choice) << ":" << u32(data) << std::endl;
+                if(debugprint)
+                    cout << globalsettings.current_IP << ": ega w attr " << u32(attr_choice) << ":" << u32(data) << std::endl;
             }
             attr_flipflop = !attr_flipflop;
         }
         else if (port == 0x12) // misc
         {
             misc = data;
-            //cout << globalsettings.current_IP << ": ega w misc " << u32(data) << std::endl;
+            if(debugprint)
+                cout << globalsettings.current_IP << ": ega w misc " << u32(data) << std::endl;
         }
         else if (port == 0x04+port_add) //choose crtc
         {
@@ -399,8 +432,9 @@ struct HEGA
             if (crtc_choice < CRTC_REG_COUNT)
             {
                 crtc_regs[crtc_choice] = data;
-                //if (crtc_choice != 0x0e && crtc_choice != 0x0F)//not cursor position
-                //    cout << globalsettings.current_IP << ": ega w crtc " << u32(crtc_choice) << ":" << u32(data) << std::endl;
+                if(debugprint)
+                    if (crtc_choice != 0x0e && crtc_choice != 0x0F)//not cursor position
+                        cout << globalsettings.current_IP << ": ega w crtc " << u32(crtc_choice) << ":" << u32(data) << std::endl;
             }
         }
         else if (port == 0x14) //choose seq
@@ -412,7 +446,8 @@ struct HEGA
             if (seq_choice < SEQ_REG_COUNT)
             {
                 seq_regs[seq_choice] = data;
-                //cout << globalsettings.current_IP << ": ega w seq  " << u32(seq_choice) << ":" << u32(data) << std::endl;
+                if(debugprint)
+                    cout << globalsettings.current_IP << ": ega w seq  " << u32(seq_choice) << ":" << u32(data) << std::endl;
             }
         }
         else if (port == 0x1C)
@@ -435,7 +470,8 @@ struct HEGA
             if (gfx_choice < GFX_REG_COUNT)
             {
                 gfx_regs[gfx_choice] = data;
-                //cout << globalsettings.current_IP << ": ega w gfx  " << u32(gfx_choice) << ":" << u32(data) << std::endl;
+                if(debugprint)
+                    cout << globalsettings.current_IP << ": ega w gfx  " << u32(gfx_choice) << ":" << u32(data) << std::endl;
             }
         }
         else if (port == 0x08+port_add); //3B8/3D8 ? bios does writes to these.
@@ -716,9 +752,7 @@ struct HEGA
                     }
                     color |= color >> 14;
                     //0b0000000a'000000ab'00000abc'0000abcd
-                    //color &= seq_regs[MAP_MASK]&0x0F;
                     color &= attr_regs[COLOR_PLANE_ENABLE]&0x0F;
-                    //color &= 0x0F;
                     //0b00000000'00000000'00000000'0000abcd
                 }
                 color = attr_regs[color];

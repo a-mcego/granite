@@ -812,6 +812,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                 globalsettings.sound_on = !globalsettings.sound_on;
                 cout << "Sound " << (globalsettings.sound_on?"on":"off") << endl;
             }
+            else if (key == GLFW_KEY_M)
+            {
+                mac.p.hega.debugprint = !mac.p.hega.debugprint;
+            }
             else if (key == GLFW_KEY_D)
             {
                 globalsettings.entertrace = !globalsettings.entertrace;
@@ -1274,7 +1278,8 @@ void configline(std::string line)
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
             //startprinting=true;
             bool test_passed = true;
-            CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
+            //CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
+            CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
             testcpu.mem.testmode = true;
             globalsettings.A20 = false;
             testcpu.reset();
@@ -1297,7 +1302,7 @@ void configline(std::string line)
                 mac.p.membytes.bytes[address] = value;
             }
 
-            testcpu.load_tmp_segs_for_test();
+            //testcpu.load_tmp_segs_for_test();
             //testcpu.print_regs();
             do
             {
@@ -1305,7 +1310,7 @@ void configline(std::string line)
             } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
 
             //std::cout << "cycles:" << cycles << std::endl;
-            testcpu.store_tmp_segs_for_test();
+            //testcpu.store_tmp_segs_for_test();
             //testcpu.print_regs();
 
             for(int i=0; i<14; ++i)

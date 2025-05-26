@@ -359,46 +359,6 @@ struct CPU80286
         return ret;
     }
 
-    /*void decode_modrm(u8 mod, u8 rm)
-    {
-        //std::cout << "decode modrm: " << u16(mod) << " " << u16(rm) << " " << std::endl;
-        modrm_offset = 0;
-        SEG segname = SEG::DS;
-
-		if (mod == 0x1)
-        {
-			modrm_offset = i16(read_inst<i8>());
-        }
-		else if (mod == 0x2)
-        {
-			modrm_offset = read_inst<u16>();
-        }
-
-        cycles_used += effective_address_cycles[(mod<<3)+rm];
-
-		if (mod == 0x00 && rm == 0x06)
-        {
-			modrm_offset += read_inst<u16>();
-        }
-		else
-		{
-			if (rm < 0x06)
-            {
-				modrm_offset += registers[SI+(rm&0x01)]; //DI is after SI
-            }
-			if (((rm+1)&0x07) <= 2)
-            {
-				modrm_offset += registers[BX];
-            }
-			if ((rm&0x02) && rm != 7)
-            {
-				modrm_offset += registers[BP], segname = SEG::SS;
-            }
-		}
-        modrm_segment = get_offset(get_segment(segname));//registers[get_segment(segment)];
-        //std::cout << "   result: " << segment << "+" << offset << "=" << segment+offset << std::endl;
-    }*/
-
     void decode_modrm(u8 modrm)
     {
         u8 mod = (modrm >> 6) & 0x03;
@@ -445,72 +405,6 @@ struct CPU80286
                 std::cout << "modrm read: " << readM(16) << std::endl;
         }
     }
-
-    /*u32 decode_modrm_fulladdr(u8 modrm)
-    {
-        u8 mod = (modrm >> 6) & 0x03;
-        modrm_rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-			return get_r8(modrm_rm);
-        }
-        decode_modrm(mod,modrm_rm);
-        modrm_r = (modrm>>3)&0x07;
-        return modrm_seg+modrm_offset;
-    }
-
-    u8& decode_modrm_u8(u8 modrm)
-    {
-        //std::cout << "decodemodrm u8: " << u16(modrm) << endl;
-        u8 mod = (modrm >> 6) & 0x03;
-        u8 rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-			return get_r8(rm);
-        }
-        u16 offset{};
-        u32 segment{};
-        decode_modrm(mod,rm,segment,offset);
-        //if constexpr (DEBUG_LEVEL > 1)
-        //    cout << "MEM8! " << segment << ":" << offset << " has " << u32(mem._8(segment, offset)) << " prm=" << u32(mod) << "," << u32(rm) << endl;
-        return mem.direct8(segment+offset);
-    }
-
-    u16& decode_modrm_u16(u8 modrm)
-    {
-        u8 mod = (modrm >> 6) & 0x03;
-        u8 rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-			return get_r16(rm);
-        }
-        u16 offset{};
-        u32 segment{};
-        decode_modrm(mod,rm,segment,offset);
-        return mem.direct16(segment+offset);
-    }*/
-
-    /*u16 effective_address(u8 modrm)
-    {
-        u8 mod = (modrm >> 6) & 0x03;
-        u8 rm = modrm & 0x07;
-        modrm_is_register = (mod==0x03);
-		if (mod == 0x03)
-        {
-            cout << "Loading effective address of a register? are you gone mad?" << endl;
-            return 0;
-        }
-        u16 offset{};
-        u32 segment{};
-        decode_modrm(mod,rm,segment,offset);
-        //if constexpr (DEBUG_LEVEL > 1)
-        //    cout << "LEA! " << segment << ":" << offset << " has " << mem._16(segment, offset) << " prm=" << u32(mod) << "," << u32(rm) << endl;
-        return offset;
-    }*/
-
 
     u8* reg8() { return (u8*)(void*)registers; }
 
@@ -1531,37 +1425,17 @@ struct CPU80286
             {
                 u16& r = get_r16((modrm>>3)&0x07);
                 if (instruction&0x02) // towards general register
-                {
-                   r = readM(16);
-                }
+                    r = readM(16);
                 else
-                {
                     writeM(r, 16);
-                }
-
-                /*u16& rm = decode_modrm_u16(modrm);
-                u16& r = get_r16((modrm>>3)&0x07);
-                u16& rout = (instruction&0x02?r:rm);
-                u16& rin = (instruction&0x02?rm:r);
-                rout = rin;*/
             }
             else//8bit
             {
                 u8& r = get_r8((modrm>>3)&0x07);
                 if (instruction&0x02) // towards general register
-                {
-                   r = readM(8);
-                }
+                    r = readM(8);
                 else
-                {
                     writeM(r, 8);
-                }
-
-                /*u8& rm = decode_modrm_u8(modrm);
-                u8& r = get_r8((modrm>>3)&0x07);
-                u8& rout = (instruction&0x02?r:rm);
-                u8& rin = (instruction&0x02?rm:r);
-                rout = rin;*/
             }
 
             if (modrm_is_register)
