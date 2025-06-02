@@ -3,7 +3,7 @@
 struct CHIP8255 //PC/XT keyboard etc
 {
     CHIP8259& pic;
-    CHIP8255(CHIP8259& pic_) : pic(pic_) {}
+    CHIP8255(CHIP8259& pic_) : pic(pic_) { set_video_type(CGA80); }
 
     static const u8 FLOPPY_DRIVES = 2;
     static const u8 HAS_8087 = 0;
@@ -16,14 +16,23 @@ struct CHIP8255 //PC/XT keyboard etc
         CGA80=0x20,
         MDA=0x30
     };
-    static const VIDEO_CARD_TYPES VIDEO_CARD_TYPE = V_OTHER;
 
-    //onboard DIP switches
+    VIDEO_CARD_TYPES video_card_type = CGA80;
 
-    static const u8 SW1 = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
+    void set_video_type(VIDEO_CARD_TYPES type)
+    {
+        video_card_type = type;
+        setup_switches();
+    }
+
+    void setup_switches()
+    {
+        SW1 = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|video_card_type|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
+    }
+
+    //onboard DIP switches, SW1 is for XT as well
+    u8 SW1{};
     static const u8 SW2 = 0b1'1'1'1'0'0'1'0;//TODO: make these into setuppable bools
-
-    static const u8 XT_SW = (FLOPPY_DRIVES>0?0x01:0x00)|(HAS_8087?0x02:0x00)|((MEMORY_BANKS-1)<<2)|VIDEO_CARD_TYPE|(FLOPPY_DRIVES>0?(FLOPPY_DRIVES-1)<<6:0);
 
     u8 regs[4] = {};
     u8 keyboard_self_test{0}; //if > 0, is doing a self test
@@ -86,11 +95,11 @@ struct CHIP8255 //PC/XT keyboard etc
             {
                 if (regs[1]&0x08)
                 {
-                    value |= (XT_SW&0xF0)>>4;
+                    value |= (SW1&0xF0)>>4;
                 }
                 else
                 {
-                    value |= XT_SW&0x0F;
+                    value |= SW1&0x0F;
                 }
             }
             else if (globalsettings.machine == globalsettings.MACHINE_PC)

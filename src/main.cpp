@@ -1109,10 +1109,19 @@ void configline(std::string line)
         std::string gputype;
         iss >> gputype;
 
-        if (gputype == "cga")
+        if (gputype == "cga" || gputype == "cga80" || gputype == "cga40")
+        {
             globalsettings.graphics = GlobalSettings::GRAPHICS::CGA;
+            if (gputype == "cga40")
+                mac.p.kbd_xt.set_video_type(CHIP8255::CGA40);
+            else
+                mac.p.kbd_xt.set_video_type(CHIP8255::CGA80);
+        }
         else if (gputype == "ega" || gputype == "hega")
+        {
             globalsettings.graphics = GlobalSettings::GRAPHICS::HEGA;
+            mac.p.kbd_xt.set_video_type(CHIP8255::V_OTHER);
+        }
         else
             std::cout << "ERROR unknown gpu: " << gputype << std::endl;
     }
