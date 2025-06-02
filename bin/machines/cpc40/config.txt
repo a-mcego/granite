@@ -1,0 +1,28 @@
+cpu 286
+cpu_multiplier 44/105
+#cpu_multiplier 44/63
+
+machine at
+rom f8000 rom/atbios/commodore-pcat-bios-U82-low.bin stride=2
+rom f8001 rom/atbios/commodore-pcat-bios-U80-high.bin stride=2
+#rom f0000 rom/atbios/BIOS_5170_15NOV85_U27_62X0820_27256.BIN stride=2
+#rom f0001 rom/atbios/BIOS_5170_15NOV85_U47_62X0821_27256.BIN stride=2
+
+#gpu cga
+
+gpu ega
+rom c0000 rom/ct-8190s_v3.32.bin
+#rom c0000 rom/IBM_EGA.rom
+
+load a disk/cpc40/disk1.img
+load b disk/cpc40/disk2.img
+#load b disk/ega/egad.img
+#load b disk/ega/EGA-FLANDA.img
+#load b disk/ega/egatrek.img
+#load b disk/ega/EGA-UTILS.img
+#load b disk/ibm286diag.img
+load c cpc40.img chs=615,4,17
+
+sound on
+#trace
+cmos_file cpc40.cmos

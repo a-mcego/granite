@@ -1,0 +1,30 @@
+cpu 8086
+cpu_multiplier 2/3
+#cpu_multiplier 10/6
+#cpu 286
+#cpu_multiplier 25/36
+#cpu_multiplier 5/6
+
+
+#basic
+#rom f6000 rom/basic/basicc1.0.f600.bin
+#rom f8000 rom/basic/basicc1.0.f800.bin
+#rom fa000 rom/basic/basicc1.0.fa00.bin
+#rom fc000 rom/basic/basicc1.0.fc00.bin
+
+machine xt
+rom fe000 rom/deskpro_8086.bin
+
+rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
+
+load a disk/cpc40/disk1.img
+load c cdisk.img chs=375,8,17
+#load d ddisk.img chs=375,8,17
+#load d bigdisk.img chs=615,8,17
+load d geos.img chs=615,8,17
+
+#load c ddisk.img
+#load d edisk.img
+
+sound on
+#trace

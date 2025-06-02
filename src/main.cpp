@@ -55,6 +55,16 @@ bool startprinting=false;
 bool turbo = false;
 bool lockstep = true;
 
+bool file_exists(const std::string& filename)
+{
+    bool exists{};
+    FILE* filu = fopen(filename.c_str(), "rb");
+    exists = (filu!=nullptr);
+    if (exists)
+        fclose(filu);
+    return exists;
+}
+
 #include "cgabios.h" //cga character ROM
 
 struct GlobalSettings
@@ -94,6 +104,9 @@ struct GlobalSettings
 
     u8 global_port0x61{0x00}; //system control port B
     u64 cycles{};
+    std::string machineName;
+
+
 const u32 DEBUG_LEVEL = 0;
 
 const u32 PRINT_START = 0;
@@ -1185,6 +1198,11 @@ void configline(std::string line)
         }
         else if (drive_number >= 2 && drive_number < 4)
         {
+            if (!file_exists(image_filename))
+            {
+                image_filename = "hd/" + image_filename;
+            }
+
             cout << "Loading hard disk from " << image_filename << endl;
 
             int c = 375;
@@ -1240,7 +1258,10 @@ void configline(std::string line)
     else if (command == "cmos_file")
     {
         std::string filename;
-        iss >> mac.p.cmos.filename;
+        iss >> filename;
+
+        mac.p.cmos.filename = machineName + "/" + filename;
+
         mac.p.cmos.load();
         mac.p.cmos.update_time();
     }
@@ -1703,7 +1724,8 @@ int main(int argc, char* argv[])
     std::string configFilename = "config.txt";
     if (argc > 1)
     {
-        configFilename = argv[1];
+        machineName = std::string("machines/") + argv[1];
+        configFilename = machineName+"/"+configFilename;
     }
 
     mac.p.membytes.set_size((2)<<20);
