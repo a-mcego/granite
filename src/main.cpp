@@ -1056,7 +1056,6 @@ void configline(std::string line)
         std::string cputype;
         iss >> cputype;
 
-        //TODO: set queue size as per 6/8 cpu (not 80286)
         if (cputype == "8086" || cputype == "86")
             mac.init_cpu(0,6);
         else if (cputype == "8088" || cputype == "88")
@@ -1441,7 +1440,7 @@ void readConfigFile(const std::string& filename)
     {
         if (rom.data.size() >= 16 && memcmp(xebecHeader, rom.data.data(), 16) == 0)
         {
-            std::cout << "zebec found" << std::endl;
+            std::cout << "xebec found" << std::endl;
 
             const u32 chs_data_offset = 0x3E7;
 
