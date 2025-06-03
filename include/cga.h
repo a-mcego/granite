@@ -482,7 +482,7 @@ struct GA
 
         if (output == OUTPUT::RGB)
         {
-            if (is_graphics_mode && !textmode_40_80)
+            if (is_graphics_mode & !textmode_40_80)
             {
                 int x = column>>3;
                 u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
@@ -491,101 +491,63 @@ struct GA
                 if (aga_select&0x80)
                 {
                     gfx_byte2 = memory8_internal(offset^0x8000);
+                    resolution = false;
                 }
                 else if (colorplan_mode)
                 {
                     gfx_byte2 = memory8_internal(offset^0x4000);
                     resolution = bool(aga_select&0x20);
                 }
-                u8 bg_col = (resolution && !(aga_select&0x80)?0:palette[0]);
+                u8 bg_col = ((resolution | hsync | vsync)?0:palette[0]);
 
-                if (aga_select&0x80)
+                for(int i=0; i<4; ++i)
                 {
-                    for(int i=0; i<4; ++i)
+                    u8 p1{bg_col};
+                    u8 p2{bg_col};
+
+                    if (draw_bg);
+                    else if (aga_select&0x80)
                     {
-                        u8 p1{};
-                        u8 p2{};
-                        if (hsync|vsync);
-                        else if (draw_bg)
+                        p1 = (gfx_byte>>6)|((gfx_byte2>>4)&0x0C);
+                        p1 = ((p1>>3)&0x01) | ((p1<<1)&0x0E);
+                    }
+                    else if (colorplan_mode)
+                    {
+                        if (resolution)
                         {
-                            p1 = bg_col;
-                            p2 = bg_col;
+                            p1 = (gfx_byte>>7)|((gfx_byte2>>7)<<1);
+                            p2 = ((gfx_byte>>6)&1)|((gfx_byte2>>5)&2);
+
+                            p1 = palette[p1];
+                            p2 = palette[p2];
                         }
                         else
                         {
                             p1 = (gfx_byte>>6)|((gfx_byte2>>4)&0x0C);
                             p1 = ((p1>>3)&0x01) | ((p1<<1)&0x0E);
-                            p2 = p1;
                         }
-
-                        monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-                        //monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-                        gfx_byte <<= 2;
-                        gfx_byte2 <<= 2;
                     }
-                }
-                else if (colorplan_mode)
-                {
-                    for(int i=0; i<4; ++i)
+                    else
                     {
-                        u8 p1{};
-                        u8 p2{};
-
-                        if (hsync|vsync);
-                        else if (draw_bg)
+                        if (resolution)
                         {
-                            p1 = bg_col;
-                            p2 = bg_col;
+                            p1 = (gfx_byte&0x80)?palette[0]:0;
+                            p2 = (gfx_byte&0x40)?palette[0]:0;
                         }
                         else
                         {
-                            if (resolution)
-                            {
-                                p1 = (gfx_byte>>7)|((gfx_byte2>>7)<<1);
-                                p2 = ((gfx_byte>>6)&1)|((gfx_byte2>>5)&2);
-
-                                p1 = palette[p1];
-                                p2 = palette[p2];
-                            }
-                            else
-                            {
-                                p1 = (gfx_byte>>6)|((gfx_byte2>>4)&0x0C);
-                                p1 = ((p1>>3)&0x01) | ((p1<<1)&0x0E);
-                                p2 = p1;
-                            }
+                            p1 = palette[(gfx_byte&0xC0)>>6];
                         }
-
-                        monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-                        monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-                        gfx_byte <<= 2;
-                        gfx_byte2 <<= 2;
                     }
-                }
-                else
-                {
-                    for(int i=0; i<4; ++i)
+
+                    monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                    if (resolution)
                     {
-                        u8 p1{};
-                        u8 p2{};
-
-                        if (hsync|vsync);
-                        else if (draw_bg)
-                        {
-                            p1 = bg_col;
-                            p2 = bg_col;
-                        }
-                        else
-                        {
-                            p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
-                            p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
-                        }
-
-                        monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
                         monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
-                        gfx_byte <<= 2;
                     }
+                    gfx_byte <<= 2;
+                    gfx_byte2 <<= 2;
                 }
-
             }
             else
             {
