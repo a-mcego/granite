@@ -100,7 +100,7 @@ struct GA
             return ((start[color]+(mask[color]&pos))&4)?1.0f:0.0f;
         }
 
-        u8 curr_idx[4] = {};
+        /*u8 curr_idx[4] = {};
         bool intense[4] = {false, false, false, false};
         void Clear()
         {
@@ -109,7 +109,7 @@ struct GA
                 curr_idx[i] = 0;
                 intense[i] = false;
             }
-        }
+        }*/
 
         /*void Set(u8 position, u8 color_index)
         {
@@ -485,22 +485,32 @@ struct GA
             if (is_graphics_mode && !textmode_40_80)
             {
                 int x = column>>3;
-                //u32 offset = current_startaddress + (line_inside_character&1?0x2000:0) + logical_line*registers[H_DISPLAYED]*2+x;
+                u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
+                u8 gfx_byte = memory8_internal(offset);
+                u8 gfx_byte2{};
                 if (aga_select&0x80)
                 {
-                    u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
-                    u8 gfx_byte = memory8_internal(offset);
-                    u8 gfx_byte2 = memory8_internal(offset^0x8000);
+                    gfx_byte2 = memory8_internal(offset^0x8000);
+                }
+                else if (colorplan_mode)
+                {
+                    gfx_byte2 = memory8_internal(offset^0x4000);
+                    resolution = bool(aga_select&0x20);
+                }
+                u8 bg_col = (resolution && !(aga_select&0x80)?0:palette[0]);
 
-                    for(int i=0; i<8; i+=2)
+                if (aga_select&0x80)
+                {
+                    for(int i=0; i<4; ++i)
                     {
-                        u8 p1{},p2{};
-                        if (draw_bg)
+                        u8 p1{};
+                        u8 p2{};
+                        if (hsync|vsync);
+                        else if (draw_bg)
                         {
-                            p1 = palette[0], p2 = palette[0];
+                            p1 = bg_col;
+                            p2 = bg_col;
                         }
-                        else if (hsync|vsync)
-                            p1 = 0, p2 = 0;
                         else
                         {
                             p1 = (gfx_byte>>6)|((gfx_byte2>>4)&0x0C);
@@ -516,25 +526,17 @@ struct GA
                 }
                 else if (colorplan_mode)
                 {
-                    resolution = bool(aga_select&0x20);
-                    u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
-                    u8 gfx_byte = memory8_internal(offset);
-                    u8 gfx_byte2 = memory8_internal(offset^0x4000);
-
-                    for(int i=0; i<8; i+=2)
+                    for(int i=0; i<4; ++i)
                     {
-                        u8 p1 = {};
-                        u8 p2 = {};
+                        u8 p1{};
+                        u8 p2{};
 
-                        if (draw_bg)
+                        if (hsync|vsync);
+                        else if (draw_bg)
                         {
-                            if (!resolution)
-                                p1 = palette[0], p2 = palette[0];
-                            else
-                                p1 = 0, p2 = 0;
+                            p1 = bg_col;
+                            p2 = bg_col;
                         }
-                        else if (hsync|vsync)
-                            p1 = 0, p2 = 0;
                         else
                         {
                             if (resolution)
@@ -561,23 +563,22 @@ struct GA
                 }
                 else
                 {
-                    u32 offset = current_startaddress + (line_inside_character<<13) + logical_line*registers[H_DISPLAYED]*2+x;
-                    u8 gfx_byte = memory8_internal(offset);
-
-                    for(int i=0; i<8; i+=2)
+                    for(int i=0; i<4; ++i)
                     {
-                        u8 p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
-                        u8 p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
+                        u8 p1{};
+                        u8 p2{};
 
-                        if (draw_bg)
+                        if (hsync|vsync);
+                        else if (draw_bg)
                         {
-                            if (!resolution)
-                                p1 = palette[0], p2 = palette[0];
-                            else
-                                p1 = 0, p2 = 0;
+                            p1 = bg_col;
+                            p2 = bg_col;
                         }
-                        if (hsync|vsync)
-                            p1 = 0, p2 = 0;
+                        else
+                        {
+                            p1 = (resolution?((gfx_byte&0x80)?palette[0]:0):palette[(gfx_byte&0xC0)>>6]);
+                            p2 = (resolution?((gfx_byte&0x40)?palette[0]:0):p1);
+                        }
 
                         monitor_cycle(((p1&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
                         monitor_cycle(((p2&0x0F)<<1)|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
@@ -668,5 +669,5 @@ struct GA
     }
 };
 
-using CGA = GA<0x4000, false>;
-using AGA = GA<0x10000, true>;
+using AGA = GA<0x4000, false>;
+using CGA = GA<0x10000, true>;
