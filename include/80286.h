@@ -120,10 +120,10 @@ struct CPU80286
                     std::cout << "first 16 entries: " << std::endl;
                     for(int i=0; i<16; ++i)
                     {
-                        u16 word1 = mem.r16(table.base+(i*8));
-                        u16 word2 = mem.r16(table.base+(i*8+2));
-                        u16 word3 = mem.r16(table.base+(i*8+4));
-                        std::cout << "entry " << i << " words: " << word1 << " " << word2 << " " << word3 << std::endl;
+                        u16 entry_word1 = mem.r16(table.base+(i*8));
+                        u16 entry_word2 = mem.r16(table.base+(i*8+2));
+                        u16 entry_word3 = mem.r16(table.base+(i*8+4));
+                        std::cout << "entry " << i << " words: " << entry_word1 << " " << entry_word2 << " " << entry_word3 << std::endl;
                     }
                 }
             }
@@ -587,26 +587,26 @@ struct CPU80286
         return u32(descriptor_cache[(int)SEG::CS].base) + u32(registers[IP]);
     }
 
-    void divide_by_zero(u16 original_ip)
+    void divide_by_zero(u16 original_ip_value)
     {
-        registers[IP] = original_ip;
+        registers[IP] = original_ip_value;
         interrupt(0, true);
     }
-    void invalid_instruction(u16 original_ip)
+    void invalid_instruction(u16 original_ip_value)
     {
         //cout << "Invalid instruction." << endl;
-        registers[IP] = original_ip;
+        registers[IP] = original_ip_value;
         interrupt(6, true);
     }
-    void outside_bound(u16 original_ip)
+    void outside_bound(u16 original_ip_value)
     {
         //cout << "Bounds violation." << endl;
-        registers[IP] = original_ip;
+        registers[IP] = original_ip_value;
         interrupt(5, true);
     }
-    void protection_fault(u16 original_ip, u16 error_code)
+    void protection_fault(u16 original_ip_value, u16 error_code)
     {
-        registers[IP] = original_ip;
+        registers[IP] = original_ip_value;
         interrupt(13, true, true, error_code);
         std::cout << "-------------------PROTECTION FAULT----------------- at " << full_ip() << std::endl;
         print_regs();
@@ -959,8 +959,8 @@ struct CPU80286
                 u16 port = registers[DX];
                 if (string_prefix == 0)
                 {
-                    u16 word = iosystem.io_in<u16>(port);
-                    mem.w16(get_offset(SEG::ES) + registers[DI], word);
+                    u16 data = iosystem.io_in<u16>(port);
+                    mem.w16(get_offset(SEG::ES) + registers[DI], data);
                     registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                     cycles_used += 5; //286
                 }
@@ -968,8 +968,8 @@ struct CPU80286
                 {
                     while (registers[CX] != 0)
                     {
-                        u16 word = iosystem.io_in<u16>(port);
-                        mem.w16(get_offset(SEG::ES) + registers[DI], word);
+                        u16 data = iosystem.io_in<u16>(port);
+                        mem.w16(get_offset(SEG::ES) + registers[DI], data);
                         registers[DI] += flag(F_DIRECTIONAL) ? -2 : 2;
                         registers[CX] -= 1;
                         cycles_used += 5; //286

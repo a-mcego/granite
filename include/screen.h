@@ -33,7 +33,7 @@ struct SCREEN
     }
     void remake_buffers()
     {
-        shaderProgram = createShaderProgram(vertexSource, fragmentSource, X, Y);
+        shaderProgram = createShaderProgram(vertexSourceMain, fragmentSourceMain, X, Y);
         glDeleteTextures(2, textures);
         glGenTextures(2, textures);
         glActiveTexture(GL_TEXTURE0);

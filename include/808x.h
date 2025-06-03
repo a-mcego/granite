@@ -37,7 +37,7 @@ struct CPU8086
             LRCY,
             COM1
         };
-        enum FLAG
+        enum FLAG_MASK
         {
             CARRY=(1<<0),
             PARITY=(1<<2),

@@ -172,19 +172,6 @@ struct HEGA
         mem[address] = (data32&mask&bmask) | (latch&mask&~bmask) | (mem[address]&~mask);
     }
 
-
-    u8 reverse_bits(u8 byte)
-    {
-        u8 result = 0;
-        for (int i = 0; i < 8; i++)
-        {
-            result <<= 1;
-            result |= (byte&1);
-            byte >>= 1;
-        }
-        return result;
-    }
-
     u8 r8(u32 address)
     {
         if (!adjust_address_for_memory_map(address))
@@ -432,6 +419,17 @@ struct HEGA
             if (crtc_choice < CRTC_REG_COUNT)
             {
                 crtc_regs[crtc_choice] = data;
+
+                u16 v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000);
+                v_retrace_end = v_retrace_start;
+                while((v_retrace_end&0x0F) != (crtc_regs[V_RETRACE_END]&0x0F))
+                    ++v_retrace_end;
+
+                h_retrace_end = crtc_regs[H_RETRACE_START];
+                while ((h_retrace_end&0x0F) != (crtc_regs[H_RETRACE_END]&0x0F))
+                    ++h_retrace_end;
+
+
                 if(debugprint)
                     if (crtc_choice != 0x0e && crtc_choice != 0x0F)//not cursor position
                         cout << globalsettings.current_IP << ": ega w crtc " << u32(crtc_choice) << ":" << u32(data) << std::endl;
@@ -608,6 +606,8 @@ struct HEGA
     bool hsync{}, vsync{};
     u32 hsync_monitor_ctr{}; //32-96 hdots
     u32 vsync_monitor_ctr{};
+    u16 v_retrace_end{};
+    u16 h_retrace_end{};
 
     void cycle() //8 hdots per cycle
     {
@@ -627,19 +627,11 @@ struct HEGA
         bit 5: cursor location 0x0A
         */
         u16 v_total = crtc_regs[V_TOTAL] + ((crtc_regs[OVERFLOW]&0x01)?0x100:0x000);
-        u16 v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000);
+        //u16 v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000);
         u16 v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000);
         u16 vblank_start = crtc_regs[V_BLANK_START] + ((crtc_regs[OVERFLOW]&0x08)?0x100:0x000);
-        u16 linecompare = crtc_regs[LINE_COMPARE] + ((crtc_regs[OVERFLOW]&0x10)?0x100:0x000);
-        u16 cursor_loc_h = crtc_regs[CURSOR_LOC_H] + ((crtc_regs[OVERFLOW]&0x20)?0x100:0x000);
-
-        u16 v_retrace_end = v_retrace_start;
-        while((v_retrace_end&0x0F) != (crtc_regs[V_RETRACE_END]&0x0F))
-            ++v_retrace_end;
-
-        u16 h_retrace_end = crtc_regs[H_RETRACE_START];
-        while ((h_retrace_end&0x0F) != (crtc_regs[H_RETRACE_END]&0x0F))
-            ++h_retrace_end;
+        //u16 linecompare = crtc_regs[LINE_COMPARE] + ((crtc_regs[OVERFLOW]&0x10)?0x100:0x000);
+        //u16 cursor_loc_h = crtc_regs[CURSOR_LOC_H] + ((crtc_regs[OVERFLOW]&0x20)?0x100:0x000);
 
         column += 8;
         column = (column>=(crtc_regs[H_TOTAL]+2)*hsync_mult?0:column);
@@ -694,12 +686,6 @@ struct HEGA
 
         vertical_retrace = (scan_line >= v_retrace_start && scan_line <= v_retrace_end);
         horizontal_retrace = (column >= (crtc_regs[H_RETRACE_START])*hsync_mult && column <= (h_retrace_end)*hsync_mult);
-
-        u8 resolution = true;
-        bool output_enabled = !(misc&0x10);
-
-        //const u8 add = ((color_select&0x10)?8:0) + ((color_select&0x20)?1:0);
-        const u8 palette[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 
         retrace = (vertical_retrace|horizontal_retrace);
 

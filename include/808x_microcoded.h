@@ -131,7 +131,7 @@ struct CPU8088MC
             INC2 = 28,
             DEC2 = 29,
         };
-        enum FLAG
+        enum FLAG_MASK
         {
             CARRY=(1<<0),
             PARITY=(1<<2),

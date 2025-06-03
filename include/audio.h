@@ -17,7 +17,7 @@ bool audio_started{false};
 i16 audio_buffer[1<<16] = {};
 u16 audio_write_offset{};
 u16 audio_read_offset{};
-void audio_method3(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+void audio_method3([[maybe_unused]] ma_device* pDevice, void* pOutput, [[maybe_unused]] const void* pInput, ma_uint32 frameCount)
 {
     u16 offset_end = audio_write_offset;
     if (!audio_started)

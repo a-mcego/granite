@@ -1,6 +1,6 @@
 #pragma once
 
-const char* vertexSource = R"glsl(#version 430
+const char*const vertexSourceMain = R"glsl(#version 430
 void main()
 {
     float x = float(gl_VertexID)-1.0;
@@ -14,7 +14,7 @@ const float SCREEN_Y = 960.0;
 //const float SCREEN_X = 912.0*1.5;
 //const float SCREEN_Y = 262.0*3.0;
 
-const char* fragmentSource = R"glsl(#version 430
+const char*const fragmentSourceMain = R"glsl(#version 430
 out vec4 color;
 uniform sampler2D TextureSampler;
 uniform float screenSizeX;

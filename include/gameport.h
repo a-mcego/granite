@@ -23,9 +23,9 @@ struct Gameport
     u32 axis_to_counter(i16 axis_value)
     {
         //u32 resistor = u32((u64(axis_value+32768)*100000ULL)>>16); //ohms
-        u32 cycles = u32((i32(axis_value)+32768)>>2) + 384; //cycles
-        //cout << std::dec << axis_value << " -> " << cycles/(14.318180) << "us" << std::hex << endl;
-        return u32(cycles);
+        u32 gameport_cycles = u32((i32(axis_value)+32768)>>2) + 384; //gameport_cycles
+        //cout << std::dec << axis_value << " -> " << gameport_cycles/(14.318180) << "us" << std::hex << endl;
+        return u32(gameport_cycles);
     }
 
     void set_button_state(u8 button, bool is_on)
@@ -33,14 +33,14 @@ struct Gameport
         reg = (reg&~(0x10<<button)) | (is_on?0:(0x10<<button));
     }
 
-    void write(u8 port, u8 data) //port from 0 to 0! inclusive.
+    void write([[maybe_unused]] u8 port, [[maybe_unused]] u8 data) //port from 0 to 0! inclusive.
     {
         reg |= 0x0F;
         for(int axis=0; axis<4; ++axis)
             counters[axis] = axis_to_counter(axes[axis]);
     }
 
-    u8 read(u8 port) //port from 0 to 0! inclusive.
+    u8 read([[maybe_unused]] u8 port) //port from 0 to 0! inclusive.
     {
         return reg;
     }

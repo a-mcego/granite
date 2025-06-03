@@ -811,7 +811,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         mac.p.gameport.set_button_state(3, action == GLFW_PRESS);*/
 }
 
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+void key_callback([[maybe_unused]] GLFWwindow* window, int key, [[maybe_unused]] int scancode, int action, [[maybe_unused]] int mods)
 {
     if (action != GLFW_PRESS && action != GLFW_RELEASE)
         return;
@@ -1509,7 +1509,7 @@ enum struct InputEventSTATE
     N
 };
 
-void gamepadbuttonfun(int joy_id, int key_id, InputEventSTATE action)
+void gamepadbuttonfun([[maybe_unused]] int joy_id, int key_id, InputEventSTATE action)
 {
     if (key_id >= 0 && key_id <= 3)
     {

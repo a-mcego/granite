@@ -12,7 +12,13 @@
 				<Option type="1" />
 				<Option compiler="gnu_gcc_newest_compiler" />
 				<Compiler>
-					<Add option="-gdwarf-4 -O3 -std=c++23 -Werror=return-type" />
+					<Add option="-O3 -std=c++23" />
+					<Add option="-Wall -Wextra -Werror=return-type -Werror=unused-value" />
+					<Add option="-Wshadow -Werror=shadow" />
+					<Add option="-ftemplate-backtrace-limit=0 -fno-omit-frame-pointer" />
+					<Add option="-Wno-sign-compare -fno-exceptions" />
+					<Add option="-Wpessimizing-move -Wredundant-move -Wint-to-pointer-cast" />
+					<Add option="-Wparentheses -Werror=parentheses" />
 					<Add directory="include" />
 				</Compiler>
 				<Linker>

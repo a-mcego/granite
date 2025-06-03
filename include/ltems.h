@@ -11,7 +11,7 @@ struct LTEMS
     {
         pages[port] = u32(data)*0x4000U;
     }
-    u8 read(u8 port) // no port is readable
+    u8 read([[maybe_unused]] u8 port) // no port is readable
     {
         return 0;
     }
