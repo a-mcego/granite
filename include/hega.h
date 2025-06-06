@@ -627,7 +627,7 @@ struct HEGA
         bit 5: cursor location 0x0A
         */
         u16 v_total = crtc_regs[V_TOTAL] + ((crtc_regs[OVERFLOW]&0x01)?0x100:0x000);
-        //u16 v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000);
+        u16 v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000);
         u16 v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000);
         u16 vblank_start = crtc_regs[V_BLANK_START] + ((crtc_regs[OVERFLOW]&0x08)?0x100:0x000);
         //u16 linecompare = crtc_regs[LINE_COMPARE] + ((crtc_regs[OVERFLOW]&0x10)?0x100:0x000);
@@ -689,7 +689,7 @@ struct HEGA
 
         retrace = (vertical_retrace|horizontal_retrace);
 
-        bool display_enable = !((column > (crtc_regs[H_DISPLAY_END])*hsync_mult) || (scan_line >= vblank_start));
+        bool display_enable = !((column > crtc_regs[H_DISPLAY_END]*hsync_mult) || (scan_line >= v_display_end));
 
         if (is_graphics_mode)
         {
