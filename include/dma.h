@@ -57,7 +57,7 @@ struct CHIP8237 //DMA
                 curr_count = transfer_count;
                 curr_vector_offset = device_vector_offset;
                 pending = true;
-                is_complete = false;
+                //is_complete = false;
             }
         }
 
@@ -93,14 +93,15 @@ struct CHIP8237 //DMA
 
             if (cross_seg_boundary)
             {
-                cout << "DMA " << num << ": seg boundary crossed. :(" << endl;
+                //cout << "DMA " << num << ": seg boundary crossed. :(" << endl;
             }
 
             ++curr_vector_offset;
             if (curr_count == 0 || cross_seg_boundary)
             {
                 pending = automatic;
-                is_complete = !automatic;
+                //is_complete = !automatic;
+                is_complete = true;
                 curr_addr = start_addr;
                 curr_count = transfer_count;
             }

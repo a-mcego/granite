@@ -1,13 +1,15 @@
 #pragma once
 
 #include "interrupt.h"
+#include "dma.h"
 #include "beeper.h"
 
 struct CHIP8253 //PIT
 {
     CHIP8259& pic;
     BEEPER& beeper;
-    CHIP8253(CHIP8259& pic_, BEEPER& beeper_):pic(pic_), beeper(beeper_) {}
+    CHIP8237& dma;
+    CHIP8253(CHIP8259& pic_, BEEPER& beeper_, CHIP8237& dma_):pic(pic_), beeper(beeper_), dma(dma_) {}
 
 
     static constexpr const u32 N_CHANNELS = 4;
@@ -275,11 +277,13 @@ struct CHIP8253 //PIT
                         ++int0_count;
                         pic.request_interrupt(0);
                     }
-                    else if (i==1 && globalsettings.machine == globalsettings.MACHINE_XT)
+                    else if (i==1 && (globalsettings.machine == globalsettings.MACHINE_PC || globalsettings.machine == globalsettings.MACHINE_XT))
                     {
                         //cout << "INITIATE TRANSFER XT 1" << endl;
-                        //dma.chans[0].initiate_transfer();
-                        //dma.chans[0].start_addr += 1;
+                        if (!dma.chans[0].pending)
+                            dma.chans[0].initiate_transfer();
+
+                        dma.chans[0].cycle_transfer();
                     }
                 }
                 else if (c.current == u32(c.reload-1))
@@ -318,8 +322,7 @@ struct CHIP8253 //PIT
                     }
                     else if (i==1 && globalsettings.machine == globalsettings.MACHINE_XT)
                     {
-                        cout << "INITIATE TRANSFER XT 2" << endl;
-                        //dma.chans[0].initiate_transfer();
+                        //cout << "INITIATE TRANSFER XT 2" << endl;
                     }
                 }
             }
