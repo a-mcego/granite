@@ -573,7 +573,7 @@ struct GA
                 }
             }
         }
-        else if (output == OUTPUT::COMPOSITE)
+        /*else if (output == OUTPUT::COMPOSITE)
         {
             if (is_graphics_mode && !textmode_40_80)
             {
@@ -625,7 +625,7 @@ struct GA
                     //screen.pixels[scan_line * screen.X + scan_column + x_off] = compositecolor.Get(x_off&0x03, color);
                 }
             }
-        }
+        }*/
 
         snow = false;
     }

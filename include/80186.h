@@ -405,7 +405,7 @@ struct CPU80186
         registers[IP] = original_ip;
         interrupt(0, true);
     }
-    void invalid_instruction(u16 original_ip)
+    void invalid_instruction([[maybe_unused]] u16 original_ip)
     {
         //cout << "Invalid instruction." << endl;
         //registers[IP] = original_ip;

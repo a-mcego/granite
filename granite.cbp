@@ -15,10 +15,11 @@
 					<Add option="-O3 -std=c++23" />
 					<Add option="-Wall -Wextra -Werror=return-type -Werror=unused-value" />
 					<Add option="-Wshadow -Werror=shadow" />
-					<Add option="-ftemplate-backtrace-limit=0 -fno-omit-frame-pointer" />
+					<Add option="-ftemplate-backtrace-limit=0 -fomit-frame-pointer" />
 					<Add option="-Wno-sign-compare -fno-exceptions" />
 					<Add option="-Wpessimizing-move -Wredundant-move -Wint-to-pointer-cast" />
 					<Add option="-Wparentheses -Werror=parentheses" />
+					<Add option="-Wno-type-limits -Wno-stringop-overflow -Wno-array-bounds" />
 					<Add directory="include" />
 				</Compiler>
 				<Linker>

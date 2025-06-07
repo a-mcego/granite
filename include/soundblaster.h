@@ -289,7 +289,7 @@ struct SoundBlaster
                 sound_out_l = i16(i8(buffer[0]^0x80))<<7;
                 sound_out_r = sound_out_l;
 
-                bool did_interrupt{};
+                [[maybe_unused]] bool did_interrupt{}; //TODO
                 if (current_block_transfer == 0)
                 {
                     dma.chans[1].is_complete_and_reset();

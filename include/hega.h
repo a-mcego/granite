@@ -689,7 +689,7 @@ struct HEGA
 
         retrace = (vertical_retrace|horizontal_retrace);
 
-        bool display_enable = !((column > crtc_regs[H_DISPLAY_END]*hsync_mult) || (scan_line >= v_display_end));
+        bool display_enable = !((column > crtc_regs[H_DISPLAY_END]*hsync_mult) || (scan_line > v_display_end));
 
         if (is_graphics_mode)
         {

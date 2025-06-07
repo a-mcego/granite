@@ -182,7 +182,7 @@ struct IOSystem
     BusMouse busmouse{pic};
     CHIPLS612N dmapage;
     CHIP8237 dma{0, dmapage, mem286}, dma2{1, dmapage, mem286};
-    CHIP8253 pit{pic, beeper};
+    CHIP8253 pit{pic, beeper, dma};
     SoundBlaster soundblaster{dma, pic};
     DISKS disks; //two disks
     HARDDISK_XEBEC harddisk{disks, dma, pic};
@@ -507,7 +507,7 @@ struct Machine
     u64 cpumult_denom{3};
     i64 cpu_cycle_accum{};
 
-    void fast_stuff(u64 clock)
+    void fast_stuff([[maybe_unused]] u64 clock)
     {
         cpu_cycle_accum += cpumult_num;
         while(cpu_cycle_accum >= 0)
@@ -777,7 +777,7 @@ std::vector<std::string> list_all_files(const fs::path& directory)
 bool cursor_inited{};
 double prev_mouse_x{};
 double prev_mouse_y{};
-void cursor_pos_callback(GLFWwindow* window, double x, double y)
+void cursor_pos_callback([[maybe_unused]] GLFWwindow* window, double x, double y)
 {
     if (!cursor_inited)
     {
@@ -791,7 +791,7 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y)
     prev_mouse_y = y;
 }
 
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+void mouse_button_callback([[maybe_unused]] GLFWwindow* window, int button, int action, [[maybe_unused]] int mods)
 {
     if (button == GLFW_MOUSE_BUTTON_1)
         mac.p.busmouse.update_button(2, action == GLFW_PRESS);
@@ -1351,7 +1351,7 @@ void configline(std::string line)
             {
                 if (i==12)
                     continue;
-                const char* const regnames[14] =
+                [[maybe_unused]] const char* const regnames[14] =
                 {
                     "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "ES", "CS", "SS", "DS", "FL", "IP"
                 };

@@ -320,7 +320,8 @@ struct CPU8088MC
                 }
             };
 
-            u16 alu_op{}, alu_param{}, alu_NXT{};
+            u16 alu_op{}, alu_param{};
+            [[maybe_unused]] u16 alu_NXT{};
 
             auto run_alu = [&]()
             {
@@ -816,7 +817,7 @@ struct CPU8088MC
                     cycles_used += is_write?3:4;
                     if (bitwidth == 16)
                         cycles_used += 4;
-                    bool interrupt_ack = opdata&0x20;
+                    [[maybe_unused]] bool interrupt_ack = opdata&0x20;
                     next_opcode = opdata&0x10;
 
                     u16 seg_id       = (opdata>>2)&0x03; //ES, ZERO, SS, DS(overridable)
@@ -832,7 +833,7 @@ struct CPU8088MC
 
                     u16 addr_factor = (opdata&0x03); //P2, BL, M2, P0
 
-                    const char* const names[4] = {"p2", "bl", "m2", "p0"};
+                    [[maybe_unused]] const char* const names[4] = {"p2", "bl", "m2", "p0"};
 
                     const i16 add[4] = {2, 0, -2, 0};
 
@@ -1298,8 +1299,6 @@ struct CPU8088MC
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
         }
-
-        u16 original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
         globalsettings.current_IP = registers[CS]*16+registers[IP];

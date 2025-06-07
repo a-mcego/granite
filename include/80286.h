@@ -82,7 +82,7 @@ struct CPU80286
             // Extract fields from segment_data
             u16 index = segment_data >> 3;        // Bits 15-3
             bool is_ldt = segment_data & 0x4;     // Bit 2 (TI)
-            u8 rpl = segment_data & 0x3;          // Bits 1-0
+            [[maybe_unused]] u8 rpl = segment_data & 0x3;          // Bits 1-0
 
             // Choose GDT or LDT
             DescriptorTable& table = is_ldt ? ldtr : gdtr; //TODO: how to do idtr here?

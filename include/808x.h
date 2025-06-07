@@ -13,7 +13,7 @@ struct CPU8086
 
     auto divcord_byte(u16 ax, u8 m, u16 startflags)
     {
-        const u8 bitwidth{8};
+        //const u8 bitwidth{8};
         u16 tmpa{}, tmpb{}, tmpc{}, counter{}, flags{startflags}, aluflags{startflags};
         u16 sigma{};
         bool alucarry{};
@@ -26,7 +26,7 @@ struct CPU8086
             aluflags = (aluflags&~flag) | (value?flag:0);
         };
 
-        auto printstate = [&](const char* point)
+        auto printstate = [&]([[maybe_unused]] const char* point)
         {
             //cout << point << " a=" << tmpa << " b=" << tmpb << " c=" << tmpc << " s=" << sigma << " ctr=" << counter << " f=" << flags << " af=" << aluflags << endl;
         };
@@ -648,7 +648,7 @@ struct CPU8086
             cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
         }
-        u16 original_ip = registers[IP];
+        //u16 original_ip = registers[IP];
 
         is_inside_multi_part_instruction = false;
         globalsettings.current_IP = registers[CS]*16+registers[IP];

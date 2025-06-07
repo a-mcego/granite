@@ -371,7 +371,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                             std::cout << "weird out_buffer[4] = " << u32(out_buffer[4]) << ", should be 0x02" << endl;
                             std::abort();
                         }
-                        u32 end_of_track = out_buffer[5]; //number of sectors in a track
+                        //u32 end_of_track = out_buffer[5]; //number of sectors in a track
                         if (out_buffer[7] != 0xFF)
                         {
                             std::cout << "weird out_buffer[7] = " << u32(out_buffer[7]) << ", should be 0xFF" << endl;
