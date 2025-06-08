@@ -575,6 +575,8 @@ struct Machine
             p.gameblaster.cycle();
         if (globalsettings.sblast_enabled)
             p.soundblaster.cycle();
+
+        p.cmos.cycle(); // Call CMOS cycle logic for time updates
     }
 
 } mac;

@@ -4,6 +4,9 @@
 
 struct CHIP146818 // RTC & CMOS
 {
+    u64 rtc_cycle_count = 0;
+    static const u32 RTC_TICKS_PER_SECOND = 32768; // Example frequency
+
     u8 CMOSdata[64] = {};
     u8 current_reg = 0x0D;
 
@@ -87,7 +90,15 @@ struct CHIP146818 // RTC & CMOS
         if (port == 1) //read
         {
             ret = CMOSdata[current_reg];
-            //current_reg = 0x0D;
+            if (current_reg == 0x0C)
+            {
+                // Reading Register C clears bits 4,5,6 and 7 (PF, AF, UF, IRQF)
+                // Other bits of Reg C are reserved and should remain unchanged (typically 0).
+                // For now, we simply clear all bits we've set.
+                // A more robust implementation might preserve reserved bits if they could be non-zero.
+                CMOSdata[0x0C] &= ~0xF0; // Clear bits 4,5,6,7. Alarm Flag (bit 5) isn't set yet but good to clear.
+            }
+            //current_reg = 0x0D; // This is often set to a non-volatile register after read/write
         }
         return ret;
     }
@@ -111,6 +122,107 @@ struct CHIP146818 // RTC & CMOS
 
     void cycle()
     {
+        // Helper lambda to convert BCD to binary
+        auto fromBCD = [](u8 val) -> int { return (val >> 4) * 10 + (val & 0x0F); };
+        // Helper lambda to convert binary to BCD (similar to update_time)
+        auto toBCD = [](int val) -> u8 { return ((val / 10) << 4) | (val % 10); };
+
+        rtc_cycle_count++;
+        if (rtc_cycle_count >= RTC_TICKS_PER_SECOND)
+        {
+            rtc_cycle_count = 0;
+
+            // Set Update In Progress (UIP) flag
+            CMOSdata[0x0A] |= 0x80; // Set bit 7
+
+            // --- Time Increment Logic ---
+            int second = fromBCD(CMOSdata[0x00]);
+            int minute = fromBCD(CMOSdata[0x02]);
+            int hour = fromBCD(CMOSdata[0x04]);
+            int day = fromBCD(CMOSdata[0x07]);
+            int month = fromBCD(CMOSdata[0x08]);
+            int year = fromBCD(CMOSdata[0x09]);
+            int century = fromBCD(CMOSdata[0x32]);
+
+            second++;
+            if (second >= 60)
+            {
+                second = 0;
+                minute++;
+                if (minute >= 60)
+                {
+                    minute = 0;
+                    hour++;
+                    if (hour >= 24)
+                    {
+                        hour = 0;
+                        day++;
+                        // Day/Month/Year rollover logic (simplified for now, needs proper month days calculation)
+                        // This is a placeholder and needs to be accurate with days in month and leap years
+                        int daysInMonth[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+                        int current_year_full = century * 100 + year;
+                        // Basic leap year check
+                        if (((current_year_full % 4 == 0) && (current_year_full % 100 != 0)) || (current_year_full % 400 == 0))
+                        {
+                            daysInMonth[2] = 29;
+                        }
+
+                        if (day > daysInMonth[month])
+                        {
+                            day = 1;
+                            month++;
+                            if (month > 12)
+                            {
+                                month = 1;
+                                year++;
+                                if (year >= 100)
+                                {
+                                    year = 0;
+                                    century++;
+                                    CMOSdata[0x32] = toBCD(century);
+                                }
+                                CMOSdata[0x09] = toBCD(year);
+                            }
+                            CMOSdata[0x08] = toBCD(month);
+                        }
+                        CMOSdata[0x07] = toBCD(day);
+
+                        // Update weekday
+                        int weekday = fromBCD(CMOSdata[0x06]);
+                        weekday++;
+                        if (weekday > 7) {
+                            weekday = 1;
+                        }
+                        CMOSdata[0x06] = toBCD(weekday);
+                    }
+                    CMOSdata[0x04] = toBCD(hour);
+                }
+                CMOSdata[0x02] = toBCD(minute);
+            }
+            CMOSdata[0x00] = toBCD(second);
+
+            // Clear Update In Progress (UIP) flag
+            CMOSdata[0x0A] &= ~0x80; // Clear bit 7
+
+            // Handle Periodic Interrupt
+            if (CMOSdata[0x0B] & 0x40) // Check if PIE (bit 6 of Status Register B) is set
+            {
+                CMOSdata[0x0C] |= 0x40; // Set PF (bit 6 of Status Register C)
+                // Additionally, if Alarm Interrupt Enable (AIE bit 5 of Reg B) is set,
+                // then AF (bit 5 of Reg C) should be set when alarm time matches. (Not implemented here)
+                // If Update Interrupt Enable (UIE bit 4 of Reg B) is set,
+                // then UF (bit 4 of Reg C) should be set. (Should be set here)
+                if (CMOSdata[0x0B] & 0x10) // UIE (Update-ended Interrupt Enable)
+                {
+                    CMOSdata[0x0C] |= 0x10; // Set UF (Update-ended Interrupt Flag)
+                }
+                // If any of PF, AF(not implemented), UF is set, then set IRQF (bit 7)
+                if (CMOSdata[0x0C] & 0x70) // Check if any of bits 4,5,6 are set
+                {
+                    CMOSdata[0x0C] |= 0x80; // Set IRQF
+                }
+            }
+        }
     }
 };
 
