@@ -61,5 +61,5 @@ CMakeUserPresets.json
 deps
 *.save-failed
 
-.ods
-.ods#
+*.ods
+*.ods#
