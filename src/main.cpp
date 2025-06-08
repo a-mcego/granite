@@ -506,6 +506,7 @@ struct Machine
     u64 cpumult_num{1};
     u64 cpumult_denom{3};
     i64 cpu_cycle_accum{};
+    u64 rtc_counter{};
 
     void fast_stuff([[maybe_unused]] u64 clock)
     {
@@ -576,7 +577,12 @@ struct Machine
         if (globalsettings.sblast_enabled)
             p.soundblaster.cycle();
 
-        p.cmos.cycle(); // Call CMOS cycle logic for time updates
+        rtc_counter += p.cmos.RTC_TICKS_PER_SECOND; //32768 hz
+        if (rtc_counter >= 14318180)
+        {
+            rtc_counter -= 14318180;
+            p.cmos.cycle();
+        }
     }
 
 } mac;

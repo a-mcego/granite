@@ -5,7 +5,7 @@
 struct CHIP146818 // RTC & CMOS
 {
     u64 rtc_cycle_count = 0;
-    static const u32 RTC_TICKS_PER_SECOND = 32768; // Example frequency
+    static const u32 RTC_TICKS_PER_SECOND = 32;
 
     u8 CMOSdata[64] = {};
     u8 current_reg = 0x0D;
@@ -89,7 +89,8 @@ struct CHIP146818 // RTC & CMOS
         u8 ret=0;
         if (port == 1) //read
         {
-            ret = CMOSdata[current_reg];
+            if (current_reg < 0x40)
+                ret = CMOSdata[current_reg];
             if (current_reg == 0x0C)
             {
                 // Reading Register C clears bits 4,5,6 and 7 (PF, AF, UF, IRQF)
@@ -98,7 +99,7 @@ struct CHIP146818 // RTC & CMOS
                 // A more robust implementation might preserve reserved bits if they could be non-zero.
                 CMOSdata[0x0C] &= ~0xF0; // Clear bits 4,5,6,7. Alarm Flag (bit 5) isn't set yet but good to clear.
             }
-            //current_reg = 0x0D; // This is often set to a non-volatile register after read/write
+            current_reg = 0x0D; // This is often set to a non-volatile register after read/write
         }
         return ret;
     }
@@ -107,33 +108,38 @@ struct CHIP146818 // RTC & CMOS
     {
         if (port == 0)
         {
-            current_reg = (data&0x3F);
+            current_reg = (data&0x7F);
         }
         else if (port == 1)
         {
-            if (current_reg != 0x0C && current_reg != 0x0D) //EXPLAIN: why this IF?
+            if (current_reg == 0x0A)
+            {
+                CMOSdata[current_reg] = (CMOSdata[current_reg]&0x80)|(data&0x7F);
+                changed = true;
+            }
+            else if (current_reg != 0x0C && current_reg != 0x0D && current_reg < 0x40) //EXPLAIN: why this IF?
             {
                 CMOSdata[current_reg] = data;
                 changed = true;
             }
-            //current_reg = 0x0D;
+            current_reg = 0x0D;
         }
     }
 
     void cycle()
     {
-        // Helper lambda to convert BCD to binary
-        auto fromBCD = [](u8 val) -> int { return (val >> 4) * 10 + (val & 0x0F); };
-        // Helper lambda to convert binary to BCD (similar to update_time)
-        auto toBCD = [](int val) -> u8 { return ((val / 10) << 4) | (val % 10); };
-
+        printtime();
         rtc_cycle_count++;
+        CMOSdata[0x0A] = (CMOSdata[0x0A]&0x7F) | (rtc_cycle_count>=(RTC_TICKS_PER_SECOND*32/64)?0x80:0x00);
+
         if (rtc_cycle_count >= RTC_TICKS_PER_SECOND)
         {
-            rtc_cycle_count = 0;
+            // Helper lambda to convert BCD to binary
+            auto fromBCD = [](u8 val) -> int { return (val >> 4) * 10 + (val & 0x0F); };
+            // Helper lambda to convert binary to BCD (similar to update_time)
+            auto toBCD = [](int val) -> u8 { return ((val / 10) << 4) | (val % 10); };
 
-            // Set Update In Progress (UIP) flag
-            CMOSdata[0x0A] |= 0x80; // Set bit 7
+            rtc_cycle_count = 0;
 
             // --- Time Increment Logic ---
             int second = fromBCD(CMOSdata[0x00]);
@@ -157,15 +163,11 @@ struct CHIP146818 // RTC & CMOS
                     {
                         hour = 0;
                         day++;
-                        // Day/Month/Year rollover logic (simplified for now, needs proper month days calculation)
-                        // This is a placeholder and needs to be accurate with days in month and leap years
-                        int daysInMonth[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-                        int current_year_full = century * 100 + year;
-                        // Basic leap year check
-                        if (((current_year_full % 4 == 0) && (current_year_full % 100 != 0)) || (current_year_full % 400 == 0))
-                        {
-                            daysInMonth[2] = 29;
-                        }
+
+                        const int current_year_full = century * 100 + year;
+                        const bool is_leap_year = ((current_year_full % 4 == 0) && (current_year_full % 100 != 0)) || (current_year_full % 400 == 0);
+
+                        const int daysInMonth[] = {0, 31, (is_leap_year?29:28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
                         if (day > daysInMonth[month])
                         {
@@ -201,11 +203,10 @@ struct CHIP146818 // RTC & CMOS
             }
             CMOSdata[0x00] = toBCD(second);
 
-            // Clear Update In Progress (UIP) flag
-            CMOSdata[0x0A] &= ~0x80; // Clear bit 7
+            //std::cout << std::dec << century << " " << year << "-" << month << "-" << day << " " << hour << ":" << minute << ":" << second << std::endl;
 
             // Handle Periodic Interrupt
-            if (CMOSdata[0x0B] & 0x40) // Check if PIE (bit 6 of Status Register B) is set
+            /*if (CMOSdata[0x0B] & 0x40) // Check if PIE (bit 6 of Status Register B) is set
             {
                 CMOSdata[0x0C] |= 0x40; // Set PF (bit 6 of Status Register C)
                 // Additionally, if Alarm Interrupt Enable (AIE bit 5 of Reg B) is set,
@@ -221,7 +222,7 @@ struct CHIP146818 // RTC & CMOS
                 {
                     CMOSdata[0x0C] |= 0x80; // Set IRQF
                 }
-            }
+            }*/
         }
     }
 };
