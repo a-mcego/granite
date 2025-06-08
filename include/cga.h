@@ -553,19 +553,63 @@ struct GA
             {
                 int x = column>>(textmode_40_80?3:4);
                 bool half = (textmode_40_80?0:(column&8));
-                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
-                u8 char_code = memory8_internal(offset);
-                u8 attribute = memory8_internal(offset+1);
+                u32 char_video_offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
+                u8 char_code = memory8_internal(char_video_offset);
+                u8 attribute = memory8_internal(char_video_offset+1);
                 u8 fg_color = attribute & 0x0F;
-                u8 bg_color = (attribute >> 4) & 0x0F;
+                u8 bg_color = (attribute >> 4) & 0x07; // Mask with 0x07 to exclude blink bit
+
+                // Cursor logic
+                // The surrounding 'else' block handles the condition:
+                // ! (is_graphics_mode & !textmode_40_80)
+                // which is equivalent to: !is_graphics_mode OR textmode_40_80.
+                // This covers normal text modes and the special (is_graphics_mode && textmode_40_80) case.
+                u16 cursor_char_offset = (registers[START_ADDRESS_H]<<8) | registers[START_ADDRESS_L];
+                u32 cursor_byte_offset = cursor_char_offset * 2;
+                u8 cursor_start_scanline = registers[CURSOR_START] & 0x1F;
+                u8 cursor_end_scanline = registers[CURSOR_END] & 0x1F;
+
+                bool cursor_visible = true;
+                // Check for blink attribute only if the character itself has the blink attribute.
+                // The cursor visibility itself (blinking) is independent of the character's blink attribute,
+                // unless the spec implies cursor should only blink if char attribute blinks.
+                // For now, let's assume cursor blink is controlled by its own mechanism or always blinks if enabled by CRTC.
+                // The problem description for blink was: "if attribute bit 7 is set" for the *character at the cursor position*.
+                // So this check for attribute & 0x80 is correct for determining if *this specific character position* should blink if it's the cursor.
+                if (attribute & 0x80) { // Bit 7 is the blink bit of the character under the potential cursor
+                    // This is a simple blink implementation, could be tied to a timer
+                    cursor_visible = (total_frames % 60) < 30; // Blink roughly every second at 60fps
+                }
+                // An alternative interpretation: cursor blink is global, controlled by CRTC registers, not char attribute.
+                // CRTC Reg 10 (Cursor Start) bit 5: 0=visible, 1=invisible (for some BIOSes)
+                // CRTC Reg 10 (Cursor Start) bit 6: 0=blink, 1=no blink (for some BIOSes)
+                // For now, sticking to the explicit "attribute & 0x80" from previous logic.
+
+                if (cursor_visible && char_video_offset == cursor_byte_offset &&
+                    line_inside_character >= cursor_start_scanline && line_inside_character <= cursor_end_scanline) {
+                    // Invert fg and bg colors for cursor
+                    std::swap(fg_color, bg_color);
+                }
+
                 u8 char_row = CGABIOS[((char_code<<3)+line_inside_character)|0x800];
 
                 for (u32 x_off = 0; x_off < 8; x_off++)
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (draw_bg || is_graphics_mode)
-                        color = palette[0];
+                    if (draw_bg || is_graphics_mode) // This condition seems to imply text mode can also be affected by draw_bg
+                        color = palette[0]; // Should be bg_color from attribute in pure text mode if not blinking?
+                                            // Or palette[0] if mode_select says "disable video" / "blank display"
+                                            // For now, let's assume draw_bg means border/blanking area color
+
+                    // If cursor was active, fg_color and bg_color are swapped.
+                    // If it's not the cursor, or cursor is not at this scanline, original colors are used.
+
+                    if (draw_bg) // If in retrace or output disabled, force background/border color
+                        color = palette[0]; // This is often black or the border color set in color_select
+                    else if (is_graphics_mode) // This branch should not be hit if !is_graphics_mode above is true
+                         color = palette[0]; // Graphics mode uses its own palette logic earlier
+
                     if (hsync|vsync)
                         color = 0;
 
