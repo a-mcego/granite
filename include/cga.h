@@ -178,6 +178,9 @@ struct GA
 
         START_ADDRESS_H,
         START_ADDRESS_L,
+        CURSOR_ADDRESS_H,
+        CURSOR_ADDRESS_L,
+
         LIGHT_PEN_H,
         LIGHT_PEN_L,
     };
@@ -430,6 +433,7 @@ struct GA
                 vsyncadjust = 0;
                 logical_line = 0;
                 line_inside_character = 0;
+                ++total_frames;
             }
 
             if (logical_line == 0 && line_inside_character == 0)
@@ -558,6 +562,17 @@ struct GA
                 u8 attribute = memory8_internal(offset+1);
                 u8 fg_color = attribute & 0x0F;
                 u8 bg_color = (attribute >> 4) & 0x0F;
+
+                u32 cursor_byte_offset = ((registers[CURSOR_ADDRESS_H]<<8) | registers[CURSOR_ADDRESS_L])*2;
+                u8 cursor_start_scanline = registers[CURSOR_START] & 0x1F;
+                u8 cursor_end_scanline = registers[CURSOR_END] & 0x1F;
+
+                if ((total_frames & 0x08) && offset == cursor_byte_offset &&
+                    line_inside_character >= cursor_start_scanline && line_inside_character <= cursor_end_scanline)
+                {
+                    std::swap(fg_color, bg_color);
+                }
+
                 u8 char_row = CGABIOS[((char_code<<3)+line_inside_character)|0x800];
 
                 for (u32 x_off = 0; x_off < 8; x_off++)
