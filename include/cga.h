@@ -557,9 +557,9 @@ struct GA
             {
                 int x = column>>(textmode_40_80?3:4);
                 bool half = (textmode_40_80?0:(column&8));
-                u32 char_video_offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
-                u8 char_code = memory8_internal(char_video_offset);
-                u8 attribute = memory8_internal(char_video_offset+1);
+                u32 offset = current_startaddress + logical_line*registers[H_DISPLAYED]*2 + x*2;
+                u8 char_code = memory8_internal(offset);
+                u8 attribute = memory8_internal(offset+1);
                 u8 fg_color = attribute & 0x0F;
                 u8 bg_color = (attribute >> 4) & 0x0F;
 
@@ -567,7 +567,7 @@ struct GA
                 u8 cursor_start_scanline = registers[CURSOR_START] & 0x1F;
                 u8 cursor_end_scanline = registers[CURSOR_END] & 0x1F;
 
-                if ((total_frames & 0x08) && char_video_offset == cursor_byte_offset &&
+                if ((total_frames & 0x08) && offset == cursor_byte_offset &&
                     line_inside_character >= cursor_start_scanline && line_inside_character <= cursor_end_scanline)
                 {
                     std::swap(fg_color, bg_color);
@@ -579,11 +579,8 @@ struct GA
                 {
                     u8 mask = (1 << ((half?3:7) - (x_off>>(textmode_40_80?0:1))));
                     u8 color = (char_row & mask) ? fg_color : bg_color;
-                    if (draw_bg)
+                    if (draw_bg || is_graphics_mode)
                         color = palette[0];
-                    else if (is_graphics_mode)
-                         color = palette[0];
-
                     if (hsync|vsync)
                         color = 0;
 
