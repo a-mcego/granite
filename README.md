@@ -6,11 +6,12 @@ Requires libglfw3.
 
 Should compile on any platform that supports C++23.
 
-# Features
+# What works
 
 * Runs through 8088 MPH and Area 5150 without crashing or freezing
 * Supports GLaBIOS (PC & XT version) + FreeDOS for a fully open source stack
 * Uses *glfw3* for video and *miniaudio* for audio
+* Working games include Stunts, Grand Prix Circuit, Wolfenstein 3D CGA version, Keen 1, Keen 4 (with a scrolling bug)
 
 # Done
 
