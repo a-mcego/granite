@@ -563,7 +563,7 @@ struct GA
                 u8 fg_color = attribute & 0x0F;
                 u8 bg_color = (attribute >> 4) & 0x0F;
 
-                u32 cursor_byte_offset = (registers[CURSOR_ADDRESS_H]<<8) | registers[CURSOR_ADDRESS_L] * 2;
+                u32 cursor_byte_offset = ((registers[CURSOR_ADDRESS_H]<<8) | registers[CURSOR_ADDRESS_L])*2;
                 u8 cursor_start_scanline = registers[CURSOR_START] & 0x1F;
                 u8 cursor_end_scanline = registers[CURSOR_END] & 0x1F;
 
