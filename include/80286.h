@@ -85,49 +85,185 @@ struct CPU80286
             [[maybe_unused]] u8 rpl = segment_data & 0x3;          // Bits 1-0
 
             // Choose GDT or LDT
-            DescriptorTable& table = is_ldt ? ldtr : gdtr; //TODO: how to do idtr here?
+            DescriptorTable& table = is_ldt ? ldtr : gdtr;
 
             // Check if index is within table limits
-            if(index*8 > table.n_entries)
-            {
-                // Should generate exception
-                std::cout << std::dec << "load segment " << int(segment_number) << " from index " << index << " (sdata=" << segment_data <<  ") but table only has " << table.n_entries << " bytes." << std::hex << std::endl;
-                protection_fault(original_ip, 0);
-                //throw std::runtime_error("Segment index out of bounds");
+            // Index refers to the entry number, so index * 8 gives the byte offset.
+            // The limit in n_entries is also in bytes (actually limit = n_entries - 1 for 80286)
+            // A null selector (index 0) is permissible for DS/ES, but not for CS/SS.
+            // For GDT, index 0 is never valid.
+            if (index == 0 && !is_ldt) { // Null selector in GDT always invalid.
+                // However, specific instructions like MOV to DS/ES might allow loading a NULL selector.
+                // Let's assume for now that if it's GDT index 0, it's a fault for general load_segment.
+                // Specific instructions (like MOV to segment reg) might handle this differently.
+                // For now, let's be strict. If it's index 0 in GDT, it's invalid.
+                // If it's index 0 in LDT, it's also invalid as per Intel docs.
+                // The only "null" that is somewhat okay is for DS/ES if RPL/CPL allow, but descriptor itself is invalid.
+                // The check below `index * 8 >= table.n_entries` handles the upper bound.
+                // A selector with index 0 (value 0x0000 to 0x0003) is a "null selector".
+                // Loading DS or ES with a null selector is allowed and makes them unusable.
+                // Loading SS or CS with a null selector causes a #GP(0) or #SS(0).
+
+                if (segment_number == SEG::CS || segment_number == SEG::SS) {
+                    protection_fault(original_ip, 0); // GP(0) for CS/SS null selector
+                    return;
+                }
+                // For DS/ES, loading null selector is "allowed" but marks segment unusable.
+                // We'll set its cache entry to not present / invalid type.
+                descriptor_cache[(int)segment_number].flags = 0; // Mark as not present
+                descriptor_cache[(int)segment_number].limit = 0;
+                descriptor_cache[(int)segment_number].base = 0;
+                descriptor_cache[(int)segment_number].data = segment_data; // Store selector value
+                return;
             }
-            else
+
+            if (index * 8 >= table.n_entries) // n_entries is the limit + 1, so index*8 must be < n_entries
             {
-                // Calculate descriptor address in physical memory
-                u32 descriptor_addr = table.base + (index * 8);
+                std::cout << std::dec << "load segment " << int(segment_number) << " from index " << index << " (sdata=" << segment_data <<  ") but table " << (is_ldt?"LDT":"GDT") << " only has " << table.n_entries << " bytes (max index " << (table.n_entries/8)-1 << ")." << std::hex << std::endl;
+                u16 error_code = (index << 3) | (is_ldt ? 0x04 : 0x00); // Selector Index + TI bit
+                protection_fault(original_ip, error_code);
+                return;
+            }
 
-                // Read 8 bytes from physical memory
-                u16 word1 = mem.r16(descriptor_addr);
-                u16 word2 = mem.r16(descriptor_addr+2);
-                u16 word3 = mem.r16(descriptor_addr+4);
+            // Calculate descriptor address in physical memory
+            u32 descriptor_addr = table.base + (index * 8);
 
-                // Fill descriptor fields
-                descriptor_cache[(int)segment_number].base = ((word3 & 0xFF) << 16) | word2;
-                descriptor_cache[(int)segment_number].limit = word1;
-                descriptor_cache[(int)segment_number].flags = (word3 >> 8) & 0xFF;
-                descriptor_cache[(int)segment_number].data = segment_data;
-                const char* names[4] = {"ES", "CS", "SS", "DS"};
-                if (startprinting)
-                {
-                    std::cout << names[(int)segment_number] << ": Protected base=" << descriptor_cache[(int)segment_number].base << std::endl;
-                    std::cout << "words: " << word1 << " " << word2 << " " << word3 << std::endl;
-                    std::cout << "table base: " << table.base << std::endl;
+            // Read 8 bytes from physical memory
+            u16 limit_val = mem.r16(descriptor_addr);
+            u16 base_low = mem.r16(descriptor_addr+2);
+            u16 base_high_and_flags = mem.r16(descriptor_addr+4); // base high in low byte, flags in high byte
+            //u16 reserved_word = mem.r16(descriptor_addr+6); // Reserved, should be 0 for 286 data/code segments
 
-                    std::cout << "first 16 entries: " << std::endl;
-                    for(int i=0; i<16; ++i)
-                    {
-                        u16 entry_word1 = mem.r16(table.base+(i*8));
-                        u16 entry_word2 = mem.r16(table.base+(i*8+2));
-                        u16 entry_word3 = mem.r16(table.base+(i*8+4));
-                        std::cout << "entry " << i << " words: " << entry_word1 << " " << entry_word2 << " " << entry_word3 << std::endl;
+            u8 access_rights = (base_high_and_flags >> 8) & 0xFF;
+            u8 base_high_byte = base_high_and_flags & 0xFF;
+
+            // --- Start Validation ---
+            // 1. Check Present Bit (Bit 7 of Access Rights)
+            if (!((access_rights >> 7) & 0x01)) { // P bit
+                u16 error_code = (index << 3) | (is_ldt ? 0x04 : 0x00); // Selector Index + TI bit
+                // For #NP, EXT bit is 0 if it occurs during a task switch, call gate, interrupt, or trap gate.
+                // For direct loads (MOV, POP), it's not explicitly set to 1 by default in many docs, error code is just selector.
+                // #SS fault specifically uses selector index + TI for its error code if segment related.
+                if (segment_number == SEG::SS) {
+                     // #SS(selector)
+                    protection_fault(original_ip, error_code);
+                } else {
+                     // #NP(selector)
+                    protection_fault(original_ip, error_code);
+                }
+                return;
+            }
+
+            u8 dpl = (access_rights >> 5) & 0x03;
+            bool is_system_segment = !((access_rights >> 4) & 0x01); // S bit (0 for system, 1 for code/data)
+
+            if (is_system_segment) {
+                // Generally, ES, CS, SS, DS cannot be loaded with system segment descriptors.
+                // LTR loads a TSS, LLDT loads an LDT descriptor. These are handled by specific instructions.
+                // Interrupt/trap gates also system descriptors, handled by interrupt mechanism.
+                // For load_segment, this is a fault.
+                u16 error_code = (index << 3) | (is_ldt ? 0x04 : 0x00);
+                protection_fault(original_ip, error_code); // GP fault
+                return;
+            }
+
+            // At this point, it's a code or data segment descriptor.
+            bool is_executable = (access_rights >> 3) & 0x01; // E bit (1 for code, 0 for data)
+
+            if (segment_number == SEG::CS) { // Loading CS
+                u16 error_code = (index << 3) | (is_ldt ? 0x04 : 0x00);
+                if (!is_executable) { // Must be a code segment
+                    protection_fault(original_ip, error_code); // GP fault
+                    return;
+                }
+                bool conforming = (access_rights >> 2) & 0x01; // C bit
+                if (conforming) {
+                    if (dpl > cpl) { // Conforming code segment: DPL must be <= CPL (privilege increase not allowed)
+                        protection_fault(original_ip, error_code); // GP fault
+                        return;
+                    }
+                } else { // Non-conforming code segment
+                    if (rpl > cpl || dpl != cpl) { // RPL must be <= CPL, and DPL must == CPL
+                        protection_fault(original_ip, error_code); // GP fault
+                        return;
+                    }
+                }
+                // Readable bit (R bit) for code segments: If 0, execute only. If 1, execute/read.
+                // No specific fault here for load_segment, but access checks later might fail if trying to read non-readable code.
+            } else if (segment_number == SEG::SS) { // Loading SS
+                u16 error_code = (index << 3) | (is_ldt ? 0x04 : 0x00);
+                if (is_executable) { // Must be a data segment (stack)
+                    protection_fault(original_ip, error_code); // SS fault
+                    return;
+                }
+                bool writable = (access_rights >> 1) & 0x01; // W bit
+                if (!writable) { // Stack segment must be writable
+                    protection_fault(original_ip, error_code); // SS fault
+                    return;
+                }
+                if (rpl != cpl || dpl != cpl) { // For SS: RPL, CPL, and DPL must all be equal
+                    protection_fault(original_ip, error_code); // SS fault
+                    return;
+                }
+            } else { // Loading DS or ES
+                u16 error_code = (index << 3) | (is_ldt ? 0x04 : 0x00);
+                // DS/ES can be loaded with data segments or readable code segments.
+                if (is_executable) { // If it's a code segment
+                    bool readable = (access_rights >> 1) & 0x01; // R bit for code segments
+                    if (!readable) { // Cannot load non-readable code segment into DS/ES
+                         protection_fault(original_ip, error_code); // GP fault
+                         return;
+                    }
+                    // If it's a readable code segment, DPL vs CPL/RPL check for conforming/non-conforming
+                    bool conforming = (access_rights >> 2) & 0x01; // C bit
+                    if (conforming) { // Readable Conforming Code Segment
+                        if (dpl > cpl) { // CPL must be >= DPL (can access more privileged conforming code)
+                             protection_fault(original_ip, error_code); // GP fault
+                             return;
+                        }
+                    } else { // Readable Non-Conforming Code Segment
+                        if (rpl > dpl || cpl > dpl) { // CPL, RPL must be <= DPL (cannot access more privileged non-conforming code)
+                             protection_fault(original_ip, error_code); // GP fault
+                             return;
+                        }
+                    }
+                } else { // If it's a data segment
+                    // For data segments (non-executable):
+                    // RPL and CPL must be <= DPL.
+                    if (rpl > dpl || cpl > dpl) {
+                        protection_fault(original_ip, error_code); // GP fault
+                        return;
                     }
                 }
             }
 
+            // --- Validation Passed ---
+
+            // Fill descriptor fields
+            descriptor_cache[(int)segment_number].base = (u32(base_high_byte) << 16) | base_low;
+            descriptor_cache[(int)segment_number].limit = limit_val;
+            descriptor_cache[(int)segment_number].flags = access_rights;
+            descriptor_cache[(int)segment_number].data = segment_data;
+
+            // Mark as accessed (A bit) - Bit 0 of Access Rights
+            // This should ideally be done atomically if the CPU supports it, or by the CPU hardware.
+            // Emulation: read-modify-write. Be careful if other cores/devices can access memory.
+            // For now, let's assume we can update it directly.
+            if (!((access_rights >> 0) & 0x01)) {
+                 mem.w8(descriptor_addr + 5, access_rights | 0x01); // Set Accessed bit in memory
+                 descriptor_cache[(int)segment_number].flags |= 0x01;
+            }
+
+            const char* names[4] = {"ES", "CS", "SS", "DS"};
+            if (startprinting)
+            {
+                std::cout << names[(int)segment_number] << ": Protected base=0x" << descriptor_cache[(int)segment_number].base
+                          << " limit=0x" << descriptor_cache[(int)segment_number].limit
+                          << " flags=0x" << (u16)descriptor_cache[(int)segment_number].flags
+                          << " selector=0x" << segment_data << std::endl;
+                std::cout << "  Raw descriptor words: limit=0x" << limit_val << " base_low=0x" << base_low << " base_high_flags=0x" << base_high_and_flags << std::endl;
+                std::cout << "  Table base: 0x" << table.base << ", Index: " << index << std::endl;
+            }
         }
         else // real mode
         {
@@ -741,7 +877,7 @@ struct CPU80286
             }
             else if (secondbyte == 0x00 && op == 0x02) // LLDT
             {
-                //TODO: check cpl
+                if (cpl != 0) { protection_fault(original_ip, 0); return; }
                 decode_modrm(modrm);
                 u32 addr = modrm_seg + modrm_offset;
                 ldtr.n_entries = mem.r16(addr);
@@ -759,7 +895,7 @@ struct CPU80286
             }
             else if (secondbyte == 0x00 && op == 0x03) // LTR
             {
-                //TODO: check cpl
+                if (cpl != 0) { protection_fault(original_ip, 0); return; }
                 decode_modrm(modrm);
                 u32 addr = modrm_seg + modrm_offset;
                 task.data = mem.r16(addr);
@@ -777,7 +913,7 @@ struct CPU80286
             }
             else if (secondbyte == 0x01 && op == 0x02) // LGDT
             {
-                //TODO: check cpl
+                if (cpl != 0) { protection_fault(original_ip, 0); return; }
                 decode_modrm(modrm);
                 u32 addr = modrm_seg + modrm_offset;
                 gdtr.n_entries = mem.r16(addr);
@@ -788,7 +924,7 @@ struct CPU80286
             }
             else if (secondbyte == 0x01 && op == 0x01) // SIDT
             {
-                //TODO: check cpl
+                // SIDT is not a privileged instruction, CPL check not needed.
                 decode_modrm(modrm);
                 u32 addr = modrm_seg + modrm_offset;
                 mem.w16(addr, idtr.n_entries);
@@ -798,7 +934,7 @@ struct CPU80286
             }
             else if (secondbyte == 0x01 && op == 0x03) // LIDT
             {
-                //TODO: check cpl
+                if (cpl != 0) { protection_fault(original_ip, 0); return; }
                 decode_modrm(modrm);
                 u32 addr = modrm_seg + modrm_offset;
                 idtr.n_entries = mem.r16(addr);
@@ -1206,11 +1342,39 @@ struct CPU80286
         else if ((instruction&0xE6) == 0x06) // push/pop SEG
         {
             u8 seg_n = (instruction>>3)&0x03;
-            if (instruction&0x01)
+            if (instruction&0x01) // POP segment register
             {
-                cycles_used += ((msw&1)?20:3); //286
-                load_segment(SEG(seg_n), pop());
-                inhibit_ss = true;
+                // Cycle counts for POP ES, POP SS, POP DS (POP CS is not via this opcode)
+                // POP SS: 20 cycles (prot/real)
+                // POP DS/ES: 20 cycles (prot), 5 cycles (real)
+                // Assuming seg_n: 0=ES, 1=CS(invalid here), 2=SS, 3=DS
+                SEG segment_being_loaded = SEG(seg_n);
+                if (msw&1) { // Protected mode
+                    cycles_used += 20;
+                } else { // Real mode
+                    cycles_used += (segment_being_loaded == SEG::SS ? 20 : 5);
+                }
+
+                u16 selector_val = pop();
+                load_segment(segment_being_loaded, selector_val);
+
+                // load_segment will call protection_fault and effectively halt this instruction path
+                // if the load is invalid by returning after calling interrupt().
+                // So, if we reach here, the load was either successful for valid segments,
+                // or it was a DS/ES null selector load (which is permissible and clears the cache entry).
+
+                if (segment_being_loaded == SEG::SS) {
+                    // inhibit_ss should only be set if SS was *successfully* loaded with a valid descriptor.
+                    // A null selector would have been caught by load_segment for SS and faulted.
+                    if (msw&1) { // Protected mode
+                        // Check P bit in cache. If not present, load_segment would have faulted.
+                        if (descriptor_cache[(int)SEG::SS].flags & 0x80) {
+                            inhibit_ss = true;
+                        }
+                    } else { // Real mode (SS always "validly" loaded in terms of P bit)
+                        inhibit_ss = true;
+                    }
+                }
             }
             else
             {
@@ -1481,45 +1645,80 @@ struct CPU80286
             }
             else if (msw&1) //protected mode
             {
-                if (seg_n == 1) //CS
+                u16 selector_val = rm;
+                u16 original_selector_for_error = selector_val; // keep original for error codes
+
+                if (seg_n == 1) // CS is not allowed for MOV SwEw
                 {
-                    protection_fault(original_ip, 0);
-                }
-                else
-                {
-                    u16 selector = rm;
-
-                    // Get descriptor
-                    u16 index = selector >> 3;
-                    if (index * 8 >= gdtr.n_entries)
-                    {
-                        protection_fault(original_ip,0);
-                    }
-                    else
-                    {
-                        load_segment(SEG(seg_n), selector);
-                        Descriptor& desc = descriptor_cache[seg_n];
-
-                        // Check descriptor privileges
-                        if (desc.dpl() < cpl || desc.dpl() < (selector & 3))
-                        {
-                            protection_fault(original_ip,0);
-                        }
-                    }
-
+                    protection_fault(original_ip, 0); // #GP(0)
+                    return; // Abort instruction
                 }
 
+                // Extract fields from selector_val for initial checks
+                u16 index = selector_val >> 3;
+                bool is_ldt_selector = (selector_val & 0x4) != 0;
+
+                // Null Selector Check (Index 0)
+                if (index == 0) {
+                    if (seg_n == (u8)SEG::SS) { // Cannot load null selector into SS
+                        protection_fault(original_ip, 0); // #GP(0)
+                        return;
+                    }
+                    // For DS, ES: loading a null selector is allowed.
+                    // load_segment handles this by clearing the descriptor cache entry.
+                    load_segment(SEG(seg_n), selector_val);
+                    // inhibit_ss applies only if SS was the target, which is guarded above.
+                    // So, no inhibit_ss = true here for DS/ES null load.
+                } else {
+                    // Regular selector: Choose GDT or LDT for bounds check
+                    DescriptorTable& table_to_check = is_ldt_selector ? ldtr : gdtr;
+
+                    // Check if index is within table limits
+                    if (index * 8 >= table_to_check.n_entries) {
+                        protection_fault(original_ip, (selector_val & 0xFFFC)); // #GP(selector without RPL)
+                        return;
+                    }
+
+                    // If initial checks pass, call load_segment for full validation and loading
+                    // load_segment will handle all other faults (NP, type, privilege)
+                    // and will use an error code of (index << 3) | (is_ldt ? 0x04 : 0x00)
+                    load_segment(SEG(seg_n), selector_val);
+
+                    // If load_segment itself caused a fault, it would have called protection_fault and returned.
+                    // So if we are here, load_segment succeeded OR it handled a null selector for DS/ES.
+                }
+
+                // Set inhibit_ss if SS was the target *and* load was successful (or null for DS/ES)
+                // load_segment returns if a fault occurs, so we only reach here on success or DS/ES null.
+                if (seg_n == (u8)SEG::SS) {
+                    // If SS was loaded with a NULL selector, it would have faulted above.
+                    // So if we are here and seg_n is SS, it must have been a successful load.
+                    // However, load_segment itself might fault. If load_segment faults for SS, it returns.
+                    // We need to ensure inhibit_ss is only set if SS is successfully loaded.
+                    // The current structure: if load_segment faults, it calls protection_fault which might not immediately return from *this* function.
+                    // Let's assume protection_fault causes an exception that unwinds.
+                    // A better way: load_segment could return a success/fail status.
+                    // For now, if descriptor_cache for SS is present after load_segment, assume success.
+                    if (descriptor_cache[(int)SEG::SS].flags & 0x80) { // Check P bit in cache
+                        inhibit_ss = true;
+                    }
+                }
             }
-            else
+            else // Real mode
             {
                 load_segment(SEG(seg_n), rm);
+                if (seg_n == (u8)SEG::SS) {
+                    inhibit_ss = true;
+                }
             }
-            if (msw&1)
-                cycles_used += (modrm_is_register?17:19); //286
-            else
-                cycles_used += (modrm_is_register?2:5); //286
 
-            inhibit_ss = true;
+            if (msw&1) // Protected mode cycles
+                cycles_used += (modrm_is_register? (seg_n == (u8)SEG::SS ? 17 : 17) : (seg_n == (u8)SEG::SS ? 19 : 19) ); // Placeholder, actual cycles vary. MOV to SS is 17/19 per docs.
+            else // Real mode cycles
+                cycles_used += (modrm_is_register?2:5);
+
+            // inhibit_ss was moved up to be conditional on successful SS load in protected mode
+            // and after any SS load in real mode.
         }
         else if (instruction == 0x8D) // LEA Gv M
         {

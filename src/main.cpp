@@ -94,7 +94,8 @@ struct GlobalSettings
     enum GRAPHICS
     {
         CGA,
-        HEGA
+        HEGA,
+        VGA // Added VGA mode
     } graphics=CGA;
 
     bool opl_enabled{true};
@@ -160,6 +161,7 @@ const u8 byte_parity[256] =
 #include "harddisk_ata.h"
 #include "diskette.h"
 #include "busmouse.h"
+#include "vga.h" // Added VGA header
 
 
 struct IOSystem
@@ -170,9 +172,10 @@ struct IOSystem
     LTEMS ltems;
     CHIP8259 pic, pic2;
     MemBytes membytes;
-    MemoryManager8088 mem88{hega, cga, ltems, membytes};
-    MemoryManager186 mem186{hega, cga, ltems, membytes};
-    MemoryManager286 mem286{hega, cga, ltems, membytes};
+    VGA vga; // VGA must be declared before memory managers if passed by reference
+    MemoryManager8088 mem88{hega, cga, ltems, membytes, vga};
+    MemoryManager186 mem186{hega, cga, ltems, membytes, vga};
+    MemoryManager286 mem286{hega, cga, ltems, membytes, vga};
     BEEPER beeper;
     YM3812 ym3812;
     GameBlaster gameblaster;
@@ -188,6 +191,7 @@ struct IOSystem
     HARDDISK_XEBEC harddisk{disks, dma, pic};
     HARDDISK_ATA harddisk_ata{disks, dma, pic, pic2};
     DISKETTECONTROLLER diskettecontroller{dma, pic};
+    // VGA vga; // Moved up
     MiniAudio miniaudio{beeper, ym3812, gameblaster, soundblaster};
 
     template<typename IOSIZE> requires (std::same_as<IOSIZE, u8> || std::same_as<IOSIZE, u16>)
@@ -256,13 +260,41 @@ struct IOSystem
         {
             soundblaster.write(port-0x220, data&0xFF);
         }
-        else if (port >= 0x3B0 && port <= 0x3DF)
+        else if (port >= 0x3B0 && port <= 0x3DF) // VGA ports overlap here
         {
-            if (globalsettings.graphics == GlobalSettings::HEGA)
+            // Check for VGA CRTC (mono)
+            if ((vga.misc_output_register & 0x01) == 0) { // Mono I/O addresses
+                if (port == 0x3B4) { vga.write_crtc_address(data); return; }
+                if (port == 0x3B5) { vga.write_crtc_data(data); return; }
+                // 0x3BA is Read Input Status 1 Mono (handled in io_in)
+            }
+            // Check for VGA CRTC (color)
+            if ((vga.misc_output_register & 0x01) == 1) { // Color I/O addresses
+                if (port == 0x3D4) { vga.write_crtc_address(data); return; }
+                if (port == 0x3D5) { vga.write_crtc_data(data); return; }
+                // 0x3DA is Read Input Status 1 Color (handled in io_in)
+            }
+
+            // Existing HEGA/CGA (should ideally be mutually exclusive with full VGA)
+            if (globalsettings.graphics == GlobalSettings::HEGA) {
                 hega.write(port-0x3B0, data&0xFF);
-            else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
+            } else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0) {
                 cga.write(port-0x3D0, data&0xFF);
+            }
+            // Fall through for other VGA ports in this range if not handled by CRTC mono/color specific
         }
+        // VGA specific ports (can overlap or be distinct from above)
+        else if (port == 0x3C0) { vga.write_attribute_address_or_data(data); }
+        // 0x3C1 is read-only for attribute data
+        else if (port == 0x3C2) { vga.write_misc_output(data); } // Write Misc Output Reg
+        else if (port == 0x3C4) { vga.write_sequencer_address(data); }
+        else if (port == 0x3C5) { vga.write_sequencer_data(data); }
+        else if (port == 0x3C6) { vga.write_dac_mask(data); }
+        else if (port == 0x3C7) { vga.write_dac_address_read_mode(data); } // Sets DAC for reading
+        else if (port == 0x3C8) { vga.write_dac_address_write_mode(data); }
+        else if (port == 0x3C9) { vga.write_dac_data(data); }
+        else if (port == 0x3CE) { vga.write_graphics_controller_address(data); }
+        else if (port == 0x3CF) { vga.write_graphics_controller_data(data); }
         else if (port >= 0x3F0 && port <= 0x3F7)
         {
             if (port != 0x3F6)
@@ -363,13 +395,39 @@ struct IOSystem
         {
             data = soundblaster.read(port-0x220);
         }
-        else if (port >= 0x3B0 && port <= 0x3DF)
+        else if (port >= 0x3B0 && port <= 0x3DF) // VGA ports overlap here
         {
-            if (globalsettings.graphics == GlobalSettings::HEGA)
+            // Check for VGA CRTC (mono)
+            if ((vga.misc_output_register & 0x01) == 0) { // Mono I/O addresses
+                if (port == 0x3B5) { data = vga.read_crtc_data(); return data; }
+                if (port == 0x3BA) { data = vga.read_input_status_1_mono(); return data; }
+            }
+            // Check for VGA CRTC (color)
+            if ((vga.misc_output_register & 0x01) == 1) { // Color I/O addresses
+                if (port == 0x3D5) { data = vga.read_crtc_data(); return data; }
+                if (port == 0x3DA) { data = vga.read_input_status_1_color(); return data; }
+            }
+
+            // Existing HEGA/CGA
+            if (globalsettings.graphics == GlobalSettings::HEGA) {
                 data = hega.read(port-0x3B0);
-            else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
+            } else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0) {
                 data = cga.read(port-0x3D0);
+            }
+            // Fall through for other VGA ports
         }
+        // VGA specific ports
+        else if (port == 0x3C1) { data = vga.read_attribute_controller_data(); }
+        else if (port == 0x3C2) { data = vga.read_input_status_0(); } // Read Input Status 0 / Mirror of Misc Output
+        else if (port == 0x3C4) { data = vga.sequencer_address_register; } // Typically address reg is read back
+        else if (port == 0x3C5) { data = vga.read_sequencer_data(); }
+        else if (port == 0x3C6) { data = vga.read_dac_mask(); }
+        else if (port == 0x3C7) { data = vga.read_dac_state_register(); } // Read DAC State (or PEL Address Read Mode on write)
+        else if (port == 0x3C8) { data = vga.dac_address_write_mode_register; } // Read back DAC write index
+        else if (port == 0x3C9) { data = vga.read_dac_data(); }
+        else if (port == 0x3CC) { data = vga.read_misc_output(); } // Read Misc Output Reg
+        else if (port == 0x3CE) { data = vga.graphics_controller_address_register; } // Read back GC address
+        else if (port == 0x3CF) { data = vga.read_graphics_controller_data(); }
         else if (port >= 0x3F0 && port <= 0x3F7)
         {
             if (port != 0x3F6)
@@ -519,15 +577,19 @@ struct Machine
 
     void real_stuff(u64 clock)
     {
-        if (clock%8 == 0)
+        if (clock%8 == 0) // Graphics cycle rate
         {
-            if (globalsettings.graphics == GlobalSettings::HEGA)
+            if (globalsettings.graphics == GlobalSettings::VGA) {
+                p.vga.cycle();
+            } else if (globalsettings.graphics == GlobalSettings::HEGA) {
                 p.hega.cycle();
-            else if (globalsettings.graphics == GlobalSettings::CGA)
+            } else if (globalsettings.graphics == GlobalSettings::CGA) {
                 p.cga.cycle();
-            if (p.pic.irq_to_cpu != -1)
+            }
+
+            if (p.pic.irq_to_cpu != -1) // IRQ Handling
             {
-                if (p.pic.irq_to_cpu == 2 && p.pic.irq_to_cpu != -1)
+                if (p.pic.irq_to_cpu == 2 && p.pic.irq_to_cpu != -1) // Cascade for PIC2
                     irq_if_accept(p.pic2.irq_to_cpu+8);
                 else
                     irq_if_accept(p.pic.irq_to_cpu);
@@ -1133,6 +1195,12 @@ void configline(std::string line)
         {
             globalsettings.graphics = GlobalSettings::GRAPHICS::HEGA;
             mac.p.kbd_xt.set_video_type(CHIP8255::V_OTHER);
+        }
+        else if (gputype == "vga")
+        {
+            globalsettings.graphics = GlobalSettings::GRAPHICS::VGA;
+            // mac.p.kbd_xt.set_video_type(CHIP8255::V_OTHER); // Or a specific VGA type if kbd needs it
+            std::cout << "VGA graphics mode selected." << std::endl;
         }
         else
             std::cout << "ERROR unknown gpu: " << gputype << std::endl;
