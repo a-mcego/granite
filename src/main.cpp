@@ -94,7 +94,8 @@ struct GlobalSettings
     enum GRAPHICS
     {
         CGA,
-        HEGA
+        HEGA,
+        VGA
     } graphics=CGA;
 
     bool opl_enabled{true};
@@ -141,6 +142,7 @@ const u8 byte_parity[256] =
 #include "gameport.h"
 #include "cga.h"
 #include "hega.h"
+#include "vga.h"
 #include "ltems.h"
 #include "interrupt.h"
 #include "mem286.h"
@@ -167,12 +169,13 @@ struct IOSystem
     Gameport gameport;
     CGA cga;
     HEGA hega;
+    VGA vga;
     LTEMS ltems;
     CHIP8259 pic, pic2;
     MemBytes membytes;
-    MemoryManager8088 mem88{hega, cga, ltems, membytes};
+    MemoryManager8088 mem88{vga, hega, cga, ltems, membytes};
     MemoryManager186 mem186{hega, cga, ltems, membytes};
-    MemoryManager286 mem286{hega, cga, ltems, membytes};
+    MemoryManager286 mem286{vga, hega, cga, ltems, membytes};
     BEEPER beeper;
     YM3812 ym3812;
     GameBlaster gameblaster;
@@ -260,6 +263,8 @@ struct IOSystem
         {
             if (globalsettings.graphics == GlobalSettings::HEGA)
                 hega.write(port-0x3B0, data&0xFF);
+            else if (globalsettings.graphics == GlobalSettings::VGA)
+                vga.write(port-0x3B0, data&0xFF);
             else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
                 cga.write(port-0x3D0, data&0xFF);
         }
@@ -367,6 +372,8 @@ struct IOSystem
         {
             if (globalsettings.graphics == GlobalSettings::HEGA)
                 data = hega.read(port-0x3B0);
+            else if (globalsettings.graphics == GlobalSettings::VGA)
+                data = vga.read(port-0x3B0);
             else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
                 data = cga.read(port-0x3D0);
         }
@@ -525,6 +532,8 @@ struct Machine
                 p.hega.cycle();
             else if (globalsettings.graphics == GlobalSettings::CGA)
                 p.cga.cycle();
+            else if (globalsettings.graphics == GlobalSettings::VGA)
+                p.vga.cycle();
             if (p.pic.irq_to_cpu != -1)
             {
                 if (p.pic.irq_to_cpu == 2 && p.pic.irq_to_cpu != -1)
@@ -1132,6 +1141,11 @@ void configline(std::string line)
         else if (gputype == "ega" || gputype == "hega")
         {
             globalsettings.graphics = GlobalSettings::GRAPHICS::HEGA;
+            mac.p.kbd_xt.set_video_type(CHIP8255::V_OTHER);
+        }
+        else if (gputype == "vga")
+        {
+            globalsettings.graphics = GlobalSettings::GRAPHICS::VGA;
             mac.p.kbd_xt.set_video_type(CHIP8255::V_OTHER);
         }
         else

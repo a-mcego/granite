@@ -1,5 +1,5 @@
 cpu 8088
-cpu_multiplier 1/3
+cpu_multiplier 1/1
 
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN
@@ -16,8 +16,11 @@ cpu_multiplier 1/3
 #rom fc000 rom/basic/basicc1.0.fc00.bin
 
 machine xt
+gpu vga
+#rom c0000 rom/ibm_vga.bin
+rom c0000 rom/BOCHS-VGABIOS.bin
 
-gpu cga80
+#gpu cga80
 #gpu ega
 #rom c0000 rom/ct-8190s_v3.32.bin
 #rom fe000 rom/deskpro_8086.bin

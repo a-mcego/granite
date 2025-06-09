@@ -10,8 +10,11 @@ rom f8001 rom/atbios/commodore-pcat-bios-U80-high.bin stride=2
 
 #gpu cga80
 
-gpu ega
-rom c0000 rom/ct-8190s_v3.32.bin
+gpu vga
+rom c0000 rom/ibm_vga.bin
+
+#gpu ega
+#rom c0000 rom/ct-8190s_v3.32.bin
 #rom c0000 rom/IBM_EGA.rom
 
 load a disk/cpc40/disk1.img
