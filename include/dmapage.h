@@ -13,7 +13,7 @@ struct CHIPLS612N //DMA page registers, POST card value
 
     void write(u8 port, u8 data)
     {
-        if (port == 0 && data != pages[0])
+        if (port == 0)
         {
             std::cout << "---POSTCARD--- " << u32(data) << std::endl;
             //if (data==0x0C)

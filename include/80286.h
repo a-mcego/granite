@@ -871,6 +871,7 @@ struct CPU80286
             }
             else if (instruction == 0x62) // BOUND
             {
+                std::abort();
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
                 u16 rm = readM(16);
@@ -892,21 +893,25 @@ struct CPU80286
             }
             else if (instruction == 0x69)
             {
+                //std::abort();
                 //0x69 mul modrm, immed word
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
                 u16 rm = readM(16);
                 u16 op2 = read_inst<u16>();
-                i32 result = i32(i16(rm))*i32(i16(op2));
-                set_flag(F_SIGN,result&0x80000000);
+                i16 result = i32(i16(rm))*i32(i16(op2));
+                set_flag(F_SIGN,result&0x8000);
                 set_flag(F_PARITY,byte_parity[(result>>16)&0xFF]);
-                set_flag(F_OVERFLOW,result>=0x8000 || result < -0x8000);
-                set_flag(F_CARRY,result>=0x8000 || result < -0x8000);
+                set_flag(F_OVERFLOW,result>=0x80 || result < -0x80);
+                set_flag(F_CARRY,result>=0x80 || result < -0x80);
                 set_flag(F_AUX_CARRY,false);
                 set_flag(F_ZERO,(result)==0);
 
-                registers[AX] = result&0xFFFF;
-                registers[DX] = result >> 16;
+                //registers[AX] = result&0xFFFF;
+                //registers[DX] = result >> 16;
+
+                get_r16(modrm_r) = result;
+
                 cycles_used += (modrm_is_register?21:24); //286
             }
             else if (instruction == 0x6A)
@@ -918,12 +923,13 @@ struct CPU80286
             }
             else if (instruction == 0x6B)
             {
+                //std::abort();
                 //0x6B mul modrm, immed byte
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
-                u8 rm = readM(8);
-                u8 op2 = read_inst<u8>();
-                i16 result = i16(i8(rm))*i16(i8(op2));
+                u16 rm = readM(16);
+                u16 op2 = i16(read_inst<i8>());
+                i16 result = i16(rm)*i16(op2);
 
                 set_flag(F_SIGN,result&0x8000);
                 set_flag(F_PARITY,byte_parity[u16(result)>>8]);
@@ -931,7 +937,10 @@ struct CPU80286
                 set_flag(F_CARRY,result>=0x80 || result < -0x80);
                 set_flag(F_AUX_CARRY,false);
                 set_flag(F_ZERO,(result&0xFFFF)==0);
-                registers[AX] = u16(result);
+                //registers[AX] = u16(result);
+
+                get_r16(modrm_r) = result;
+
                 cycles_used += (modrm_is_register?21:24); //286
             }
             else if (instruction == 0x6C) // INS, byte from DX port
@@ -1079,7 +1088,7 @@ struct CPU80286
             //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u8 rm = readM(16);
+            u16 rm = readM(16);
             u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
 
             u8 inst_type = (modrm >> 3) & 0x07;

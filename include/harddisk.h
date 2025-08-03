@@ -43,6 +43,7 @@ struct DISK
     };
 
     DiskType type;
+    bool active{};
     vector<u8> data;
     std::string filename;
 
@@ -94,7 +95,7 @@ struct DISK
     {
     }
 
-    DISK(const std::string& filename_, int c, int h, int s):filename(filename_)
+    DISK(const std::string& filename_, int c, int h, int s):active(true),filename(filename_)
     {
         type = DiskType(c,h,s);
         data.assign(type.totalsize(),0);
@@ -266,7 +267,11 @@ struct HARDDISK_XEBEC
     {
         if (port == 0) // data port
         {
-            if (do_drive_characteristics)
+            if (!disks.disk[current_drive].active)
+            {
+                errorcode = NO_READY_AFTER_SELECT;
+            }
+            else if (do_drive_characteristics)
             {
                 r1_iomode = IO_B;
                 r1_req = true;
@@ -277,10 +282,10 @@ struct HARDDISK_XEBEC
                 {
                     do_drive_characteristics = false;
                     dc_index = 0;
-                    cout << "HD: drive characteristics gotten! ";
+                    /*cout << "HD: drive characteristics gotten! ";
                     for(int i=0; i<8; ++i)
                         cout << u32(drive_characteristics[i]) << ' ';
-                    cout << endl;
+                    cout << endl;*/
                     interrupttime = 0x300;
                     r1_req = false;
                 }
