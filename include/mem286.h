@@ -1,16 +1,18 @@
 #pragma once
 
 #include "cga.h"
+#include "vga.h"
 #include "ltems.h"
 #include "membytes.h"
 
 struct MemoryManager286
 {
+    VGA& vga;
     HEGA& hega;
     CGA& cga;
     LTEMS& ltems;
     MemBytes& membytes;
-    MemoryManager286(HEGA& hega_, CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : hega(hega_), cga(cga_), ltems(ltems_), membytes(membytes_) {}
+    MemoryManager286(VGA& vga_, HEGA& hega_, CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : vga(vga_), hega(hega_), cga(cga_), ltems(ltems_), membytes(membytes_) {}
 
     bool testmode{};
 
@@ -31,6 +33,8 @@ struct MemoryManager286
         {
             if (globalsettings.graphics == GlobalSettings::CGA && cga.address_in_memory_map(address))
                 data = cga.memory8(address-cga.MEMORY_MAP_START());
+            else if (globalsettings.graphics == GlobalSettings::VGA && address >= 0xA0000 && address <= 0xBFFFF)
+                data = vga.r8(address&0x1FFFF);
             else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
                 data = hega.r8(address&0x1FFFF);
             else if (address >= 0xE0000 && address <= 0xEFFFF)
@@ -57,6 +61,8 @@ struct MemoryManager286
                 cga.memory8(address-cga.MEMORY_MAP_START()) = data;
             else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
                 hega.w8(address&0x1FFFF, data);
+            else if (globalsettings.graphics == GlobalSettings::VGA && address >= 0xA0000 && address <= 0xBFFFF)
+                vga.w8(address&0x1FFFF, data);
             else if (address >= 0xE0000 && address <= 0xEFFFF)
                 ltems._8(address&0xFFFF) = data;
             else if (address < membytes.size)

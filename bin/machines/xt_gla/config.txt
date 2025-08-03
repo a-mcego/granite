@@ -1,5 +1,5 @@
-cpu 8088
-cpu_multiplier 1/3
+cpu 80286
+cpu_multiplier 1/1
 
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN
@@ -7,7 +7,7 @@ cpu_multiplier 1/3
 #rom fe000 rom/GLABIOS_0.2.5_8P.ROM
 #rom fe000 rom/GLABIOS_0.2.5_8T.ROM
 
-#rom f2000 rom/GLaTICK_0.8.5_AT.ROM
+rom f2000 rom/GLaTICK_0.8.5_AT.ROM
 
 #basic
 #rom f6000 rom/basic/basicc1.0.f600.bin
@@ -17,11 +17,21 @@ cpu_multiplier 1/3
 
 machine xt
 
-gpu cga80
-#gpu ega
-#rom c0000 rom/ct-8190s_v3.32.bin
+#gpu vga
+#rom c0000 rom/ibm_vga.bin
+#rom c0000 rom/BOCHS-VGABIOS.bin
+
+#gpu cga80
+gpu ega
+rom c0000 rom/ct-8190s_v3.32.bin
 #rom fe000 rom/deskpro_8086.bin
-rom fe000 rom/GLABIOS_0.2.5_8X.ROM
+#rom fe000 rom/GLABIOS_0.2.5_8X.ROM
+rom fe000 rom/GLABIOS_0.4.0_8X.ROM
+
+#rom f0000 rom/xt286bios/BIOS_5162_21APR86_U34_78X7460_27256.BIN stride=2
+#rom f0001 rom/xt286bios/BIOS_5162_21APR86_U35_78X7461_27256.BIN stride=2
+
+
 #rom fe000 rom/GLABIOS_0.2.5_VX.ROM
 #rom fe000 rom/xtramtest.8k
 #rom f0000 rom/xtbios/BIOS_5160_09MAY86_U19_62X0819_68X4370_27256_F000.BIN
@@ -29,7 +39,7 @@ rom fe000 rom/GLABIOS_0.2.5_8X.ROM
 #rom f0000 rom/xtbios/BIOS_5160_10JAN86_U19_62X0854_27256_F000.BIN
 #rom f8000 rom/xtbios/BIOS_5160_10JAN86_U18_62X0851_27256_F800.BIN
 
-rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
+rom c8000 rom/IBM_XEBEC_5000059_1982.BIN
 #rom f8000 rom/ruuds_diagnostic_rom_v5.4_32kb.bin
 
 #rom f0000 c:/nasm/regtest.bin
@@ -63,7 +73,8 @@ load c cdisk.img chs=375,8,17
 #load d ddisk.img chs=375,8,17
 #load d bigdisk.img chs=615,8,17
 #load d geos.img chs=615,8,17
-load d cpc40.img chs=615,4,17
+#load d cpc40.img chs=615,4,17
+load d 286vgad.img chs=615,12,17
 
 #load c ddisk.img
 #load d edisk.img

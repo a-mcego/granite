@@ -33,6 +33,7 @@
 		</Compiler>
 		<Unit filename="include/80186.h" />
 		<Unit filename="include/80286.h" />
+		<Unit filename="include/8087.h" />
 		<Unit filename="include/8088mc.h" />
 		<Unit filename="include/808x.h" />
 		<Unit filename="include/808x_microcoded.h" />
@@ -67,6 +68,9 @@
 		<Unit filename="include/screen.h" />
 		<Unit filename="include/shader.h" />
 		<Unit filename="include/soundblaster.h" />
+		<Unit filename="include/sqems.h" />
+		<Unit filename="include/vga.h" />
+		<Unit filename="include/z80.h" />
 		<Unit filename="src/KHR/khrplatform.h" />
 		<Unit filename="src/gl.cpp" />
 		<Unit filename="src/main.cpp" />

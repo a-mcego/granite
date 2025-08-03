@@ -337,3 +337,8 @@ static u32 getpalette(u8 index)
 {
     return (PALETTE[index*4]<<0) + (PALETTE[index*4+1]<<8)+(PALETTE[index*4+2]<<16);
 }
+
+static u32 getpalette_vga(u8 index)
+{
+    return (PALETTE[index*4]<<0) + (PALETTE[index*4+1]<<8)+(PALETTE[index*4+2]<<16);
+}

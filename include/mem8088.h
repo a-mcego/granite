@@ -2,11 +2,12 @@
 
 struct MemoryManager8088
 {
+    VGA& vga;
     HEGA& hega;
     CGA& cga;
     LTEMS& ltems;
     MemBytes& membytes;
-    MemoryManager8088(HEGA& hega_, CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : hega(hega_), cga(cga_), ltems(ltems_), membytes(membytes_) {}
+    MemoryManager8088(VGA& vga_, HEGA& hega_, CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : vga(vga_), hega(hega_), cga(cga_), ltems(ltems_), membytes(membytes_) {}
 
     void dump_memory(const char* filename)
     {
@@ -32,6 +33,8 @@ struct MemoryManager8088
                 data = cga.memory8(address-cga.MEMORY_MAP_START());
             else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
                 data = hega.r8(address&0x1FFFF);
+            else if (globalsettings.graphics == GlobalSettings::VGA && address >= 0xA0000 && address <= 0xBFFFF)
+                data = vga.r8(address&0x1FFFF);
             else if (address >= 0xE0000 && address <= 0xEFFFF)
                 data = ltems._8(address&0xFFFF);
             else if (address < membytes.size)
@@ -54,6 +57,8 @@ struct MemoryManager8088
                 cga.memory8(address-cga.MEMORY_MAP_START()) = data;
             else if (globalsettings.graphics == GlobalSettings::HEGA && address >= 0xA0000 && address <= 0xBFFFF)
                 hega.w8(address&0x1FFFF, data);
+            else if (globalsettings.graphics == GlobalSettings::VGA && address >= 0xA0000 && address <= 0xBFFFF)
+                vga.w8(address&0x1FFFF, data);
             else if (address >= 0xE0000 && address <= 0xEFFFF)
                 ltems._8(address&0xFFFF) = data;
             else if (address < membytes.size)
