@@ -32,6 +32,16 @@ struct HEGA
         0xFFFFFFFF,
     };
 
+    u32 clock_numer() const
+    {
+        return ((misc&0x04)?1677:1477)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
+    }
+
+    u32 clock_denom() const
+    {
+        return 1477*2;
+    }
+
     bool debugprint{};
 
     u32 mem[0x10000] = {}; //0x10000 per plane
@@ -608,6 +618,7 @@ struct HEGA
     u32 vsync_monitor_ctr{};
     u16 v_retrace_end{};
     u16 h_retrace_end{};
+    u32 frames{};
 
     void cycle() //8 hdots per cycle
     {
@@ -672,6 +683,7 @@ struct HEGA
 
         if (vsync_monitor_ctr==1)
         {
+            ++frames;
             current_startaddress = ((crtc_regs[START_ADDRESS_H]<<8) | crtc_regs[START_ADDRESS_L]);
         }
 

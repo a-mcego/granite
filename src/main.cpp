@@ -144,6 +144,7 @@ const u8 byte_parity[256] =
 #include "hega.h"
 #include "vga.h"
 #include "ltems.h"
+#include "sqems.h"
 #include "interrupt.h"
 #include "mem286.h"
 #include "mem186.h"
@@ -514,6 +515,8 @@ struct Machine
     u64 cpumult_denom{3};
     i64 cpu_cycle_accum{};
 
+    u32 hega_counter{};
+
     void fast_stuff([[maybe_unused]] u64 clock)
     {
         cpu_cycle_accum += cpumult_num;
@@ -529,7 +532,14 @@ struct Machine
         if (clock%8 == 0)
         {
             if (globalsettings.graphics == GlobalSettings::HEGA)
-                p.hega.cycle();
+            {
+                hega_counter += p.hega.clock_numer();
+                while (hega_counter >= p.hega.clock_denom())
+                {
+                    p.hega.cycle();
+                    hega_counter -= p.hega.clock_denom();
+                }
+            }
             else if (globalsettings.graphics == GlobalSettings::CGA)
                 p.cga.cycle();
             else if (globalsettings.graphics == GlobalSettings::VGA)
@@ -837,6 +847,7 @@ void key_callback([[maybe_unused]] GLFWwindow* window, int key, [[maybe_unused]]
             else if (key == GLFW_KEY_M)
             {
                 mac.p.hega.debugprint = !mac.p.hega.debugprint;
+                mac.p.vga.debugprint = mac.p.hega.debugprint;
             }
             else if (key == GLFW_KEY_D)
             {
@@ -1779,6 +1790,24 @@ int main(int argc, char* argv[])
             mac.p.cmos.save();
         //last_render = now;
         //screen.clear();
+        if (glfwGetTime()-startTime >= 1.0)
+        {
+            startTime += 1.0;
+            if (mac.p.hega.frames > 0)
+            {
+                std::cout << std::dec << mac.p.hega.frames << " FPS (HEGA)" << std::endl;
+                mac.p.hega.frames = 0;
+            }
+            if (mac.p.vga.frames > 0)
+            {
+                std::stringstream ss;
+
+                ss << "V=" << std::dec << mac.p.vga.frames << "Hz, H=" << mac.p.vga.hframes << "Hz (VGA)" << std::endl;
+                std::cout << ss.str();
+                mac.p.vga.frames = 0;
+                mac.p.vga.hframes = 0;
+            }
+        }
     }
 
 

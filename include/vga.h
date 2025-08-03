@@ -42,7 +42,18 @@ struct VGA
     u8 dac_read_index{};
     u8 dac_write_index{};
     u8 dac_state{}; // 0=read index, 1=read r, 2=read g, 3=read b (similar for write)
-    u8 dac_palette[256][3] = {}; // RGB values (6-bit each)
+    u8 dac_palette[256*3] = {}; // RGB values (6-bit each)
+    u8 dac_state_register{}; //0 = read, 3 = write
+
+    VGA(){}
+    /*{
+        for(int i=0; i<256; ++i)
+        {
+            dac_palette[i*3+0] = ::PALETTE[i*4+0]>>2;
+            dac_palette[i*3+1] = ::PALETTE[i*4+1]>>2;
+            dac_palette[i*3+2] = ::PALETTE[i*4+2]>>2;
+        }
+    }*/
 
     u32 get_write_mask()
     {
@@ -271,6 +282,7 @@ struct VGA
 
     void print_regs()
     {
+        cout << std::hex;
         for(int i=0; i<CRTC_REG_COUNT; ++i)
             cout << u32(crtc_regs[i]) << (i%4==3?"  ":" ");
         cout << endl;
@@ -352,6 +364,10 @@ struct VGA
         MODE_CONTROL_CRTC,
 
         LINE_COMPARE
+        //??
+        //READ_BACK_CRT_LATCH = 0x22?
+        //ATTRIBUTE_INDEX_TOGGLE = 0x24?
+        //ATTRIBUTE_INDEX = 0x23
     } crtc_choice{};
 
     static const u8 CRTC_REG_COUNT = 0x19;
@@ -391,13 +407,17 @@ struct VGA
         }
         else if (port == 0x17) // 3C7 - DAC State (read)
         {
-            data = (dac_state == 0) ? 0x00 : 0x03;
+            data = dac_state_register;
+        }
+        else if (port == 0x18)
+        {
+            data = dac_write_index;
         }
         else if (port == 0x19) // 3C9 - DAC Data
         {
             if (dac_state >= 1 && dac_state <= 3)
             {
-                data = dac_palette[dac_read_index][dac_state - 1];
+                data = dac_palette[dac_read_index*3+dac_state - 1];
                 dac_state++;
                 if (dac_state > 3)
                 {
@@ -475,11 +495,13 @@ struct VGA
         }
         else if (port == 0x17) // 3C7 - DAC Address Read Mode
         {
+            dac_state_register = 0;
             dac_read_index = data;
             dac_state = 1;
         }
         else if (port == 0x18) // 3C8 - DAC Address Write Mode
         {
+            dac_state_register = 3;
             dac_write_index = data;
             dac_state = 1;
         }
@@ -487,7 +509,7 @@ struct VGA
         {
             if (dac_state >= 1 && dac_state <= 3)
             {
-                dac_palette[dac_write_index][dac_state - 1] = data & 0x3F;
+                dac_palette[dac_write_index*3+dac_state - 1] = data & 0x3F;
                 dac_state++;
                 if (dac_state > 3)
                 {
@@ -536,7 +558,7 @@ struct VGA
         {
             feature_control = data;
         }
-        else if (port == 0x0F || port == 0x2F); // Legacy ports
+        else if (port == 0x0F || port == 0x2F){} // Legacy ports
     }
 
     // Monitor timing and display generation
@@ -578,7 +600,7 @@ struct VGA
     u32 prev_col_amount{};
     u32 prev_col_times{};
 
-    void monitor_cycle(u8 pins)
+    /*void monitor_cycle(u8 pins)
     {
         bool vc = vsync_ctr.cycle(pins & 0x80);
         bool hc = hsync_ctr.cycle(pins & 0x40);
@@ -586,6 +608,10 @@ struct VGA
         if ((vc && !vsync_ctr.get_prev()))
         {
             prev_line_amount = linepos;
+            if (screen.screenSizeY != prev_line_amount)
+            {
+                std::cout << "APERTURE " << std::dec << screen.screenSizeX << "x" << screen.screenSizeY << std::endl << std::hex;
+            }
             screen.screenSizeY = prev_line_amount;
             linepos = 0;
         }
@@ -594,7 +620,13 @@ struct VGA
             prev_col_times = (prev_col_amount==colpos)?prev_col_times+1:0;
             prev_col_amount = colpos;
             if (prev_col_times >= 4)
+            {
+                if (screen.screenSizeX != prev_col_amount)
+                {
+                    std::cout << "APERTURE " << std::dec << screen.screenSizeX << "x" << screen.screenSizeY << std::endl << std::hex;
+                }
                 screen.screenSizeX = prev_col_amount;
+            }
             colpos = 0;
             ++linepos;
         }
@@ -618,15 +650,66 @@ struct VGA
             {
                 // Use DAC palette
                 u8 dac_index = color & dac_mask;
-                u32 rgb = (dac_palette[dac_index][0] << 18) |
-                         (dac_palette[dac_index][1] << 10) |
-                         (dac_palette[dac_index][2] << 2);
+                u32 rgb = (dac_palette[dac_index*3+0] << 18) |
+                         (dac_palette[dac_index*3+1] << 10) |
+                         (dac_palette[dac_index*3+2] << 2);
                 screen.pixels[renderline * screen.X + rendercol] = rgb;
             }
             else
             {
                 screen.pixels[renderline * screen.X + rendercol] = getpalette_vga(color);
             }
+        }
+    }*/
+
+    void monitor_cycle(u8 r, u8 g, u8 b, u8 vsync_pin, u8 hsync_pin)
+    {
+        bool vc = vsync_ctr.cycle(vsync_pin);
+        bool hc = hsync_ctr.cycle(hsync_pin);
+
+        if ((vc && !vsync_ctr.get_prev()))
+        {
+            prev_line_amount = linepos;
+            if (screen.screenSizeY != prev_line_amount)
+            {
+                std::cout << "APERTURE " << std::dec << screen.screenSizeX << "x" << screen.screenSizeY << std::endl << std::hex;
+            }
+            screen.screenSizeY = prev_line_amount;
+            linepos = 0;
+        }
+        if (hc && !hsync_ctr.get_prev() && !vsync_ctr.get_prev())
+        {
+            prev_col_times = (prev_col_amount==colpos)?prev_col_times+1:0;
+            prev_col_amount = colpos;
+            if (prev_col_times >= 4)
+            {
+                if (screen.screenSizeX != prev_col_amount)
+                {
+                    std::cout << "APERTURE " << std::dec << screen.screenSizeX << "x" << screen.screenSizeY << std::endl << std::hex;
+                }
+                screen.screenSizeX = prev_col_amount;
+            }
+            colpos = 0;
+            ++linepos;
+            ++hframes;
+        }
+        if (!hsync_ctr.get_prev())
+        {
+            ++colpos;
+        }
+
+        u32 color = 0;
+        //if (!hsync_pin && !vsync_pin)
+        {
+            color = (b << 16) | (g << 8) | r;
+        }
+
+        u32 renderline = linepos;
+        u32 rendercol = colpos;
+
+        if (renderline < screen.Y && rendercol < screen.X)
+        {
+            screen.pixels[renderline * screen.X + rendercol] = color;
         }
     }
 
@@ -638,29 +721,33 @@ struct VGA
     bool hsync{}, vsync{};
     u32 hsync_monitor_ctr{};
     u32 vsync_monitor_ctr{};
+    u32 frames{};
+    u32 hframes{};
 
     void cycle() // 8 pixels per cycle
     {
         bool is_graphics_mode = !(seq_regs[MEMORY_MODE]&0x01);
-        u16 hsync_mult = (seq_regs[CLOCKING_MODE]&0x01) ? 8 : 9;
+        //u16 hsync_mult = (seq_regs[CLOCKING_MODE]&0x01) ? 8 : 9;
+        //const u16 hsync_mult = 8;
 
         // Extract timing values with overflow bits
-        u16 v_total = crtc_regs[V_TOTAL] + ((crtc_regs[OVERFLOW]&0x01)?0x100:0x000);
-        u16 v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000);
-        u16 v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000);
+        u16 v_total = crtc_regs[V_TOTAL] + ((crtc_regs[OVERFLOW]&0x01)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x20)?0x200:0x000);
+        u16 v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x40)?0x200:0x000);
+        u16 v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x80)?0x200:0x000);
         u16 vblank_start = crtc_regs[V_BLANK_START] + ((crtc_regs[OVERFLOW]&0x08)?0x100:0x000);
+        u8 scan_doubling = (crtc_regs[MAX_SCAN_LINE]&0x80)>>7;
 
-        column += hsync_mult;
-        column = (column>=(crtc_regs[H_TOTAL]+5)*hsync_mult?0:column);
+        column += 1;
+        column = (column>=(crtc_regs[H_TOTAL]+2)?0:column);
 
         if (column == 0) // new line
         {
-            ++line_inside_character;
             ++scan_line;
-            if (line_inside_character > (crtc_regs[MAX_SCAN_LINE]&0x1F))
+            ++line_inside_character;
+            if ((line_inside_character>>scan_doubling) > (crtc_regs[MAX_SCAN_LINE]&0x1F))
             {
                 line_inside_character = 0;
-                ++logical_line;
+                ++logical_line;// += (!scan_doubling || !(scan_line&1))?1:0;
             }
 
             bool all_lines_drawn = (scan_line > v_total);
@@ -679,48 +766,120 @@ struct VGA
         else
             ++vsync_monitor_ctr;
 
+        bool do_print = false;
         if (vsync_monitor_ctr==1)
         {
+            ++frames;
             current_startaddress = ((crtc_regs[START_ADDRESS_H]<<8) | crtc_regs[START_ADDRESS_L]);
+            do_print = true;
+            //std::cout << std::hex << current_startaddress << " ";
+            //std::cout << std::dec <<
+
+
+            //std::cout << std::endl;
         }
 
         bool monitor_vsync = vsync ^ bool(misc&0x80);
 
-        u16 hsync_start = (crtc_regs[H_RETRACE_START])*hsync_mult;
-        u16 hsync_end = hsync_start + ((crtc_regs[H_RETRACE_END]&0x1F)*hsync_mult);
-        hsync = (column >= hsync_start && column < hsync_end);
+        u16 hsync_start = (crtc_regs[H_RETRACE_START]);
+        u16 hsync_end = hsync_start + ((crtc_regs[H_RETRACE_END]&0x1F));
+        hsync = (column >= hsync_start && column <= hsync_end);
+        //if (column >= hsync_start-16 && rand()%256 == 0)
+        //    std::cout << std::dec << hsync_start << "/" << column << "/" << hsync_end << "  \r";
         bool monitor_hsync = hsync ^ bool(misc&0x40);
 
         vertical_retrace = (scan_line >= v_retrace_start && scan_line <= v_retrace_start + (crtc_regs[V_RETRACE_END]&0x0F));
         retrace = (vertical_retrace || hsync);
 
-        bool display_enable = !((column > crtc_regs[H_DISPLAY_END]*hsync_mult) || (scan_line > v_display_end));
+        bool display_enable = !((column > crtc_regs[H_DISPLAY_END]) || (scan_line > v_display_end));
 
         if (is_graphics_mode)
         {
-            int x = column / hsync_mult;
-            u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET] + x;
+            bool cms0 = crtc_regs[MODE_CONTROL_CRTC]&0x01;
+            int x = column;// / hsync_mult;
 
-            if (seq_regs[MEMORY_MODE] & 0x08) // Chain-4 mode (256-color)
+            u32 offset=0;
+            u32 chosen_line = logical_line;
+            if (!cms0)
             {
-                for(int i=0; i<hsync_mult; ++i)
+                if (line_inside_character>>scan_doubling)
                 {
-                    u8 color = attr_regs[OVERSCAN_COLOR];
+                    //12 for lores cga, 13 for hires cga
+                    if (w_oddeven())
+                        offset += (1<<12);
+                    else
+                        offset += (1<<13);
+
+                }
+
+            }
+
+            offset += current_startaddress + chosen_line*crtc_regs[OFFSET]*2 + x;
+
+            //u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET]*2 + x;
+
+            if (attr_regs[MODE_CONTROL_ATTR] & 0x40) //256 color mode
+            {
+                for(int i=0; i<4; ++i)
+                {
+                    u8 color_index = attr_regs[OVERSCAN_COLOR];
                     if (display_enable)
                     {
                         u32 addr = offset + i/4;
-                        u32 plane = (offset + i/4) & 3;
-                        color = (r32(addr) >> (plane * 8)) & 0xFF;
+                        u32 plane = i&3;
+                        color_index = (r32(addr) >> (plane * 8)) & 0xFF;
                     }
-                    monitor_cycle(color|(u8(monitor_hsync)<<6)|(u8(monitor_vsync)<<7));
+                    color_index &= dac_mask;
+                    u8 r = (dac_palette[color_index*3+0] & 0x3F) << 2;
+                    u8 g = (dac_palette[color_index*3+1] & 0x3F) << 2;
+                    u8 b = (dac_palette[color_index*3+2] & 0x3F) << 2;
+                    monitor_cycle(r, g, b, monitor_vsync, monitor_hsync);
                 }
             }
             else // 16-color planar mode
             {
-                for(int i=0; i<hsync_mult; ++i)
+                for(int i=0; i<8; ++i)
+                {
+                    int pel_panned_i = i + (attr_regs[HORIZONTAL_PEL_PANNING]&0x07);
+                    const u32 mask = 0x80808080;
+                    u32 color = attr_regs[OVERSCAN_COLOR];
+                    if (display_enable)
+                    {
+                        u32 data = r32(offset + (pel_panned_i>>3));
+
+                        if(gfx_regs[MODE_REGISTER]&0x20) //shift register
+                        {
+                            color = ((data<<((i^0x04)*2))&0xC000C000)>>14;
+                            //0b00000000'000000ab'00000000'000000cd
+                        }
+                        else
+                        {
+                            color = ((data<<(pel_panned_i&7))&mask)>>7; //pixel from 0 to 7
+                            //0b0000000a'0000000b'0000000c'0000000d
+                            color |= color >> 7;
+                            //0b0000000a'000000ab'000000bc'000000cd
+                        }
+                        color |= color >> 14;
+                        //0b0000000a'000000ab'00000abc'0000abcd
+                        color &= attr_regs[COLOR_PLANE_ENABLE]&0x0F;
+                        //0b00000000'00000000'00000000'0000abcd
+                    }
+                    color = attr_regs[color];
+                    //u8 r = (color & 0x04) ? ((color & 0x08) ? 255 : 170) : ((color & 0x08) ? 85 : 0);
+                    //u8 g = (color & 0x02) ? ((color & 0x08) ? 255 : 170) : ((color & 0x08) ? 85 : 0);
+                    //u8 b = (color & 0x01) ? ((color & 0x08) ? 255 : 170) : ((color & 0x08) ? 85 : 0);
+                    u8 r = (dac_palette[color*3+0] & 0x3F) << 2;
+                    u8 g = (dac_palette[color*3+1] & 0x3F) << 2;
+                    u8 b = (dac_palette[color*3+2] & 0x3F) << 2;
+
+                    monitor_cycle(r, g, b, monitor_vsync, monitor_hsync);
+                    //monitor_cycle(color|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
+                }
+
+                /*for(int i=0; i<8; ++i)
                 {
                     u8 color = attr_regs[OVERSCAN_COLOR];
-                    if (display_enable)
+                    //if (display_enable)
                     {
                         u32 data = r32(offset + (i>>3));
                         u32 pixel_mask = 0x80808080 >> (i&7);
@@ -729,27 +888,48 @@ struct VGA
                     }
                     color = attr_regs[color & 0x0F];
                     monitor_cycle(color|(u8(monitor_hsync)<<6)|(u8(monitor_vsync)<<7));
-                }
+                }*/
             }
         }
         else // Text mode
         {
-            int x = column / hsync_mult;
-            u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET] + x;
+            //if (do_print)
+            //    print_regs();
+            int x = column;
+            u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET]*2 + x;
             u8 char_code = r32(offset) & 0xFF;
+
             u8 attribute = (r32(offset) >> 8) & 0xFF;
             u8 fg_color = attribute & 0x0F;
             u8 bg_color = (attribute >> 4) & 0x0F;
-            u8 char_row = (r32((char_code<<5)+line_inside_character) >> 16) & 0xFF;
+            u8 char_row = (r32((char_code<<5)+(line_inside_character>>scan_doubling)) >> 16) & 0xFF;
 
-            for (u32 x_off = 0; x_off < hsync_mult; x_off++)
+            for (u32 x_off = 0; x_off < 8; x_off++)
             {
                 u8 mask = 1 << (7 - (x_off % 8));
                 u8 color = (char_row & mask) ? fg_color : bg_color;
                 if (!display_enable)
                     color = attr_regs[OVERSCAN_COLOR];
                 color = attr_regs[color & 0x0F];
-                monitor_cycle(color|(u8(monitor_hsync)<<6)|(u8(monitor_vsync)<<7));
+                u8 r = (dac_palette[color*3+0] & 0x3F) << 2;
+                u8 g = (dac_palette[color*3+1] & 0x3F) << 2;
+                u8 b = (dac_palette[color*3+2] & 0x3F) << 2;
+                monitor_cycle(r, g, b, monitor_vsync, monitor_hsync);
+            }
+            if (!(seq_regs[CLOCKING_MODE]&0x01))
+            {
+                u8 color{bg_color};
+                if (char_code >= 0xC0 && char_code < 0xE0)
+                {
+                    color = (char_row & 1) ? fg_color : bg_color;
+                }
+                if (!display_enable)
+                    color = attr_regs[OVERSCAN_COLOR];
+                color = attr_regs[color & 0x0F];
+                u8 r = (dac_palette[color*3+0] & 0x3F) << 2;
+                u8 g = (dac_palette[color*3+1] & 0x3F) << 2;
+                u8 b = (dac_palette[color*3+2] & 0x3F) << 2;
+                monitor_cycle(r, g, b, monitor_vsync, monitor_hsync);
             }
         }
     }
