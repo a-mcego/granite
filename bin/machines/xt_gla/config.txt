@@ -1,5 +1,5 @@
 cpu 80286
-cpu_multiplier 4/3
+cpu_multiplier 5/3
 
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN
@@ -44,7 +44,7 @@ rom fe000 rom/GLABIOS_0.4.0_8X.ROM
 #rom f0000 rom/xtbios/BIOS_5160_10JAN86_U19_62X0854_27256_F000.BIN
 #rom f8000 rom/xtbios/BIOS_5160_10JAN86_U18_62X0851_27256_F800.BIN
 
-rom d0000 rom/IBM_XEBEC_5000059_1982.BIN
+rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #rom f8000 rom/ruuds_diagnostic_rom_v5.4_32kb.bin
 
 #rom f0000 c:/nasm/regtest.bin

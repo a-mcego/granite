@@ -6,8 +6,9 @@ struct MemoryManager8088
     HEGA& hega;
     CGA& cga;
     LTEMS& ltems;
+    SQEMS& sqems;
     MemBytes& membytes;
-    MemoryManager8088(VGA& vga_, HEGA& hega_, CGA& cga_, LTEMS& ltems_, MemBytes& membytes_) : vga(vga_), hega(hega_), cga(cga_), ltems(ltems_), membytes(membytes_) {}
+    MemoryManager8088(VGA& vga_, HEGA& hega_, CGA& cga_, LTEMS& ltems_, SQEMS& sqems_, MemBytes& membytes_) : vga(vga_), hega(hega_), cga(cga_), ltems(ltems_), sqems(sqems_), membytes(membytes_) {}
 
     void dump_memory(const char* filename)
     {
@@ -35,11 +36,18 @@ struct MemoryManager8088
                 data = hega.r8(address&0x1FFFF);
             else if (globalsettings.graphics == GlobalSettings::VGA && address >= 0xA0000 && address <= 0xBFFFF)
                 data = vga.r8(address&0x1FFFF);
-            else if (address >= 0xE0000 && address <= 0xEFFFF)
-                data = ltems._8(address&0xFFFF);
-            else if (address < membytes.size)
+            //else if (address >= 0xE0000 && address <= 0xEFFFF)
+            //    data = ltems._8(address&0xFFFF);
+            else
             {
-                data = membytes.bytes[address];
+                if (sqems.is_ems(address))
+                {
+                    data = sqems.r8(sqems.translate_addr(address));
+                }
+                else if (address < membytes.size)
+                {
+                    data = membytes.bytes[address];
+                }
             }
         }
         else
@@ -59,13 +67,23 @@ struct MemoryManager8088
                 hega.w8(address&0x1FFFF, data);
             else if (globalsettings.graphics == GlobalSettings::VGA && address >= 0xA0000 && address <= 0xBFFFF)
                 vga.w8(address&0x1FFFF, data);
-            else if (address >= 0xE0000 && address <= 0xEFFFF)
-                ltems._8(address&0xFFFF) = data;
-            else if (address < membytes.size)
+            //else if (address >= 0xE0000 && address <= 0xEFFFF)
+            //    ltems._8(address&0xFFFF) = data;
+            else
             {
-                if (address >= 0xC0000 && address < 0x100000);
-                else
+                if (sqems.is_ems(address))
+                {
+                    sqems.w8(sqems.translate_addr(address), data);
+                }
+                else if
+                    (
+                     !(address >= 0xC0000 && address < 0xC8000) &&
+                     !(address >= 0xF0000 && address < 0x100000) &&
+                     address < membytes.size
+                    )
+                {
                     membytes.bytes[address] = data;
+                }
             }
         }
         else

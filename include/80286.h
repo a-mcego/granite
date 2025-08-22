@@ -138,7 +138,7 @@ struct CPU80286
 
             const char* names[4] = {"ES", "CS", "SS", "DS"};
             if (startprinting)
-                std::cout << names[(int)segment_number] << ": R" << descriptor_cache[(int)segment_number].base << std::endl;
+                std::cout << names[(int)segment_number] << ":R" << descriptor_cache[(int)segment_number].base << std::endl;
         }
     }
     void load_tmp_segs_for_test()
@@ -217,6 +217,8 @@ struct CPU80286
         load_segment(SEG::CS, 0xF000);
         load_segment(SEG::SS, 0x0000);
         load_segment(SEG::DS, 0x0000);
+
+        mem.reset();
     }
 
     static const u32 PREFETCH_QUEUE_SIZE = 8;
@@ -707,7 +709,7 @@ struct CPU80286
             }
         }
 
-        if (startprinting)
+        if (startprinting && (get_offset(SEG::CS)+registers[IP]-1) < 0xF0000)
         {
             std::cout << (msw&1?"&":"#") << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << get_offset(SEG::CS)+registers[IP]-1;
             print_regs();
@@ -737,7 +739,6 @@ struct CPU80286
                 mem.w16(addr+2, (ldtr.base)&0xFFFF);
                 mem.w16(addr+4, (ldtr.base>>16)&0xFFFF);
                 std::cout << "store ldtr" << std::endl;
-                //startprinting = true;
             }
             else if (secondbyte == 0x00 && op == 0x02) // LLDT
             {

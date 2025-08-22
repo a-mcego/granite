@@ -172,11 +172,12 @@ struct IOSystem
     HEGA hega;
     VGA vga;
     LTEMS ltems;
+    SQEMS sqems;
     CHIP8259 pic, pic2;
     MemBytes membytes;
-    MemoryManager8088 mem88{vga, hega, cga, ltems, membytes};
+    MemoryManager8088 mem88{vga, hega, cga, ltems, sqems, membytes};
     MemoryManager186 mem186{hega, cga, ltems, membytes};
-    MemoryManager286 mem286{vga, hega, cga, ltems, membytes};
+    MemoryManager286 mem286{vga, hega, cga, ltems, sqems, membytes};
     BEEPER beeper;
     YM3812 ym3812;
     GameBlaster gameblaster;
@@ -219,6 +220,10 @@ struct IOSystem
         {
             cout << "NMI interrupt setting: " << data << endl;
         }*/
+        else if (sqems.is_port(port))
+        {
+            sqems.write(port,data&0xFF);
+        }
         else if (port >= 0x40 && port <= 0x43)
         {
             pit.write(port-0x40, data&0xFF);
@@ -327,6 +332,10 @@ struct IOSystem
         IOSIZE data = 0xff;
 
         if (false);
+        else if (sqems.is_port(port))
+        {
+            data = sqems.read(port);
+        }
         else if (port >= 0x40 && port <= 0x43)
         {
             data = pit.read(port-0x40);
@@ -1753,7 +1762,7 @@ int main(int argc, char* argv[])
         configFilename = machineName+"/"+configFilename;
     }
 
-    mac.p.membytes.set_size((2)<<20);
+    mac.p.membytes.set_size((8)<<20);
     readConfigFile(configFilename);
     initialize_key_lookup();
     screen.SCREEN_start();
