@@ -172,11 +172,12 @@ struct IOSystem
     HEGA hega;
     VGA vga;
     LTEMS ltems;
+    SQEMS sqems;
     CHIP8259 pic, pic2;
     MemBytes membytes;
-    MemoryManager8088 mem88{vga, hega, cga, ltems, membytes};
+    MemoryManager8088 mem88{vga, hega, cga, ltems, sqems, membytes};
     MemoryManager186 mem186{hega, cga, ltems, membytes};
-    MemoryManager286 mem286{vga, hega, cga, ltems, membytes};
+    MemoryManager286 mem286{vga, hega, cga, ltems, sqems, membytes};
     BEEPER beeper;
     YM3812 ym3812;
     GameBlaster gameblaster;
@@ -219,6 +220,10 @@ struct IOSystem
         {
             cout << "NMI interrupt setting: " << data << endl;
         }*/
+        else if (sqems.is_port(port))
+        {
+            sqems.write(port,data&0xFF);
+        }
         else if (port >= 0x40 && port <= 0x43)
         {
             pit.write(port-0x40, data&0xFF);
@@ -327,6 +332,10 @@ struct IOSystem
         IOSIZE data = 0xff;
 
         if (false);
+        else if (sqems.is_port(port))
+        {
+            data = sqems.read(port);
+        }
         else if (port >= 0x40 && port <= 0x43)
         {
             data = pit.read(port-0x40);
@@ -1332,8 +1341,8 @@ void configline(std::string line)
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
             //startprinting=true;
             bool test_passed = true;
-            //CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
-            CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
+            CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
+            //CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
             testcpu.mem.testmode = true;
             globalsettings.A20 = false;
             testcpu.reset();
@@ -1356,15 +1365,19 @@ void configline(std::string line)
                 mac.p.membytes.bytes[address] = value;
             }
 
-            //testcpu.load_tmp_segs_for_test();
+            testcpu.load_tmp_segs_for_test();
             //testcpu.print_regs();
+            do
+            {
+                testcpu.cycle();
+            } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
             do
             {
                 testcpu.cycle();
             } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
 
             //std::cout << "cycles:" << cycles << std::endl;
-            //testcpu.store_tmp_segs_for_test();
+            testcpu.store_tmp_segs_for_test();
             //testcpu.print_regs();
 
             for(int i=0; i<14; ++i)
@@ -1396,7 +1409,7 @@ void configline(std::string line)
                 }
                 if ((test_reg^final_regs[i]))
                 {
-                    //cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                    cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
@@ -1753,7 +1766,7 @@ int main(int argc, char* argv[])
         configFilename = machineName+"/"+configFilename;
     }
 
-    mac.p.membytes.set_size((2)<<20);
+    mac.p.membytes.set_size((8)<<20);
     readConfigFile(configFilename);
     initialize_key_lookup();
     screen.SCREEN_start();

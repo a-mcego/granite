@@ -1,5 +1,5 @@
 cpu 80286
-cpu_multiplier 1/1
+cpu_multiplier 5/3
 
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN
@@ -7,7 +7,7 @@ cpu_multiplier 1/1
 #rom fe000 rom/GLABIOS_0.2.5_8P.ROM
 #rom fe000 rom/GLABIOS_0.2.5_8T.ROM
 
-rom f2000 rom/GLaTICK_0.8.5_AT.ROM
+#rom f2000 rom/GLaTICK_0.8.5_AT.ROM
 
 #basic
 #rom f6000 rom/basic/basicc1.0.f600.bin
@@ -17,16 +17,21 @@ rom f2000 rom/GLaTICK_0.8.5_AT.ROM
 
 machine xt
 
-#gpu vga
+gpu vga
 #rom c0000 rom/ibm_vga.bin
-#rom c0000 rom/BOCHS-VGABIOS.bin
+rom c0000 rom/BOCHS-VGABIOS.bin
+
+#gpu ega
+#rom c0000 rom/ct-8190s_v3.32.bin
 
 #gpu cga80
-gpu ega
-rom c0000 rom/ct-8190s_v3.32.bin
+
 #rom fe000 rom/deskpro_8086.bin
 #rom fe000 rom/GLABIOS_0.2.5_8X.ROM
 rom fe000 rom/GLABIOS_0.4.0_8X.ROM
+#rom fe000 rom/xtbios/amcom-super-10--award-2.05.bin
+#rom f0000 rom/xtbios/ami-super10f.rom
+#rom fe000 rom/xtbios/Phoenix-V2.27-29MAY86.bin
 
 #rom f0000 rom/xt286bios/BIOS_5162_21APR86_U34_78X7460_27256.BIN stride=2
 #rom f0001 rom/xt286bios/BIOS_5162_21APR86_U35_78X7461_27256.BIN stride=2
@@ -39,7 +44,7 @@ rom fe000 rom/GLABIOS_0.4.0_8X.ROM
 #rom f0000 rom/xtbios/BIOS_5160_10JAN86_U19_62X0854_27256_F000.BIN
 #rom f8000 rom/xtbios/BIOS_5160_10JAN86_U18_62X0851_27256_F800.BIN
 
-rom c8000 rom/IBM_XEBEC_5000059_1982.BIN
+rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #rom f8000 rom/ruuds_diagnostic_rom_v5.4_32kb.bin
 
 #rom f0000 c:/nasm/regtest.bin

@@ -138,7 +138,7 @@ struct CPU80286
 
             const char* names[4] = {"ES", "CS", "SS", "DS"};
             if (startprinting)
-                std::cout << names[(int)segment_number] << ": R" << descriptor_cache[(int)segment_number].base << std::endl;
+                std::cout << names[(int)segment_number] << ":R" << descriptor_cache[(int)segment_number].base << std::endl;
         }
     }
     void load_tmp_segs_for_test()
@@ -217,6 +217,8 @@ struct CPU80286
         load_segment(SEG::CS, 0xF000);
         load_segment(SEG::SS, 0x0000);
         load_segment(SEG::DS, 0x0000);
+
+        mem.reset();
     }
 
     static const u32 PREFETCH_QUEUE_SIZE = 8;
@@ -679,7 +681,7 @@ struct CPU80286
 
         if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
         {
-            cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
+            //cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
             //std::abort();
         }
@@ -691,23 +693,7 @@ struct CPU80286
 
         u8 instruction = read_inst<u8>();
 
-        if (instruction == 0x9c)
-        {
-            u32 totalplace = get_offset(SEG::CS) + registers[IP] - 1;
-
-            if (mem.r8(totalplace-1) == 0x9D
-                && mem.r8(totalplace-2) == 0x50
-                && mem.r8(totalplace-3) == 0xC0
-                && mem.r8(totalplace-4) == 0x33
-                && mem.r8(totalplace-5) == 0x9C
-            )
-            {
-                std::cout << get_offset(SEG::CS) << " and " << registers[IP] << std::endl;
-                //startprinting = true;
-            }
-        }
-
-        if (startprinting)
+        if (startprinting && (get_offset(SEG::CS)+registers[IP]-1) < 0xF0000)
         {
             std::cout << (msw&1?"&":"#") << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << get_offset(SEG::CS)+registers[IP]-1;
             print_regs();
@@ -737,7 +723,6 @@ struct CPU80286
                 mem.w16(addr+2, (ldtr.base)&0xFFFF);
                 mem.w16(addr+4, (ldtr.base>>16)&0xFFFF);
                 std::cout << "store ldtr" << std::endl;
-                //startprinting = true;
             }
             else if (secondbyte == 0x00 && op == 0x02) // LLDT
             {
@@ -871,7 +856,6 @@ struct CPU80286
             }
             else if (instruction == 0x62) // BOUND
             {
-                std::abort();
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
                 u16 rm = readM(16);

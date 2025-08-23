@@ -46,14 +46,6 @@ struct VGA
     u8 dac_state_register{}; //0 = read, 3 = write
 
     VGA(){}
-    /*{
-        for(int i=0; i<256; ++i)
-        {
-            dac_palette[i*3+0] = ::PALETTE[i*4+0]>>2;
-            dac_palette[i*3+1] = ::PALETTE[i*4+1]>>2;
-            dac_palette[i*3+2] = ::PALETTE[i*4+2]>>2;
-        }
-    }*/
 
     u32 get_write_mask()
     {

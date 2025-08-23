@@ -5,17 +5,20 @@ cpu_multiplier 44/105
 machine at
 rom f8000 rom/atbios/commodore-pcat-bios-U82-low.bin stride=2
 rom f8001 rom/atbios/commodore-pcat-bios-U80-high.bin stride=2
+
+#rom f0000 rom/atbios/intercomp_286.bin
+
 #rom f0000 rom/atbios/BIOS_5170_15NOV85_U27_62X0820_27256.BIN stride=2
 #rom f0001 rom/atbios/BIOS_5170_15NOV85_U47_62X0821_27256.BIN stride=2
 
 #gpu cga80
 
-gpu vga
+#gpu vga
 #rom c0000 rom/ibm_vga.bin
-rom c0000 rom/BOCHS-VGABIOS.bin
+#rom c0000 rom/BOCHS-VGABIOS.bin
 
-#gpu ega
-#rom c0000 rom/ct-8190s_v3.32.bin
+gpu ega
+rom c0000 rom/ct-8190s_v3.32.bin
 #rom c0000 rom/IBM_EGA.rom
 
 load a disk/cpc40/disk1.img
