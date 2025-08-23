@@ -681,7 +681,7 @@ struct CPU80286
 
         if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
         {
-            cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
+            //cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
             //std::abort();
         }
@@ -692,22 +692,6 @@ struct CPU80286
         globalsettings.current_IP = get_offset(SEG::CS)+registers[IP];
 
         u8 instruction = read_inst<u8>();
-
-        if (instruction == 0x9c)
-        {
-            u32 totalplace = get_offset(SEG::CS) + registers[IP] - 1;
-
-            if (mem.r8(totalplace-1) == 0x9D
-                && mem.r8(totalplace-2) == 0x50
-                && mem.r8(totalplace-3) == 0xC0
-                && mem.r8(totalplace-4) == 0x33
-                && mem.r8(totalplace-5) == 0x9C
-            )
-            {
-                std::cout << get_offset(SEG::CS) << " and " << registers[IP] << std::endl;
-                //startprinting = true;
-            }
-        }
 
         if (startprinting && (get_offset(SEG::CS)+registers[IP]-1) < 0xF0000)
         {
@@ -872,7 +856,6 @@ struct CPU80286
             }
             else if (instruction == 0x62) // BOUND
             {
-                std::abort();
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
                 u16 rm = readM(16);

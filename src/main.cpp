@@ -1341,8 +1341,8 @@ void configline(std::string line)
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
             //startprinting=true;
             bool test_passed = true;
-            //CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
-            CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
+            CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
+            //CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
             testcpu.mem.testmode = true;
             globalsettings.A20 = false;
             testcpu.reset();
@@ -1365,15 +1365,19 @@ void configline(std::string line)
                 mac.p.membytes.bytes[address] = value;
             }
 
-            //testcpu.load_tmp_segs_for_test();
+            testcpu.load_tmp_segs_for_test();
             //testcpu.print_regs();
+            do
+            {
+                testcpu.cycle();
+            } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
             do
             {
                 testcpu.cycle();
             } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
 
             //std::cout << "cycles:" << cycles << std::endl;
-            //testcpu.store_tmp_segs_for_test();
+            testcpu.store_tmp_segs_for_test();
             //testcpu.print_regs();
 
             for(int i=0; i<14; ++i)
@@ -1405,7 +1409,7 @@ void configline(std::string line)
                 }
                 if ((test_reg^final_regs[i]))
                 {
-                    //cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                    cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
