@@ -31,6 +31,19 @@ struct VGA
         0xFFFFFFFF,
     };
 
+    u32 clock_numer() const
+    {
+        //return ((misc&0x04)?99693:88616)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
+        //return ((misc&0x04)?88616:88616)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
+        return 1;
+    }
+
+    u32 clock_denom() const
+    {
+        //return 50400*2;
+        return 1;
+    }
+
     bool debugprint{};
 
     u32 mem[0x10000] = {}; //0x10000 per plane (64KB each)
@@ -539,6 +552,7 @@ struct VGA
                 }
 
                 crtc_regs[crtc_choice] = data;
+                update_crtc_params();
 
                 if(debugprint)
                     if (crtc_choice != 0x0e && crtc_choice != 0x0F)//not cursor position
@@ -560,24 +574,23 @@ struct VGA
         u32 count = {};
         bool prev = {};
 
-        bool get_prev()
+        bool get_prev() const
         {
-            return prev^(!get_polarity());
+            return prev^get_polarity();
         }
 
-        bool get_polarity()
+        bool get_polarity() const
         {
-            return (length[1]>length[0]);
+            return (length[0]>length[1]);
         }
 
         bool cycle(bool data)
         {
-            bool change{};
-            if (prev != data)
+            bool change{prev != data};
+            if (change)
             {
                 length[data] = count;
                 count = 0;
-                change = true;
             }
             ++count;
             prev = data;
@@ -591,68 +604,6 @@ struct VGA
     u32 prev_line_amount{};
     u32 prev_col_amount{};
     u32 prev_col_times{};
-
-    /*void monitor_cycle(u8 pins)
-    {
-        bool vc = vsync_ctr.cycle(pins & 0x80);
-        bool hc = hsync_ctr.cycle(pins & 0x40);
-
-        if ((vc && !vsync_ctr.get_prev()))
-        {
-            prev_line_amount = linepos;
-            if (screen.screenSizeY != prev_line_amount)
-            {
-                std::cout << "APERTURE " << std::dec << screen.screenSizeX << "x" << screen.screenSizeY << std::endl << std::hex;
-            }
-            screen.screenSizeY = prev_line_amount;
-            linepos = 0;
-        }
-        if (hc && !hsync_ctr.get_prev() && !vsync_ctr.get_prev())
-        {
-            prev_col_times = (prev_col_amount==colpos)?prev_col_times+1:0;
-            prev_col_amount = colpos;
-            if (prev_col_times >= 4)
-            {
-                if (screen.screenSizeX != prev_col_amount)
-                {
-                    std::cout << "APERTURE " << std::dec << screen.screenSizeX << "x" << screen.screenSizeY << std::endl << std::hex;
-                }
-                screen.screenSizeX = prev_col_amount;
-            }
-            colpos = 0;
-            ++linepos;
-        }
-        if (!hsync_ctr.get_prev())
-        {
-            ++colpos;
-        }
-
-        u32 color = pins&0x3F;
-        if (hsync_ctr.get_prev() || vsync_ctr.get_prev())
-        {
-            color = 0;
-        }
-
-        u32 renderline = linepos;
-        u32 rendercol = colpos;
-
-        if (renderline < screen.Y && rendercol < screen.X)
-        {
-            if (seq_regs[CLOCKING_MODE] & 0x01) // 256-color mode
-            {
-                // Use DAC palette
-                u8 dac_index = color & dac_mask;
-                u32 rgb = (dac_palette[dac_index*3+0] << 18) |
-                         (dac_palette[dac_index*3+1] << 10) |
-                         (dac_palette[dac_index*3+2] << 2);
-                screen.pixels[renderline * screen.X + rendercol] = rgb;
-            }
-            else
-            {
-                screen.pixels[renderline * screen.X + rendercol] = getpalette_vga(color);
-            }
-        }
-    }*/
 
     void monitor_cycle(u8 r, u8 g, u8 b, u8 vsync_pin, u8 hsync_pin)
     {
@@ -690,12 +641,7 @@ struct VGA
             ++colpos;
         }
 
-        u32 color = 0;
-        //if (!hsync_pin && !vsync_pin)
-        {
-            color = (b << 16) | (g << 8) | r;
-        }
-
+        u32 color = (b << 16) | (g << 8) | r;
         u32 renderline = linepos;
         u32 rendercol = colpos;
 
@@ -716,18 +662,25 @@ struct VGA
     u32 frames{};
     u32 hframes{};
 
+    u16 v_total{};
+    u16 v_display_end{};
+    u16 v_retrace_start{};
+    u16 vblank_start{};
+    u8 scan_doubling{};
+
+    void update_crtc_params()
+    {
+        // Extract timing values with overflow bits
+        v_total = crtc_regs[V_TOTAL] + ((crtc_regs[OVERFLOW]&0x01)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x20)?0x200:0x000);
+        v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x40)?0x200:0x000);
+        v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x80)?0x200:0x000);
+        vblank_start = crtc_regs[V_BLANK_START] + ((crtc_regs[OVERFLOW]&0x08)?0x100:0x000);
+        scan_doubling = (crtc_regs[MAX_SCAN_LINE]&0x80)>>7;
+    }
     void cycle() // 8 pixels per cycle
     {
         bool is_graphics_mode = !(seq_regs[MEMORY_MODE]&0x01);
-        //u16 hsync_mult = (seq_regs[CLOCKING_MODE]&0x01) ? 8 : 9;
-        //const u16 hsync_mult = 8;
 
-        // Extract timing values with overflow bits
-        u16 v_total = crtc_regs[V_TOTAL] + ((crtc_regs[OVERFLOW]&0x01)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x20)?0x200:0x000);
-        u16 v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x40)?0x200:0x000);
-        u16 v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x80)?0x200:0x000);
-        u16 vblank_start = crtc_regs[V_BLANK_START] + ((crtc_regs[OVERFLOW]&0x08)?0x100:0x000);
-        u8 scan_doubling = (crtc_regs[MAX_SCAN_LINE]&0x80)>>7;
 
         column += 1;
         column = (column>=(crtc_regs[H_TOTAL]+2)?0:column);
@@ -739,7 +692,7 @@ struct VGA
             if ((line_inside_character>>scan_doubling) > (crtc_regs[MAX_SCAN_LINE]&0x1F))
             {
                 line_inside_character = 0;
-                ++logical_line;// += (!scan_doubling || !(scan_line&1))?1:0;
+                ++logical_line;
             }
 
             bool all_lines_drawn = (scan_line > v_total);
@@ -764,11 +717,6 @@ struct VGA
             ++frames;
             current_startaddress = ((crtc_regs[START_ADDRESS_H]<<8) | crtc_regs[START_ADDRESS_L]);
             do_print = true;
-            //std::cout << std::hex << current_startaddress << " ";
-            //std::cout << std::dec <<
-
-
-            //std::cout << std::endl;
         }
 
         bool monitor_vsync = vsync ^ bool(misc&0x80);
@@ -776,8 +724,6 @@ struct VGA
         u16 hsync_start = (crtc_regs[H_RETRACE_START]);
         u16 hsync_end = hsync_start + ((crtc_regs[H_RETRACE_END]&0x1F));
         hsync = (column >= hsync_start && column <= hsync_end);
-        //if (column >= hsync_start-16 && rand()%256 == 0)
-        //    std::cout << std::dec << hsync_start << "/" << column << "/" << hsync_end << "  \r";
         bool monitor_hsync = hsync ^ bool(misc&0x40);
 
         vertical_retrace = (scan_line >= v_retrace_start && scan_line <= v_retrace_start + (crtc_regs[V_RETRACE_END]&0x0F));
@@ -788,10 +734,8 @@ struct VGA
         if (is_graphics_mode)
         {
             bool cms0 = crtc_regs[MODE_CONTROL_CRTC]&0x01;
-            int x = column;// / hsync_mult;
 
             u32 offset=0;
-            u32 chosen_line = logical_line;
             if (!cms0)
             {
                 if (line_inside_character>>scan_doubling)
@@ -806,26 +750,28 @@ struct VGA
 
             }
 
-            offset += current_startaddress + chosen_line*crtc_regs[OFFSET]*2 + x;
-
-            //u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET]*2 + x;
+            offset += current_startaddress + logical_line*crtc_regs[OFFSET]*2 + column;
 
             if (attr_regs[MODE_CONTROL_ATTR] & 0x40) //256 color mode
             {
+                u32 colors{};
+                if (!display_enable)
+                {
+                    colors = u32(attr_regs[OVERSCAN_COLOR]) * 0x01010101U;
+                }
+                else
+                {
+                    colors = r32(offset);
+                }
+
                 for(int i=0; i<4; ++i)
                 {
-                    u8 color_index = attr_regs[OVERSCAN_COLOR];
-                    if (display_enable)
-                    {
-                        u32 addr = offset + i/4;
-                        u32 plane = i&3;
-                        color_index = (r32(addr) >> (plane * 8)) & 0xFF;
-                    }
-                    color_index &= dac_mask;
+                    u8 color_index = colors&dac_mask; //dac_mask is u8, it's fine
                     u8 r = (dac_palette[color_index*3+0] & 0x3F) << 2;
                     u8 g = (dac_palette[color_index*3+1] & 0x3F) << 2;
                     u8 b = (dac_palette[color_index*3+2] & 0x3F) << 2;
                     monitor_cycle(r, g, b, monitor_vsync, monitor_hsync);
+                    colors >>= 8;
                 }
             }
             else // 16-color planar mode
@@ -857,36 +803,16 @@ struct VGA
                         //0b00000000'00000000'00000000'0000abcd
                     }
                     color = attr_regs[color];
-                    //u8 r = (color & 0x04) ? ((color & 0x08) ? 255 : 170) : ((color & 0x08) ? 85 : 0);
-                    //u8 g = (color & 0x02) ? ((color & 0x08) ? 255 : 170) : ((color & 0x08) ? 85 : 0);
-                    //u8 b = (color & 0x01) ? ((color & 0x08) ? 255 : 170) : ((color & 0x08) ? 85 : 0);
                     u8 r = (dac_palette[color*3+0] & 0x3F) << 2;
                     u8 g = (dac_palette[color*3+1] & 0x3F) << 2;
                     u8 b = (dac_palette[color*3+2] & 0x3F) << 2;
 
                     monitor_cycle(r, g, b, monitor_vsync, monitor_hsync);
-                    //monitor_cycle(color|(u8(monitor_hsync)<<6|(u8(monitor_vsync)<<7)));
                 }
-
-                /*for(int i=0; i<8; ++i)
-                {
-                    u8 color = attr_regs[OVERSCAN_COLOR];
-                    //if (display_enable)
-                    {
-                        u32 data = r32(offset + (i>>3));
-                        u32 pixel_mask = 0x80808080 >> (i&7);
-                        color = ((data & pixel_mask) != 0) ? 0x0F : 0x00;
-                        color &= attr_regs[COLOR_PLANE_ENABLE]&0x0F;
-                    }
-                    color = attr_regs[color & 0x0F];
-                    monitor_cycle(color|(u8(monitor_hsync)<<6)|(u8(monitor_vsync)<<7));
-                }*/
             }
         }
         else // Text mode
         {
-            //if (do_print)
-            //    print_regs();
             int x = column;
             u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET]*2 + x;
             u8 char_code = r32(offset) & 0xFF;

@@ -166,8 +166,6 @@ struct SQEMS
     {
         if (!is_ems(address))
             return address;
-        if (startprinting)
-            std::cout << std::hex << address << " --EMS-> " << get_ems_addr(address) << std::endl;
         return get_ems_addr(address);
     }
 

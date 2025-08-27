@@ -33,7 +33,8 @@ struct CPU80286
         AX,CX,DX,BX, SP,BP,SI,DI,  //normal registers
         FLAGS,                     //flags, duh
         IP,                        //instruction pointer
-        ESTMP, CSTMP, SSTMP, DSTMP //for tests
+        ESTMP, CSTMP, SSTMP, DSTMP,//for tests
+        ZEROREG                    //always zero
     };
 
     enum struct SEG
@@ -225,25 +226,24 @@ struct CPU80286
     u8 prefetch_queue[PREFETCH_QUEUE_SIZE] = {};
     u32 prefetch_address{};
 
-    bool do_prefetch_delay{};
     template<typename T>
     T read_inst() requires integral<T>
     {
-        /*T result{};
+        T result{};
         u32 offset = get_offset(SEG::CS);
         if constexpr(sizeof(T)==1)
         {
-            result = mem.direct8(offset+registers[IP]);
+            result = mem.r8(offset+registers[IP]);
         }
         else if constexpr(sizeof(T) == 2)
         {
-            result = mem.direct16(offset+registers[IP]);
+            result = mem.r16(offset+registers[IP]);
         }
         registers[IP] += sizeof(T);
-        return result;*/
+        return result;
 
 
-        u32 offset = get_offset(SEG::CS);
+        /*u32 offset = get_offset(SEG::CS);
 
         u32 position = offset+registers[IP];
         //std::cout << "read_inst offset=" << offset << ", position=" << position << std::endl;
@@ -271,7 +271,7 @@ struct CPU80286
         {
             prefetch_queue[i] = mem.r8(position+sizeof(T)+i);
         }
-        return result;
+        return result;*/
     }
 
     template<typename T>
@@ -322,7 +322,6 @@ struct CPU80286
 
     void writeM(u16 data, u8 modrm_width)
     {
-        //std::cout << "writeM: " << std::hex;
         if (modrm_is_register)
         {
             if (modrm_width == 16)
@@ -335,13 +334,10 @@ struct CPU80286
             mem.w8(modrm_seg+modrm_offset, (data&0xFF));
             if (modrm_width == 16)
                 mem.w8(modrm_seg+modrm_offset+1, ((data>>8)&0xFF));
-            //std::cout << modrm_seg << ":" << modrm_offset << " ";
         }
-        //std::cout << data << std::endl;
     }
     u16 readM(u8 modrm_width)
     {
-        //std::cout << "readM: " << std::hex;
         u16 ret{};
         if (modrm_is_register)
         {
@@ -355,11 +351,17 @@ struct CPU80286
             ret = mem.r8(modrm_seg+modrm_offset);
             if (modrm_width == 16)
                 ret |= (mem.r8(modrm_seg+modrm_offset+1)<<8);
-            //std::cout << modrm_seg << ":" << modrm_offset << " ";
         }
-        //std::cout << ret << std::endl;
         return ret;
     }
+    static constexpr REG regchoice[8]=
+    {
+        BX,BX,BP,BP,ZEROREG,ZEROREG,BP,BX
+    };
+    static constexpr REG regchoice2[8]=
+    {
+        SI,DI,SI,DI,SI,DI,ZEROREG,ZEROREG
+    };
 
     void decode_modrm(u8 modrm)
     {
@@ -381,7 +383,7 @@ struct CPU80286
                 modrm_offset = read_inst<u16>();
             }
 
-            cycles_used += effective_address_cycles[(mod<<3)+modrm_reg];
+            //cycles_used += effective_address_cycles[(mod<<3)+modrm_reg];
 
             if (mod == 0x00 && modrm_reg == 0x06)
             {
@@ -389,22 +391,31 @@ struct CPU80286
             }
             else
             {
+                //*
+
+                modrm_offset += registers[regchoice[modrm_reg]]+registers[regchoice2[modrm_reg]];
+                segname = (regchoice[modrm_reg]==BP)?SEG::SS:SEG::DS;
+
+                /*/
+                //0 1 2 3 4 5
+
                 if (modrm_reg < 0x06)
                 {
                     modrm_offset += registers[SI+(modrm_reg&0x01)]; //DI is after SI
                 }
+                //0 1 7
                 if (((modrm_reg+1)&0x07) <= 2)
                 {
                     modrm_offset += registers[BX];
                 }
+                //2 3 6
                 if ((modrm_reg&0x02) && modrm_reg != 7)
                 {
                     modrm_offset += registers[BP], segname = SEG::SS;
                 }
+                //*/
             }
-            modrm_seg = get_offset(get_segment(segname));//registers[get_segment(segment)];
-            if (startprinting)
-                std::cout << "modrm read: " << readM(16) << std::endl;
+            modrm_seg = get_offset(get_segment(segname));
         }
     }
 
@@ -544,6 +555,8 @@ struct CPU80286
     {
         if (inhibit_ss)
             return false;
+        if (delay > 0)
+            return false;
         if (accepts_interrupts() || forced)
         {
             if (startprinting)
@@ -662,22 +675,21 @@ struct CPU80286
             --delay;
             return;
         }
+
+        if (pic.irq_to_cpu != -1)
+        {
+            if (pic.irq_to_cpu == 2 && pic2.irq_to_cpu != -1)
+                irq(pic2.irq_to_cpu+8);
+            else
+                irq(pic.irq_to_cpu);
+        }
+
         if (halt)
         {
             return;
         }
 
         inhibit_ss = false;
-
-        if (get_offset(SEG::CS) == 0xC0000)
-        {
-            //std::cout << "JAAAAAA " << registers[AX] << std::endl;
-            //startprinting = true;
-        }
-        else
-        {
-            //startprinting = false;
-        }
 
         if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
         {

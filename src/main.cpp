@@ -536,6 +536,22 @@ struct Machine
         }
     }
 
+    void gfx_stuff(u64 clock)
+    {
+        if (clock%8 == 0)
+        {
+            if (globalsettings.graphics == GlobalSettings::VGA)
+            {
+                hega_counter += p.vga.clock_numer();
+                while (hega_counter >= p.vga.clock_denom())
+                {
+                    p.vga.cycle();
+                    hega_counter -= p.vga.clock_denom();
+                }
+            }
+        }
+    }
+
     void real_stuff(u64 clock)
     {
         if (clock%8 == 0)
@@ -551,15 +567,6 @@ struct Machine
             }
             else if (globalsettings.graphics == GlobalSettings::CGA)
                 p.cga.cycle();
-            else if (globalsettings.graphics == GlobalSettings::VGA)
-                p.vga.cycle();
-            if (p.pic.irq_to_cpu != -1)
-            {
-                if (p.pic.irq_to_cpu == 2 && p.pic.irq_to_cpu != -1)
-                    irq_if_accept(p.pic2.irq_to_cpu+8);
-                else
-                    irq_if_accept(p.pic.irq_to_cpu);
-            }
         }
         if (clock%16 == 0)
         {
@@ -1647,6 +1654,32 @@ void updatejoysticks()
         }
     }
 }
+#include "synchapi.h"
+void run_gfx()
+{
+    double previousTime=glfwGetTime();
+    u64 loop_counter=0, clockgen_real=0;
+    while(true)
+    {
+        //the loop is ca. ~14.31818 MHz
+        //++loop_counter;
+        Sleep(1);
+
+        //if ((loop_counter&0x1F) == 0) //calculate how many cycles we need to do
+        {
+            double newTime = glfwGetTime();
+            if (newTime-previousTime >= 0.1)
+                previousTime = newTime-0.1;
+            u64 cycles_done = (newTime-previousTime)*(14318180.0);
+            for(u64 i=0; i<cycles_done; ++i)
+            {
+                ++clockgen_real;
+                mac.gfx_stuff(clockgen_real);
+            }
+            previousTime += double(cycles_done)/14318180.0;
+        }
+    }
+}
 
 void run_emu()
 {
@@ -1677,7 +1710,7 @@ void run_emu()
         }
 
         //do realtime stuff
-        if (!turbo && (loop_counter&0x1F) == 0) //calculate how many cycles we need to do
+        if (!turbo && (loop_counter&0x3F) == 0) //calculate how many cycles we need to do
         {
             double newTime = glfwGetTime();
             if (newTime-previousTime >= 0.1)
@@ -1767,6 +1800,7 @@ int main(int argc, char* argv[])
     }
 
     mac.p.membytes.set_size((8)<<20);
+    mac.p.mem286.register_devs();
     readConfigFile(configFilename);
     initialize_key_lookup();
     screen.SCREEN_start();
@@ -1792,6 +1826,7 @@ int main(int argc, char* argv[])
     mac.reset_cpu();
 
     std::thread emu_thread(run_emu);
+    std::thread gfx_thread(run_gfx);
 
     while(true)
     {
@@ -1825,6 +1860,7 @@ int main(int argc, char* argv[])
 
 
     emu_thread.join();
+    gfx_thread.join();
 
     Opl2::Quit();
     glfwTerminate();

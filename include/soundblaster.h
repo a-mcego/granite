@@ -263,7 +263,7 @@ struct SoundBlaster
                 else
                 {
                     std::cout << "unknown SB command " << std::hex << u32(data) << std::endl;
-                    std::abort();
+                    //std::abort();
                 }
             }
         }
