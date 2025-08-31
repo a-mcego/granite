@@ -127,7 +127,7 @@ void Opl2::Init()
 
 
 //write shit to opl2
-void Opl2::write(unsigned char r, unsigned char d)
+void Opl2::write(u8 r, u8 d)
 {
 	if (!USE_REG[r])
 		return;
@@ -138,10 +138,10 @@ void Opl2::write(unsigned char r, unsigned char d)
 	{
 	case 0x00:
 		if (r==0)
-			opl2.mode = bit(d&0x20);
+			opl2.mode = bool(d&0x20);
 		if (r==0x08)
 		{
-			opl2.keysplit = bit(d&0x40);
+			opl2.keysplit = bool(d&0x40);
 			for(int c=0; c<OPL2_CHANNELS; c++)
 				opl2.chans[c].updfreq(opl2);
 		}
@@ -153,28 +153,27 @@ void Opl2::write(unsigned char r, unsigned char d)
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].hold_instr = d&0x20;
 		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].ksr = d&0x10;
 
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].harmonic = uchar(HARM[d&0x0F]);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].harmonic = u8(HARM[d&0x0F]);
 		opl2.chans[chn[r&0x1F]].updfreq(opl2);
 		break;
 	case 0x40:
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].volume = uchar(d&0x3F);
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].lks = uchar(d>>6);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].volume = u8(d&0x3F);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].lks = u8(d>>6);
 		opl2.chans[chn[r&0x1F]].updfreq(opl2);
 		break;
 	case 0x60:
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].A = uchar(d>>4);
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].D = uchar(d&0x0F);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].A = u8(d>>4);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].D = u8(d&0x0F);
 		opl2.chans[chn[r&0x1F]].updfreq(opl2);
 		break;
 	case 0x80:
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].S = uchar(d>>4);
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].R = uchar(d&0x0F);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].S = u8(d>>4);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].R = u8(d&0x0F);
 		opl2.chans[chn[r&0x1F]].updfreq(opl2);
 		break;
 	case 0xA0:
 		if (r==0xBD)
 		{
-		    std::cout << "BD:" << uint(d) << std::endl;
 			opl2.ampmod_depth = (d>>7)&0x01;
 			opl2.vibrato_depth = 2-((d>>6)&0x01);
 			opl2.rhythm = d&0x20;
@@ -228,8 +227,8 @@ void Opl2::write(unsigned char r, unsigned char d)
 		}
 		if (r&0x10) //0xB?
 		{
-			opl2.chans[r&0x0F].hifnum = word(d&0x03);
-			opl2.chans[r&0x0F].oct = uchar((d>>2)&0x07);
+			opl2.chans[r&0x0F].hifnum = u16(d&0x03);
+			opl2.chans[r&0x0F].oct = u8((d>>2)&0x07);
 			opl2.chans[r&0x0F].updfreq(opl2);
 			if ((d>>5)&0x01)
 				opl2.chans[r&0x0F].keyon(opl2);
@@ -237,15 +236,15 @@ void Opl2::write(unsigned char r, unsigned char d)
 				opl2.chans[r&0x0F].keyoff(opl2);
 		}
 		else //0xA?
-			opl2.chans[r&0x0F].lofnum = word(d);
+			opl2.chans[r&0x0F].lofnum = u16(d);
 		opl2.chans[r&0x0F].updfreq(opl2);
 		break;
 	case 0xC0:
 		opl2.chans[r&0x0F].algo = d&0x01;
-		opl2.chans[r&0x0F].feedback = uchar((d>>1)&0x07);
+		opl2.chans[r&0x0F].feedback = u8((d>>1)&0x07);
 		break;
 	case 0xE0:
-		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].wavetype = uchar(d&0x03);
+		opl2.chans[chn[r&0x1F]].ops[opn[r&0x1F]].wavetype = u8(d&0x03);
 		break;
 	}
 }
@@ -333,7 +332,6 @@ int OP::update(int fm, Opl2& opl2)
 	if (ampmod)
 		sample = sample*AMPMOD[opl2.ampmod_depth][opl2.ampmod_state]/ADSR_MAX;
     update_phase();
-	//sinestate = (sinestate+freq_harmonic)&(PERIOD_SIZE-1);
 	wanha2 = wanha1;
 	wanha1 = sample;
 	return sample;
@@ -485,7 +483,7 @@ void OP::reset_ADSR()
 {
 	sinestate = 0;
 	adsr = ADSR_STATE::A;
-	A_state = double_word(ADSR_volume)*ADSR_A_SIZE/ADSR_MAX;
+	A_state = u32(ADSR_volume)*ADSR_A_SIZE/ADSR_MAX;
 	if (A_state >= ADSR_A_SIZE)
 		A_state = ADSR_A_SIZE;
 }
@@ -567,13 +565,12 @@ void CHANNEL::updfreq(Opl2& opl2)
 	{
 	    ops[i].oct = oct;
 		ops[i].freq = freq;
-		ops[i].rof = word((((hifnum>>int(opl2.keysplit))&0x01)+2*oct)>>(3-3*int(ops[i].ksr)));
+		ops[i].rof = u16((((hifnum>>int(opl2.keysplit))&0x01)+2*oct)>>(3-3*int(ops[i].ksr)));
 		if (ops[i].harmonic == 0)
 			ops[i].freq_harmonic = freq/2;
 		else
-			ops[i].freq_harmonic = uint(freq)*HARM[ops[i].harmonic];
+			ops[i].freq_harmonic = u32(freq)*HARM[ops[i].harmonic];
 	}
-
 }
 
 

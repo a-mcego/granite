@@ -1,20 +1,14 @@
 #pragma once
-typedef unsigned int uint;
-typedef bool bit;
-typedef unsigned char byte;
-typedef unsigned short word;
-typedef unsigned int double_word;
-typedef unsigned long long int quad_word;
-typedef unsigned int uint;
 
-using uchar = unsigned char;
-
-struct SongBytes
-{
-	uint reg;
-	uint data;
-	uint position;
-};
+#include <cstdint>
+using u64 = uint64_t;
+using u32 = uint32_t;
+using u16 = uint16_t;
+using u8 = uint8_t;
+using i64 = int64_t;
+using i32 = int32_t;
+using i16 = int16_t;
+using i8 = int8_t;
 
 const int chn[22] =
 {
@@ -176,30 +170,28 @@ class Opl2;
 
 struct OP
 {
-	OP(){ampmod=0;vibrato=0;hold_instr=0;ksr=0;harmonic=0;volume=0;lks=0;A=0;D=0;S=0;R=0;adsr=N;ADSR_volume=0;A_state=0;sinestate=0;DR_state=0;DR_div=1;rof=0;wavetype=0;freq_harmonic=0;freq=0;}
-	~OP(){}
 	void reset_ADSR();
-	bit ampmod;
-	bit vibrato;
-	bit hold_instr;//should we use the sustain phase?
-	bit ksr; //keyboard scaling rate
-	uchar harmonic;
-	uchar volume;
-	uchar lks; // level key scaling rate :DDDdd
-	uchar A,D,S,R; // envelope
-	ADSR_STATE adsr; //envelope state
-	word ADSR_volume;
-	double_word A_state;
-	double_word DR_div;//when DR_state wraps around, this will be doubled and DR_state will start at 0
-	double_word DR_state;//decay and release phase volume state.
-	double_word sinestate; // sine wave state, orly owl
-	uchar wavetype;
-	double_word wanha1, wanha2; // old samples. used for feedback, thus only for op0
-	word rof;
-	double_word freq_harmonic; //frequency adjusted with harmonic
-	double_word freq;
+	bool ampmod{};
+	bool vibrato{};
+	bool hold_instr{};//should we use the sustain phase?
+	bool ksr{}; //keyboard scaling rate
+	u8 harmonic{};
+	u8 volume{};
+	u8 lks{}; // level key scaling rate :DDDdd
+	u8 A{},D{},S{},R{}; // envelope
+	ADSR_STATE adsr{N}; //envelope state
+	u16 ADSR_volume{};
+	u32 A_state{};
+	u32 DR_div{1};//when DR_state wraps around, this will be doubled and DR_state will start at 0
+	u32 DR_state{};//decay and release phase volume state.
+	u32 sinestate{}; // sine wave state, orly owl
+	u8 wavetype{};
+	u32 wanha1{}, wanha2{}; // old samples. used for feedback, thus only for op0
+	u16 rof{};
+	u32 freq_harmonic{}; //frequency adjusted with harmonic
+	u32 freq{};
 	int vibrato_amount{};
-	uchar oct{};
+	u8 oct{};
 
 	int update(int fm, Opl2& opl2);
 	void update_phase();
@@ -209,20 +201,18 @@ struct OP
 
 struct CHANNEL
 {
-	CHANNEL(){hifnum=0;lofnum=0;oct=0;feedback=0;algo=0;freq=0;note=0;}
-	~CHANNEL(){}
 	OP ops[2];
-	word hifnum, lofnum;
-	uchar oct;
-	uchar feedback;
-	bit algo; //0 for FM, 1 for AM
+	u16 hifnum{}, lofnum{};
+	u8 oct{};
+	u8 feedback{};
+	bool algo{}; //0 for FM, 1 for AM
 	void keyon(Opl2& opl2);
 	void keyoff(Opl2& opl2);
 
-	double_word freq;
+	u32 freq{};
 	void updfreq(Opl2& opl);
-	bit note;
-	bit rhythm; //rhythm mode on for this channel? if opl2.rhythm is true, channels 6-8 will have rhythm on, others will have it off
+	bool note{};
+	bool rhythm{}; //rhythm mode on for this channel? if opl2.rhythm is true, channels 6-8 will have rhythm on, others will have it off
 	int fnum3{};
 };
 
@@ -233,31 +223,27 @@ public:
     static void Init();
     static void Quit();
 
-	Opl2(){mode=0;keysplit=0;ampmod_depth=0;vibrato_depth=0;rhythm=0;ampmod_state=0;vibrato_state=0;writereg=0;resample_state=0;run_timer1=0;run_timer2=0;timer1_state=0;timer2_state=0;status=0;}
-	~Opl2(){}
-
 	void write(unsigned char r, unsigned char d);
 
 	CHANNEL chans[OPL2_CHANNELS];
-	bit mode; // if true, act like OPL2, if false, act like OPL1;
-	bit keysplit;
+	bool mode{}; // if true, act like OPL2, if false, act like OPL1;
+	bool keysplit{};
 	short update();
 	void update_ADSR();
 
-	bit ampmod_depth;
-	bit vibrato_depth;
-	bit rhythm; //is rhythm mode on or off? not implemented at all yet
-	int ampmod_state;
-	int vibrato_state; //not implemented fully yet
+	bool ampmod_depth{};
+	bool vibrato_depth{};
+	bool rhythm{}; //is rhythm mode on or off? not implemented at all yet
+	int ampmod_state{};
+	int vibrato_state{}; //not implemented fully yet
 
-	int writereg;
-	int resample_state;
-	bit run_timer1;
-	bit run_timer2;
-	word timer1_state;
-	word timer2_state;
+	int writereg{};
+	bool run_timer1{};
+	bool run_timer2{};
+	u16 timer1_state{};
+	u16 timer2_state{};
 
-	uchar status; //OPL2 Status byte!
+	u8 status{}; //OPL2 Status byte!
 	int rate;
 	bool bass_on{}, snare_on{}, cymbal_on{}, hihat_on{};
 
