@@ -34,7 +34,7 @@ struct CPU80286
         FLAGS,                     //flags, duh
         IP,                        //instruction pointer
         ESTMP, CSTMP, SSTMP, DSTMP,//for tests
-        ZEROREG                    //always zero
+        Z0                         //always zero
     };
 
     enum struct SEG
@@ -241,37 +241,21 @@ struct CPU80286
         }
         registers[IP] += sizeof(T);
         return result;
-
-
-        /*u32 offset = get_offset(SEG::CS);
-
-        u32 position = offset+registers[IP];
-        //std::cout << "read_inst offset=" << offset << ", position=" << position << std::endl;
-        if (prefetch_address != position)
+    }
+    template<typename T>
+    T peek_inst() requires integral<T>
+    {
+        T result{};
+        u32 offset = get_offset(SEG::CS);
+        if constexpr(sizeof(T)==1)
         {
-            //std::cout << "------------------------" << position << std::endl;
-            prefetch_address = position;
-            for(u32 i=0; i<PREFETCH_QUEUE_SIZE; ++i)
-            {
-                prefetch_queue[i] = mem.r8(position+i);
-            }
+            result = mem.r8(offset+registers[IP]);
         }
-
-        //std::cout << std::hex << position << " is pos" << std::endl;
-
-        T result = *(T*)(prefetch_queue);
-        prefetch_address += sizeof(T);
-        registers[IP] += sizeof(T);
-
-        for(u32 i=0; i<PREFETCH_QUEUE_SIZE-sizeof(T); ++i)
+        else if constexpr(sizeof(T) == 2)
         {
-            prefetch_queue[i] = prefetch_queue[i+sizeof(T)];
+            result = mem.r16(offset+registers[IP]);
         }
-        for(u32 i=PREFETCH_QUEUE_SIZE-sizeof(T); i<PREFETCH_QUEUE_SIZE; ++i)
-        {
-            prefetch_queue[i] = mem.r8(position+sizeof(T)+i);
-        }
-        return result;*/
+        return result;
     }
 
     template<typename T>
@@ -306,7 +290,7 @@ struct CPU80286
         set_flag(F_CARRY, result < a);
     }
 
-    const u8 effective_address_cycles[32] = //verify this still!
+    static constexpr u8 effective_address_cycles[32] = //verify this still!
     {
          0, 0, 0, 0, 0, 0, 0, 0,
          1, 1, 1, 1, 0, 0, 0, 0,
@@ -317,50 +301,74 @@ struct CPU80286
     u32 modrm_seg{};
     u16 modrm_offset{};
     u8 modrm_reg{}; //register from modRM part
-    //u8 modrm_width{};
     u8 modrm_r{}; //register from R part
 
-    void writeM(u16 data, u8 modrm_width)
+    void writeM8(u16 data)
     {
         if (modrm_is_register)
         {
-            if (modrm_width == 16)
-                get_r16(modrm_reg) = data;
-            else
-                get_r8(modrm_reg) = data;
+            get_r8(modrm_reg) = data;
         }
         else
         {
             mem.w8(modrm_seg+modrm_offset, (data&0xFF));
-            if (modrm_width == 16)
-                mem.w8(modrm_seg+modrm_offset+1, ((data>>8)&0xFF));
         }
     }
-    u16 readM(u8 modrm_width)
+    u16 readM8()
     {
         u16 ret{};
         if (modrm_is_register)
         {
-            if (modrm_width == 16)
-                ret = get_r16(modrm_reg);
-            else
-                ret = get_r8(modrm_reg);
+            ret = get_r8(modrm_reg);
         }
         else
         {
             ret = mem.r8(modrm_seg+modrm_offset);
-            if (modrm_width == 16)
-                ret |= (mem.r8(modrm_seg+modrm_offset+1)<<8);
         }
         return ret;
     }
-    static constexpr REG regchoice[8]=
+    void writeM16(u16 data)
     {
-        BX,BX,BP,BP,ZEROREG,ZEROREG,BP,BX
+        if (modrm_is_register)
+        {
+            get_r16(modrm_reg) = data;
+        }
+        else
+        {
+            mem.w16(modrm_seg+modrm_offset, data);
+        }
+    }
+    u16 readM16()
+    {
+        u16 ret{};
+        if (modrm_is_register)
+        {
+            ret = get_r16(modrm_reg);
+        }
+        else
+        {
+            ret = mem.r16(modrm_seg+modrm_offset);
+        }
+        return ret;
+    }
+
+    static constexpr REG regchoice[32]=
+    {
+        BX,BX,BP,BP,Z0,Z0,Z0,BX,
+        BX,BX,BP,BP,Z0,Z0,BP,BX,
+        BX,BX,BP,BP,Z0,Z0,BP,BX,
+        Z0,Z0,Z0,Z0,Z0,Z0,Z0,Z0,
     };
-    static constexpr REG regchoice2[8]=
+    static constexpr REG regchoice2[32]=
     {
-        SI,DI,SI,DI,SI,DI,ZEROREG,ZEROREG
+        SI,DI,SI,DI,SI,DI,Z0,Z0,
+    };
+    static constexpr u16 MODRM_ADVANCE_IP[32] =
+    {
+        0,0,0,0,0,0,2,0,
+        1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,2,
+        0,0,0,0,0,0,0,0,
     };
 
     void decode_modrm(u8 modrm)
@@ -369,52 +377,27 @@ struct CPU80286
         modrm_r = (modrm>>3)&0x07;
         modrm_reg = modrm & 0x07;
         modrm_is_register = (mod==0x03);
+        u8 mod_table_index = modrm_reg | (mod<<3);
 		if (mod != 0x03)
         {
             modrm_offset = 0;
             SEG segname = SEG::DS;
 
-            if (mod == 0x1)
+            switch(MODRM_ADVANCE_IP[mod_table_index])
             {
-                modrm_offset = i16(read_inst<i8>());
+            case 1:
+                modrm_offset = i16(peek_inst<i8>());
+                break;
+            case 2:
+                modrm_offset = peek_inst<u16>();
+                break;
+            default:
+                break;
             }
-            else if (mod == 0x2)
-            {
-                modrm_offset = read_inst<u16>();
-            }
 
-            //cycles_used += effective_address_cycles[(mod<<3)+modrm_reg];
-
-            if (mod == 0x00 && modrm_reg == 0x06)
-            {
-                modrm_offset += read_inst<u16>();
-            }
-            else
-            {
-                //*
-
-                modrm_offset += registers[regchoice[modrm_reg]]+registers[regchoice2[modrm_reg]];
-                segname = (regchoice[modrm_reg]==BP)?SEG::SS:SEG::DS;
-
-                /*/
-                //0 1 2 3 4 5
-
-                if (modrm_reg < 0x06)
-                {
-                    modrm_offset += registers[SI+(modrm_reg&0x01)]; //DI is after SI
-                }
-                //0 1 7
-                if (((modrm_reg+1)&0x07) <= 2)
-                {
-                    modrm_offset += registers[BX];
-                }
-                //2 3 6
-                if ((modrm_reg&0x02) && modrm_reg != 7)
-                {
-                    modrm_offset += registers[BP], segname = SEG::SS;
-                }
-                //*/
-            }
+            modrm_offset += registers[regchoice[mod_table_index]]+registers[regchoice2[modrm_reg]];
+            segname = (regchoice[mod_table_index]==BP)?SEG::SS:SEG::DS;
+            registers[IP] += MODRM_ADVANCE_IP[mod_table_index];
             modrm_seg = get_offset(get_segment(segname));
         }
     }
@@ -429,11 +412,6 @@ struct CPU80286
     {
         return reg8()[((value&0x3)<<1)+((value&0x4)>>2)];
     }
-
-    /*u16& get_segment_r16(u8 value)
-    {
-        return registers[(value&0x03)+8]; //&0x03 for 8086 compatibility
-    }*/
 
     void print_regs()
     {
@@ -468,18 +446,16 @@ struct CPU80286
                 out = p1+p2;
                 add_flags(p1,p2,out);
                 break;
+            case 0x01: //OR
+                out = p1|p2;
+                test_flags(out);
+                break;
             case 0x02: //ADC
                 out = p1+p2+flag(F_CARRY);
                 commonflags(p1,p2,out);
                 set_flag(F_AUX_CARRY, (p1&0xF)+(p2&0xF)+flag(F_CARRY) >= 0x10);
                 set_flag(F_OVERFLOW, ((p1 ^ out) & (p2 ^ out)) >> (sizeof(T)*8-1));
                 set_flag(F_CARRY, ((p1+p2+flag(F_CARRY))>>(sizeof(T)*8)) > 0);
-                break;
-            case 0x01: //OR
-                out = p1|p2;
-                break;
-            case 0x04: //AND
-                out = p1&p2;
                 break;
             case 0x03: //SBB
                 out = p1-(p2+flag(F_CARRY));
@@ -488,21 +464,23 @@ struct CPU80286
                 set_flag(F_OVERFLOW, ((p1 ^ p2) & (p1 ^ out)) >> (sizeof(T)*8-1));
                 set_flag(F_CARRY, ((p1-(p2+flag(F_CARRY)))>>(sizeof(T)*8)) < 0);
                 break;
+            case 0x04: //AND
+                out = p1&p2;
+                test_flags(out);
+                break;
             case 0x05: //SUB
-            case 0x07: //CMP
                 out = p1-p2;
                 cmp_flags(p1,p2,out);
                 break;
             case 0x06://XOR
                 out = p1^p2;
+                test_flags(out);
+                break;
+            case 0x07: //CMP
+                out = p1;
+                cmp_flags(p1,p2,T(p1-p2));
                 break;
         }
-
-        if (instr_choice == 0x01 || instr_choice == 0x04 || instr_choice == 0x06) //or and xor
-            test_flags(out);
-
-        if (instr_choice == 0x07) //cmp
-            out = p1;
         return out;
     }
 
@@ -517,27 +495,48 @@ struct CPU80286
         string_prefix = 0;
         lock = 0;
     }
+
+    static constexpr u8 IS_PREFIX[0x100] =
+    {
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //00
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //10
+        0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0, //20
+        0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0, //30
+
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //40
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //50
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //60
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //70
+
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //80
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //90
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //A0
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //B0
+
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //C0
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //D0
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, //E0
+        4,0,2,3, 0,0,0,0, 0,0,0,0, 0,0,0,0, //F0
+    };
+
     bool set_prefix(u8 instruction)
     {
-        if ((instruction&0xE7) == 0x26) // segment override:
+        switch(IS_PREFIX[instruction])
         {
-            cycles_used += 0; //286
+        case 1: //segment override
             segment_override = SEG((instruction>>3)&0x3);
-            return true;
-        }
-        if ((instruction&0xFE) == 0xF2)
-        {
-            cycles_used += 0; //286, CHECK!
-            string_prefix = 1+(instruction&0x01); //REPNZ REPZ
-            return true;
-        }
-        if (instruction == 0xF0) // LOCK
-        {
+            break;
+        case 2: //REPNZ
+            string_prefix = 1; //REPNZ
+            break;
+        case 3: //REPZ
+            string_prefix = 2; //REPZ
+            break;
+        case 4: //LOCK
             lock = 1;
-            cycles_used += 0; //286
-            return true;
+            break;
         }
-        return false;
+        return bool(IS_PREFIX[instruction]);
     }
 
     u32 interrupt_true_cycles{};
@@ -806,7 +805,7 @@ struct CPU80286
             else if (secondbyte == 0x01 && op == 0x06) // LMSW
             {
                 decode_modrm(modrm);
-                msw = (msw & 0xFFF1) | (readM(16) & 0x000F);
+                msw = (msw & 0xFFF1) | (readM16() & 0x000F);
                 //std::cout << "New msw: " << msw << std::endl;
 
                 /*std::cout << std::dec << gdtr.n_entries << " global entries." << std::endl;
@@ -825,7 +824,7 @@ struct CPU80286
             else if (secondbyte == 0x01 && op == 0x04) // SMSW
             {
                 decode_modrm(modrm);
-                writeM(msw, 16);
+                writeM16(msw);
             }
             else
             {
@@ -870,7 +869,7 @@ struct CPU80286
             {
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
-                u16 rm = readM(16);
+                u16 rm = readM16();
                 u16 r = get_r16((modrm>>3)&0x07);
                 u16 lower_bound = mem.r16(get_offset(get_segment(SEG::DS)) + rm);
                 u16 upper_bound = mem.r16(get_offset(get_segment(SEG::DS)) + rm + 2);
@@ -893,7 +892,7 @@ struct CPU80286
                 //0x69 mul modrm, immed word
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
-                u16 rm = readM(16);
+                u16 rm = readM16();
                 u16 op2 = read_inst<u16>();
                 i16 result = i32(i16(rm))*i32(i16(op2));
                 set_flag(F_SIGN,result&0x8000);
@@ -923,7 +922,7 @@ struct CPU80286
                 //0x6B mul modrm, immed byte
                 u8 modrm = read_inst<u8>();
                 decode_modrm(modrm);
-                u16 rm = readM(16);
+                u16 rm = readM16();
                 u16 op2 = i16(read_inst<i8>());
                 i16 result = i16(rm)*i16(op2);
 
@@ -1034,7 +1033,7 @@ struct CPU80286
             //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u8 rm = readM(8);
+            u8 rm = readM8();
             u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
 
             u8 inst_type = (modrm >> 3) & 0x07;
@@ -1076,7 +1075,7 @@ struct CPU80286
                 }
                 rm = result;
             }
-            writeM(rm, 8);
+            writeM8(rm);
         }
         else if (instruction == 0xC1)
         {
@@ -1084,7 +1083,7 @@ struct CPU80286
             //0xC0 shift/rotate imm8 (take op from modrm as in the other rotate instructions)
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
             u8 amount = read_inst<u8>() & 0x1F; // Only the lower 5 bits are used for the shift count
 
             u8 inst_type = (modrm >> 3) & 0x07;
@@ -1126,7 +1125,7 @@ struct CPU80286
                 }
                 rm = result;
             }
-            writeM(rm, 16);
+            writeM16(rm);
         }
         else if (instruction == 0xC8)
         {
@@ -1181,7 +1180,7 @@ struct CPU80286
                 decode_modrm(modrm);
                 if (instruction&0x01)//16bit
                 {
-                    u16 rm = readM(16);
+                    u16 rm = readM16();
                     u16& r = get_r16((modrm>>3)&0x07);
                     u16& rout = (instruction&0x02?r:rm);
                     u16& rin = (instruction&0x02?rm:r);
@@ -1189,12 +1188,12 @@ struct CPU80286
 
                     if (!(instruction&0x02))
                     {
-                        writeM(rout, 16);
+                        writeM16(rout);
                     }
                 }
                 else//8bit
                 {
-                    u8 rm = readM(8);
+                    u8 rm = readM8();
                     u8& r = get_r8((modrm>>3)&0x07);
                     u8& rout = (instruction&0x02?r:rm);
                     u8& rin = (instruction&0x02?rm:r);
@@ -1202,7 +1201,7 @@ struct CPU80286
 
                     if (!(instruction&0x02))
                     {
-                        writeM(rout, 8);
+                        writeM8(rout);
                     }
                 }
                 cycles_used += (modrm_is_register?2:7); //286
@@ -1354,37 +1353,37 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u8 rm = readM(8);
+            u8 rm = readM8();
             u8 imm = read_inst<u8>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
-            writeM(rm,8);
+            writeM8(rm);
             cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x81)
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
             u16 imm = read_inst<u16>();
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
-            writeM(rm,16);
+            writeM16(rm);
             cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x83)
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
             u16 imm = i16(read_inst<i8>());
             rm = run_arith(rm, imm, (modrm>>3)&0x07);
-            writeM(rm,16);
+            writeM16(rm);
             cycles_used += (modrm_is_register?3:7); //286
         }
         else if (instruction == 0x84) //TEST
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u8 rm = readM(8);
+            u8 rm = readM8();
             u8 r = get_r8((modrm>>3)&0x07);
             test_flags(u8(rm&r));
             cycles_used += (modrm_is_register?2:6); //286
@@ -1393,7 +1392,7 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
             u16 r = get_r16((modrm>>3)&0x07);
             test_flags(u16(rm&r));
             cycles_used += (modrm_is_register?2:6); //286
@@ -1402,24 +1401,24 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u8 rm = readM(8);
+            u8 rm = readM8();
             u8& r = get_r8((modrm>>3)&0x07);
             u8 temp = rm;
             rm = r;
             r = temp;
-            writeM(rm,8);
+            writeM8(rm);
             cycles_used += (modrm_is_register?3:5); //286
         }
         else if (instruction == 0x87) //XCHG
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
             u16& r = get_r16((modrm>>3)&0x07);
             u16 temp = rm;
             rm = r;
             r = temp;
-            writeM(rm,16);
+            writeM16(rm);
             cycles_used += (modrm_is_register?3:5); //286
         }
         else if ((instruction&0xFC) == 0x88) // MOV EbGb, EvGv, GbEb, GvEv
@@ -1430,17 +1429,17 @@ struct CPU80286
             {
                 u16& r = get_r16((modrm>>3)&0x07);
                 if (instruction&0x02) // towards general register
-                    r = readM(16);
+                    r = readM16();
                 else
-                    writeM(r, 16);
+                    writeM16(r);
             }
             else//8bit
             {
                 u8& r = get_r8((modrm>>3)&0x07);
                 if (instruction&0x02) // towards general register
-                    r = readM(8);
+                    r = readM8();
                 else
-                    writeM(r, 8);
+                    writeM8(r);
             }
 
             if (modrm_is_register)
@@ -1465,7 +1464,7 @@ struct CPU80286
             decode_modrm(modrm);
             if (((modrm>>3)&0x07) < 4)
             {
-                writeM(descriptor_cache[(modrm>>3)&0x07].data, 16);
+                writeM16(descriptor_cache[(modrm>>3)&0x07].data);
             }
             else
             {
@@ -1477,7 +1476,7 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
             u8 seg_n = (modrm>>3)&0x07;
 
             if(seg_n >= 4) //not valid segment registers, we only have four.
@@ -1538,7 +1537,7 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            writeM(pop(), 16);
+            writeM16(pop());
             cycles_used += 5; //286
         }
         else if ((instruction&0xF8) == 0x90) // XCHG AX, r16 - note how 0x90 is effectively NOP :-)
@@ -1775,14 +1774,14 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            writeM(read_inst<u8>(), 8);
+            writeM8(read_inst<u8>());
             cycles_used += (modrm_is_register?2:3); //286
         }
         else if (instruction == 0xC7) //MOV
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            writeM(read_inst<u16>(), 16);
+            writeM16(read_inst<u16>());
             cycles_used += (modrm_is_register?2:3); //286
         }
         else if (instruction == 0xCC) // INT 3
@@ -1829,7 +1828,7 @@ struct CPU80286
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
             //u8& rm = decode_modrm_u8(modrm);
-            u8 rm = readM(8);
+            u8 rm = readM8();
 
             u8 inst_type = (modrm>>3)&0x07;
             if (inst_type == 6)
@@ -1881,7 +1880,7 @@ struct CPU80286
                     }
                     rm = result;
                 }
-                writeM(rm, 8);
+                writeM8(rm);
             }
         }
         else if (instruction == 0xD1 || instruction == 0xD3)
@@ -1889,7 +1888,7 @@ struct CPU80286
             bool single_shift = ((instruction&0x02) == 0) || ((registers[CX]&0x1F) == 1);
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
 
             u8 inst_type = (modrm>>3)&0x07;
             if (inst_type == 6)
@@ -1940,7 +1939,7 @@ struct CPU80286
                     }
                     rm = result;
                 }
-                writeM(rm, 16);
+                writeM16(rm);
             }
         }
         else if (instruction == 0xD4) // AAM
@@ -2120,7 +2119,7 @@ struct CPU80286
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
             //u8& rm = decode_modrm_u8(modrm);
-            u8 rm = readM(8);
+            u8 rm = readM8();
             u8 op = ((modrm>>3)&0x07);
             if (op == 0) // TEST
             {
@@ -2134,14 +2133,14 @@ struct CPU80286
             }
             else if (op==2) // NOT
             {
-                writeM(~rm, 8);
+                writeM8(~rm);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op == 3) // NEG
             {
                 cmp_flags(u8(0),rm,u8(-rm));
                 set_flag(F_CARRY,rm!=0);
-                writeM(-rm, 8);
+                writeM8(-rm);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op==4) // MUL
@@ -2225,7 +2224,7 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u16 rm = readM(16);
+            u16 rm = readM16();
             //u16& rm = decode_modrm_u16(modrm);
             u8 op = ((modrm>>3)&0x07);
             if (op == 0) // TEST
@@ -2241,7 +2240,7 @@ struct CPU80286
             else if (op==2) // NOT
             {
                 //rm = ~rm;
-                writeM(~rm, 16);
+                writeM16(~rm);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op == 3) // NEG
@@ -2249,7 +2248,7 @@ struct CPU80286
                 cmp_flags(u16(0),rm,u16(-rm));
                 set_flag(F_CARRY,rm!=0);
                 //rm = -rm;
-                writeM(-rm, 16);
+                writeM16(-rm);
                 cycles_used += (modrm_is_register?2:7); //286
             }
             else if (op==4) // MUL
@@ -2342,7 +2341,7 @@ struct CPU80286
         {
             u8 modrm = read_inst<u8>();
             decode_modrm(modrm);
-            u8 reg = readM(8);
+            u8 reg = readM8();
             u8 op = (modrm>>3)&0x07;
             u8 result = reg+1-(op<<1);
             if (op >= 2)
@@ -2359,7 +2358,7 @@ struct CPU80286
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
                 //no carry!
                 //reg = result;
-                writeM(result,8);
+                writeM8(result);
                 cycles_used = (modrm_is_register?2:7); //286
             }
         }
@@ -2370,19 +2369,19 @@ struct CPU80286
             u8 op = (modrm>>3)&0x07;
             if (op == 0 || op == 1)
             {
-                u16 reg = readM(16);
+                u16 reg = readM16();
                 u16 result = reg+1-(op<<1);
                 set_flag(F_OVERFLOW,result==(0x8000-op));
                 set_flag(F_AUX_CARRY,(result&0x0F) == ((op&0x01)?0x0F:0x00));
                 set_flag(F_ZERO,result==0);
                 set_flag(F_SIGN,result&0x8000);
                 set_flag(F_PARITY,byte_parity[result&0xFF]);
-                writeM(result,16);
+                writeM16(result);
                 cycles_used = (modrm_is_register?2:7); //286
             }
             else if (op == 2) //call near
             {
-                u16 address = readM(16);
+                u16 address = readM16();
                 push(registers[IP]);
                 registers[IP] = address; //have to do this because reg could be SP :')
                 cycles_used += (modrm_is_register?7:11); //286
@@ -2400,7 +2399,7 @@ struct CPU80286
             }
             else if (op == 4) //jmp near
             {
-                registers[IP] = readM(16);
+                registers[IP] = readM16();
                 cycles_used += (modrm_is_register?7:11); //286
             }
             else if (op == 5) //jmp far
@@ -2414,7 +2413,7 @@ struct CPU80286
             }
             else if (op == 6)
             {
-                u16 reg = readM(16);
+                u16 reg = readM16();
                 push(reg);
                 cycles_used += 5; //286
             }

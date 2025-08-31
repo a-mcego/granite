@@ -1799,9 +1799,9 @@ int main(int argc, char* argv[])
         configFilename = machineName+"/"+configFilename;
     }
 
-    mac.p.membytes.set_size((8)<<20);
-    mac.p.mem286.register_devs();
+    mac.p.membytes.set_size((2)<<20);
     readConfigFile(configFilename);
+    mac.p.mem286.register_devs();
     initialize_key_lookup();
     screen.SCREEN_start();
     sampleplayer.load_sample("sounds/seek.raw");
