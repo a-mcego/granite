@@ -245,7 +245,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
         }
         else // 6 isnt used
         {
-            std::cout << "Unsupported floppy port " << u32(port) << endl;
+            //std::cout << "Unsupported floppy port " << u32(port) << endl;
             //std::abort();
         }
         if (FLOPPY_DEBUG)

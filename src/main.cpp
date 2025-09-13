@@ -196,6 +196,91 @@ struct IOSystem
     DISKETTECONTROLLER diskettecontroller{dma, pic};
     MiniAudio miniaudio{beeper, ym3812, gameblaster, soundblaster};
 
+    enum struct IO_DEVICE : u8
+    {
+        NONE = 0,
+        SQEMS,
+        PIT,
+        PIC,
+        PIC2,
+        DMA,
+        DMA2,
+        KEYBOARD_XT,
+        KEYBOARD_AT,
+        BUSMOUSE,
+        SOUNDBLASTER,
+        GAMEBLASTER,
+        GRAPHICS_CGA,
+        GRAPHICS_EGA,
+        GRAPHICS_VGA,
+        FLOPPY_ATA,
+        OPL,
+        HARDDISK,
+        HARDDISK_ATA,
+        GAMEPORT,
+        LTEMS,
+        CMOS,
+        DMAPAGE
+    };
+
+    IO_DEVICE device_lookup[0x400] = {};
+
+    void init_device_lookup()
+    {
+        for (u16 port = 0x00; port < 0x400; ++port) device_lookup[port] = IO_DEVICE::NONE;
+
+        for (u16 port = 0x000; port <= 0x00F; ++port) device_lookup[port] = IO_DEVICE::DMA;
+        for (u16 port = 0x020; port <= 0x021; ++port) device_lookup[port] = IO_DEVICE::PIC;
+        for (u16 port = 0x040; port <= 0x043; ++port) device_lookup[port] = IO_DEVICE::PIT;
+        if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+        {
+            for (u16 port = 0x060; port <= 0x064; ++port) device_lookup[port] = IO_DEVICE::KEYBOARD_AT;
+        }
+        else
+        {
+            for (u16 port = 0x060; port <= 0x064; ++port) device_lookup[port] = IO_DEVICE::KEYBOARD_XT;
+        }
+        for (u16 port = 0x070; port <= 0x071; ++port) device_lookup[port] = IO_DEVICE::CMOS;
+        for (u16 port = 0x080; port <= 0x08F; ++port) device_lookup[port] = IO_DEVICE::DMAPAGE;
+        for (u16 port = 0x0A0; port <= 0x0A1; ++port) device_lookup[port] = IO_DEVICE::PIC2;
+        for (u16 port = 0x0C0; port <= 0x0DF; ++port) device_lookup[port] = IO_DEVICE::DMA2;//handle >>1!!
+        for (u16 port = 0x0E8; port <= 0x0EF; ++port) device_lookup[port] = IO_DEVICE::SQEMS;
+        for (u16 port = 0x1F0; port <= 0x1F7; ++port) device_lookup[port] = IO_DEVICE::HARDDISK_ATA;
+        for (u16 port = 0x201; port <= 0x201; ++port) device_lookup[port] = IO_DEVICE::GAMEPORT;
+
+        for (u16 port = 0x220; port <= 0x22F; ++port)
+        {
+            if (globalsettings.gblast_enabled)
+            {
+                if (globalsettings.sblast_enabled && (port & 0x0F) >= 0x04)
+                    device_lookup[port] = IO_DEVICE::SOUNDBLASTER;
+                else
+                    device_lookup[port] = IO_DEVICE::GAMEBLASTER;
+            }
+            else if (globalsettings.sblast_enabled)
+            {
+                device_lookup[port] = IO_DEVICE::SOUNDBLASTER;
+            }
+        }
+        for (u16 port = 0x23C; port <= 0x23F; ++port) device_lookup[port] = IO_DEVICE::BUSMOUSE;
+        for (u16 port = 0x260; port <= 0x263; ++port) device_lookup[port] = IO_DEVICE::LTEMS;
+        for (u16 port = 0x320; port <= 0x323; ++port) device_lookup[port] = IO_DEVICE::HARDDISK;
+        for (u16 port = 0x388; port <= 0x389; ++port) device_lookup[port] = IO_DEVICE::OPL;
+        if (globalsettings.graphics == GlobalSettings::VGA)
+        {
+            for (u16 port = 0x3B0; port <= 0x3DF; ++port) device_lookup[port] = IO_DEVICE::GRAPHICS_VGA;
+        }
+        else if (globalsettings.graphics == GlobalSettings::HEGA)
+        {
+            for (u16 port = 0x3B0; port <= 0x3DF; ++port) device_lookup[port] = IO_DEVICE::GRAPHICS_EGA;
+        }
+        else if (globalsettings.graphics == GlobalSettings::CGA)
+        {
+            for (u16 port = 0x3D0; port <= 0x3DF; ++port) device_lookup[port] = IO_DEVICE::GRAPHICS_CGA;
+        }
+        for (u16 port = 0x3F0; port <= 0x3F7; ++port) device_lookup[port] = IO_DEVICE::FLOPPY_ATA;
+    }
+
     template<typename IOSIZE> requires (std::same_as<IOSIZE, u8> || std::same_as<IOSIZE, u16>)
     void io_out(u16 port, IOSIZE data)
     {
@@ -204,118 +289,49 @@ struct IOSystem
             //TODO: 16-bit I/O properly
             if (port == 0x1F0)
             {
-                harddisk_ata.write(port-0x1F0, data);
+                harddisk_ata.write(0, data);
                 return;
             }
-
 
             io_out<u8>(port, data&0xFF);
             io_out<u8>(port+1, data>>8);
             return;
         }
 
-        //if (startprinting)
-        //cout << "Write Port 0x" << u32(port) << " ----> 0x" << u32(data) << endl;
-        if (false);
-        /*else if (port == 0xA0)
+        IO_DEVICE device = device_lookup[port&0x3FF];
+        switch(device)
         {
-            cout << "NMI interrupt setting: " << data << endl;
-        }*/
-        else if (port >= 0xE8 && port <= 0xEF)
-        {
-            sqems.write(port,data&0xFF);
+        case IO_DEVICE::DMA: dma.write(port&0x0F, data); break;
+        case IO_DEVICE::PIC: pic.write(port&0x01, data); break;
+        case IO_DEVICE::PIC2: pic2.write(port & 0x01, data); break;
+        case IO_DEVICE::PIT: pit.write(port & 0x03, data); break;
+        case IO_DEVICE::DMA2: dma2.write((port & 0x1E) >> 1, data); break;
+        case IO_DEVICE::KEYBOARD_XT: kbd_xt.write(port & 0x07, data); break;
+        case IO_DEVICE::KEYBOARD_AT: kbd_at.write(port & 0x07, data); break;
+        case IO_DEVICE::BUSMOUSE: busmouse.write(port & 0x03, data); break;
+        case IO_DEVICE::GAMEBLASTER: gameblaster.write(port & 0x0F, data); break;
+        case IO_DEVICE::SOUNDBLASTER: soundblaster.write(port & 0x0F, data); break;
+        case IO_DEVICE::GRAPHICS_VGA: vga.write((port & 0x7F)-0x30, data); break;
+        case IO_DEVICE::GRAPHICS_EGA: hega.write((port & 0x7F)-0x30, data); break;
+        case IO_DEVICE::GRAPHICS_CGA: cga.write(port & 0x0F, data); break;
+        case IO_DEVICE::FLOPPY_ATA:
+            diskettecontroller.write(port & 0x07, data);
+            if ((port & 0x07) >= 0x06)  // port >= 0x3F6
+                harddisk_ata.write((port & 0x07) + 8, data);
+            break;
+        case IO_DEVICE::OPL: ym3812.write(port & 0x01, data); break;
+        case IO_DEVICE::HARDDISK: harddisk.write(port & 0x03, data); break;
+        case IO_DEVICE::HARDDISK_ATA: harddisk_ata.write(port & 0x07, data); break;
+        case IO_DEVICE::GAMEPORT: gameport.write(0, data); break;
+        case IO_DEVICE::LTEMS: ltems.write(port & 0x03, data); break;
+        case IO_DEVICE::CMOS: cmos.write(port & 0x01, data); break;
+        case IO_DEVICE::DMAPAGE: dmapage.write(port & 0x0F, data); break;
+        case IO_DEVICE::SQEMS: sqems.write(port & 0x07, data); break;
+        case IO_DEVICE::NONE:
+        default:
+            ;
         }
-        else if (port >= 0x40 && port <= 0x43)
-        {
-            pit.write(port-0x40, data&0xFF);
-        }
-        else if (port >= 0x20 && port <= 0x21)
-        {
-            pic.write(port-0x20, data&0xFF);
-        }
-        else if (port >= 0xa0 && port <= 0xa1)
-        {
-            pic2.write(port-0xa0, data&0xFF);
-        }
-        else if (port >= 0x00 && port <= 0x0F)
-        {
-            dma.write(port-0x00, data&0xFF);
-        }
-        else if (port >= 0xC0 && port <= 0xDF)
-        {
-            dma2.write((port-0xC0)>>1, data&0xFF);
-        }
-        else if (port >= 0x60 && port <= 0x64)
-        {
-            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
-                kbd_at.write(port-0x60, data&0xFF);
-            else
-                kbd_xt.write(port-0x60, data&0xFF);
-        }
-        else if (port >= 0x23C && port <= 0x23F)
-        {
-            busmouse.write(port-0x23C, data&0xFF);
-        }
-        else if (globalsettings.gblast_enabled && port >= 0x220 && port <= 0x22F)
-        {
-            if (globalsettings.sblast_enabled && port >= 0x224 && port <= 0x22F)
-                soundblaster.write(port-0x220, data&0xFF);
-            gameblaster.write(port-0x220, data&0xFF);
-        }
-        else if (globalsettings.sblast_enabled && port >= 0x220 && port <= 0x22F)
-        {
-            soundblaster.write(port-0x220, data&0xFF);
-        }
-        else if (port >= 0x3B0 && port <= 0x3DF)
-        {
-            if (globalsettings.graphics == GlobalSettings::HEGA)
-                hega.write(port-0x3B0, data&0xFF);
-            else if (globalsettings.graphics == GlobalSettings::VGA)
-                vga.write(port-0x3B0, data&0xFF);
-            else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
-                cga.write(port-0x3D0, data&0xFF);
-        }
-        else if (port >= 0x3F0 && port <= 0x3F7)
-        {
-            if (port != 0x3F6)
-                diskettecontroller.write(port-0x3F0, data&0xFF);
-            if (port >= 0x3F6)
-                harddisk_ata.write(port-0x3F0+8, data&0xFF);
-        }
-        else if (globalsettings.opl_enabled && port >= 0x388 && port <= 0x389)
-        {
-            ym3812.write(port-0x388, data&0xFF);
-        }
-        else if (port >= 0x320 && port <= 0x323)
-        {
-            harddisk.write(port-0x320, data&0xFF);
-        }
-        else if (port >= 0x1F0 && port <= 0x1F7)
-        {
-            harddisk_ata.write(port-0x1F0, data&0xFF);
-        }
-        else if (port == 0x201)
-        {
-            gameport.write(port-0x201, data&0xFF);
-        }
-        else if (port >= 0x260 && port <= 0x263)
-        {
-            ltems.write(port-0x260, data&0xFF);
-        }
-        else if (port >= 0x70 && port <= 0x71)
-        {
-            cmos.write(port-0x70, data&0xFF);
-        }
-        else if (port >= 0x80 && port <= 0x8F)
-        {
-            dmapage.write(port-0x80, data&0xFF);
-        }
-        else
-        {
-            //if constexpr(DEBUG_LEVEL > 0)
-                //cout << "Writing Unknown port " << u32(port) << " data=" << u32(data&0xFF) << endl;
-            //std::abort();
-        }
+        //TODO: 0xA0 NMI on PC!
     }
 
     template<typename IOSIZE> requires (std::is_same_v<IOSIZE, u8> || std::is_same_v<IOSIZE, u16>)
@@ -325,109 +341,44 @@ struct IOSystem
         {
             //TODO: 16-bit I/O properly
             if (port == 0x1F0)
-                return harddisk_ata.read(port-0x1F0);
+                return harddisk_ata.read(0);
 
             return io_in<u8>(port) | (io_in<u8>(port+1) << 8);
         }
 
         IOSIZE data = 0xff;
-
-        if (false);
-        else if (sqems.is_port(port))
+        IO_DEVICE device = device_lookup[port&0x3FF];
+        switch(device)
         {
-            data = sqems.read(port);
-        }
-        else if (port >= 0x40 && port <= 0x43)
-        {
-            data = pit.read(port-0x40);
-        }
-        else if (port >= 0x20 && port <= 0x21)
-        {
-            data = pic.read(port-0x20);
-        }
-        else if (port >= 0xA0 && port <= 0xA1)
-        {
-            data = pic2.read(port-0xA0);
-        }
-        else if (port >= 0x00 && port <= 0x0F)
-        {
-            data = dma.read(port-0x00);
-        }
-        else if (port >= 0xC0 && port <= 0xDF)
-        {
-            data = dma2.read((port-0xC0)>>1);
-        }
-        else if (port >= 0x60 && port <= 0x64)
-        {
-            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
-                data = kbd_at.read(port-0x60);
-            else
-                data = kbd_xt.read(port-0x60);
-        }
-        else if (globalsettings.gblast_enabled && port >= 0x220 && port <= 0x22F)
-        {
-            if (globalsettings.sblast_enabled && port >= 0x224 && port <= 0x22F)
-                data = soundblaster.read(port-0x220);
-            else
-                data = gameblaster.read(port-0x220);
-        }
-        else if (port >= 0x23C && port <= 0x23F)
-        {
-            data = busmouse.read(port-0x23C);
-        }
-        else if (globalsettings.sblast_enabled && port >= 0x220 && port <= 0x22F)
-        {
-            data = soundblaster.read(port-0x220);
-        }
-        else if (port >= 0x3B0 && port <= 0x3DF)
-        {
-            if (globalsettings.graphics == GlobalSettings::HEGA)
-                data = hega.read(port-0x3B0);
-            else if (globalsettings.graphics == GlobalSettings::VGA)
-                data = vga.read(port-0x3B0);
-            else if (globalsettings.graphics == GlobalSettings::CGA && port >= 0x3D0)
-                data = cga.read(port-0x3D0);
-        }
-        else if (port >= 0x3F0 && port <= 0x3F7)
-        {
-            if (port != 0x3F6)
-                data = diskettecontroller.read(port-0x3F0);
-            if (port >= 0x3F6)
-                data |= harddisk_ata.read(port-0x3F0+8);
-        }
-        else if (globalsettings.opl_enabled && port >= 0x388 && port <= 0x389)
-        {
-            data = ym3812.read(port-0x388);
-        }
-        else if (port >= 0x320 && port <= 0x323)
-        {
-            data = harddisk.read(port-0x320);
-        }
-        else if (port >= 0x1F0 && port <= 0x1F7)
-        {
-            data = harddisk_ata.read(port-0x1F0);
-        }
-        else if (port == 0x201)
-        {
-            data = gameport.read(port-0x201);
-        }
-        else if (port >= 0x260 && port <= 0x263)
-        {
-            data = ltems.read(port-0x260);
-        }
-        else if (port >= 0x70 && port <= 0x71)
-        {
-            data = cmos.read(port-0x70);
-        }
-        else if (port >= 0x80 && port <= 0x8F)
-        {
-            data = dmapage.read(port-0x80);
-        }
-        else
-        {
-            //if constexpr(DEBUG_LEVEL > 0)
-                //cout << "Reading unknown port " << u32(port) << endl;
-            //std::abort();
+        case IO_DEVICE::DMA: data = dma.read(port&0x0F); break;
+        case IO_DEVICE::PIC: data = pic.read(port&0x01); break;
+        case IO_DEVICE::PIC2: data = pic2.read(port & 0x01); break;
+        case IO_DEVICE::PIT: data = pit.read(port & 0x03); break;
+        case IO_DEVICE::DMA2: data = dma2.read((port & 0x1E) >> 1); break;
+        case IO_DEVICE::KEYBOARD_XT: data = kbd_xt.read(port & 0x07); break;
+        case IO_DEVICE::KEYBOARD_AT: data = kbd_at.read(port & 0x07); break;
+        case IO_DEVICE::BUSMOUSE: data = busmouse.read(port & 0x03); break;
+        case IO_DEVICE::GAMEBLASTER: data = gameblaster.read(port & 0x0F); break;
+        case IO_DEVICE::SOUNDBLASTER: data = soundblaster.read(port & 0x0F); break;
+        case IO_DEVICE::GRAPHICS_VGA: data = vga.read((port & 0x7F)-0x30); break;
+        case IO_DEVICE::GRAPHICS_EGA: data = hega.read((port & 0x7F)-0x30); break;
+        case IO_DEVICE::GRAPHICS_CGA: data = cga.read(port & 0x0F); break;
+        case IO_DEVICE::FLOPPY_ATA:
+            data = diskettecontroller.read(port & 0x07);
+            if ((port & 0x07) >= 0x06)  // port >= 0x3F6
+                data |= harddisk_ata.read((port & 0x07) + 8);
+            break;
+        case IO_DEVICE::OPL: data = ym3812.read(port & 0x01); break;
+        case IO_DEVICE::HARDDISK: data = harddisk.read(port & 0x03); break;
+        case IO_DEVICE::HARDDISK_ATA: data = harddisk_ata.read(port & 0x07); break;
+        case IO_DEVICE::GAMEPORT: data = gameport.read(0); break;
+        case IO_DEVICE::LTEMS: data = ltems.read(port & 0x03); break;
+        case IO_DEVICE::CMOS: data = cmos.read(port & 0x01); break;
+        case IO_DEVICE::DMAPAGE: data = dmapage.read(port & 0x0F); break;
+        case IO_DEVICE::SQEMS: data = sqems.read(port & 0x07); break;
+        case IO_DEVICE::NONE:
+        default:
+            ;
         }
         //cout << "Read  Port 0x" << u32(port) << " <---- 0x" << u32(data) << endl;
         return data;
@@ -1845,6 +1796,7 @@ int main(int argc, char* argv[])
         }
     }
     glfwSetJoystickCallback(joystickfun);
+    mac.p.init_device_lookup();
     mac.reset_cpu();
 
     std::thread emu_thread(run_emu);
