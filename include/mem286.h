@@ -93,10 +93,7 @@ struct MemoryManager286
     u8 r8(u32 address)
     {
         u8 data = 0xFF;
-        //if (!globalsettings.A20)
-        //    address &= 0xFFEFFFFF;
-
-        u16 map_index = ((address>>13)&0x7FF);
+        u16 map_index = ((address>>13)&(globalsettings.A20?0x7FF:0x77F));
         switch(devicemap[map_index])
         {
         case DEVICETYPE::NONE:
@@ -112,6 +109,7 @@ struct MemoryManager286
             data = vga.r8(address&0x1FFFF);
             break;
         case DEVICETYPE::LTEMS:
+            data = ltems._8(address&0xFFFF);
             break;
         case DEVICETYPE::SQEMS:
             data = sqems.r8(sqems.translate_addr(address));
@@ -126,10 +124,7 @@ struct MemoryManager286
     }
     void w8(u32 address, u8 data)
     {
-        //if (!globalsettings.A20)
-        //    address &= 0xFFEFFFFF;
-
-        u16 map_index = ((address>>13)&0x7FF);
+        u16 map_index = ((address>>13)&(globalsettings.A20?0x7FF:0x77F));
         switch(devicemap[map_index])
         {
         case DEVICETYPE::NONE:
@@ -146,6 +141,7 @@ struct MemoryManager286
             vga.w8(address&0x1FFFF, data);
             break;
         case DEVICETYPE::LTEMS:
+            ltems._8(address&0xFFFF) = data;
             break;
         case DEVICETYPE::SQEMS:
             sqems.w8(sqems.translate_addr(address), data);
