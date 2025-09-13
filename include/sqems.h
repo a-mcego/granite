@@ -8,20 +8,15 @@ struct SQEMS
     static constexpr u32 BASE_MASK = (1<<PAGE_SHIFT)-1; //0x3FFF
 
     // I/O ports
-    static constexpr u8 PAGE_SELECT_REGISTER = 0xE8;
-    static constexpr u8 PAGE_SET_REGISTER_LO = 0xEA;
-    static constexpr u8 PAGE_SET_REGISTER_HI = 0xEB;
+    static constexpr u8 PAGE_SELECT_REGISTER = 0;//0xE8;
+    static constexpr u8 PAGE_SET_REGISTER_LO = 2;//0xEA;
+    static constexpr u8 PAGE_SET_REGISTER_HI = 3;//0xEB;
     static constexpr u8 AUTOINCREMENT_FLAG = 0x40;
 
     static constexpr u32 MAX_PAGES = 512; //16kB pages
     static constexpr u32 MEMORY_SIZE = MAX_PAGES*16384;
 
     u8 memory[MEMORY_SIZE] = {};
-
-    bool is_port(u16 port)
-    {
-        return (port == PAGE_SELECT_REGISTER || port == PAGE_SET_REGISTER_LO || port == PAGE_SET_REGISTER_HI);
-    }
 
     u32 pages[WRITABLE_PAGE_COUNT] = {};
 
