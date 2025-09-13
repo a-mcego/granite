@@ -78,6 +78,15 @@ struct MemoryManager286
                 register_device(DEVICETYPE::BOARD_MEMORY, addr);
             for(u32 addr=0xF0000; addr<0x100000; addr+=8192)
                 register_device(DEVICETYPE::ROM, addr);
+
+            for(u32 addr=0x100000;;addr+=8192)
+            {
+                if (membytes.size < addr+8192)
+                    break;
+                register_device(DEVICETYPE::BOARD_MEMORY, addr);
+            }
+
+
         }
     }
 
