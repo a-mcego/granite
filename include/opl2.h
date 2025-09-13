@@ -89,7 +89,8 @@ const int FB[8] =
 const unsigned int pow2_A[] = {0,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072,262144,524288,1048576};
 
 //resolution of the adsr envelope, in conjunction with a lot of other things
-const int ADSR_MAX = 8192;
+const int ADSR_MAX_BITS = 13;
+const int ADSR_MAX = 1<<ADSR_MAX_BITS;
 
 //all tables are filled in init();
 const int TOTLVL_SIZE = 64;

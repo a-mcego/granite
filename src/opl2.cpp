@@ -280,7 +280,7 @@ void Opl2::update_ADSR()
 				}
                 op.ADSR_volume = (unsigned short)(ADSR_DR[op.DR_state]>>op.DR_div);
                 if (op.D > 0)
-                    op.DR_state += pow4rt2[(op.adsr==D?op.D:op.R)*4+op.rof];
+                    op.DR_state += pow4rt2[op.D*4+op.rof];
 				while (op.DR_state >= ADSR_DR_SIZE)
 				{
 					op.DR_state -= ADSR_DR_SIZE;
@@ -294,10 +294,8 @@ void Opl2::update_ADSR()
 			case R:
 				if (op.DR_div <= 16)
                     op.ADSR_volume = ADSR_DR[op.DR_state]>>op.DR_div;
-                else
-                    op.adsr = R;
-				if ((op.adsr==D?op.D:op.R) > 0)
-					op.DR_state += pow4rt2[(op.adsr==D?op.D:op.R)*4+op.rof];
+				if (op.R > 0)
+					op.DR_state += pow4rt2[op.R*4+op.rof];
 				while (op.DR_state >= ADSR_DR_SIZE)
 				{
 					op.DR_state -= ADSR_DR_SIZE;
@@ -316,7 +314,7 @@ void Opl2::update_ADSR()
 void OP::update_phase()
 {
 	if (vibrato)
-		sinestate += vibrato_amount*HARM[harmonic]*(1<<oct);
+		sinestate += (vibrato_amount*HARM[harmonic])<<oct;
 	sinestate += freq_harmonic;
 }
 
@@ -325,12 +323,12 @@ int OP::update(int fm, Opl2& opl2)
 	int sample=0;
 	unsigned int tempstate = (sinestate+fm)&(PERIOD_SIZE-1);
 
-	sample = sine[wavetype][tempstate>>SINE_BLOCK]
-	*TOTLVL[volume]/ADSR_MAX
-		*ADSR_volume/ADSR_MAX
-		*LKS[lks][freq]/ADSR_MAX;
+	sample = sine[wavetype][tempstate>>SINE_BLOCK];
+	sample = (sample*TOTLVL[volume])>>ADSR_MAX_BITS;
+	sample = (sample*ADSR_volume)>>ADSR_MAX_BITS;
+	sample = (sample*LKS[lks][freq])>>ADSR_MAX_BITS;
 	if (ampmod)
-		sample = sample*AMPMOD[opl2.ampmod_depth][opl2.ampmod_state]/ADSR_MAX;
+		sample = (sample*AMPMOD[opl2.ampmod_depth][opl2.ampmod_state])>>ADSR_MAX_BITS;
     update_phase();
 	wanha2 = wanha1;
 	wanha1 = sample;
@@ -351,22 +349,19 @@ short Opl2::update()
 	if (ampmod_state >= AMPMOD_SIZE)
 		ampmod_state=0;
 
-	int sini=0, fb=0;
+	int sini=0;
 
-	int maxc;
-	if (opl2.rhythm)
-		maxc = OPL2_CHANNELS-3;
-	else
-		maxc = OPL2_CHANNELS;
 	update_ADSR();
+
+	int maxc = opl2.rhythm?OPL2_CHANNELS-3:OPL2_CHANNELS;
 	for(int c=0; c<maxc; c++)
 	{
 		bool vibcalced = false;
-		fb = FB[chans[c].feedback]*(chans[c].ops[0].wanha1+chans[c].ops[0].wanha2)/(2*SAMPLERATE_DIV);
 		int sample=0;
 
 		if (chans[c].ops[0].adsr != N)
 		{
+            int fb = FB[chans[c].feedback]*(chans[c].ops[0].wanha1+chans[c].ops[0].wanha2)/(2*SAMPLERATE_DIV);
 			sample = chans[c].ops[0].update(fb, opl2);
 			if (chans[c].ops[0].vibrato)
 			{
