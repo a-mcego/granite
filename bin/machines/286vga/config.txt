@@ -9,8 +9,8 @@ machine at
 #rom e0001 rom/atbios/Beltron-WL286-5A-R.BIN stride=2
 #rom f8000 rom/atbios/commodore-pcat-bios-U82-low.bin stride=2
 #rom f8001 rom/atbios/commodore-pcat-bios-U80-high.bin stride=2
-#rom f0000 rom/asem-286-L-27c256.BIN stride=2
-#rom f0001 rom/asem-286-H-27c256.BIN stride=2
+rom f0000 rom/asem-286-L-27c256.BIN stride=2
+rom f0001 rom/asem-286-H-27c256.BIN stride=2
 #rom f0000 rom/atbios/BIOS_5170_15NOV85_U27_62X0820_27256.BIN stride=2
 #rom f0001 rom/atbios/BIOS_5170_15NOV85_U47_62X0821_27256.BIN stride=2
 
@@ -22,7 +22,7 @@ machine at
 #rom f0000 rom/phoenix3.07-cs8220-even.bin stride=2
 #rom f0001 rom/phoenix3.07-cs8220-odd.bin stride=2
 
-rom f0000 rom/AMI-040990-Jameco286.BIN
+#rom f0000 rom/AMI-040990-Jameco286.BIN
 
 #gpu cga80
 
@@ -37,7 +37,7 @@ rom c0000 rom/labway-tvga8800br.bin
 #rom c0000 rom/IBM_EGA.rom
 
 
-load a disk/cpc40/disk1.img
+#load a disk/cpc40/disk1.img
 #load a disk/msdos6.2/Disk1.img
 load b disk/cpc40/disk2.img
 #load b disk/ega/egad.img

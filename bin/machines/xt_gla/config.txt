@@ -83,8 +83,8 @@ load b disk/intel.ima
 #load b disk/panzer.img
 #load b disk/sound4.img
 
-#load c cdisk.img chs=375,8,17
-load c cpc40.img chs=615,4,17
+load c cdisk.img chs=375,8,17
+#load c cpc40.img chs=615,4,17
 #load d ddisk.img chs=375,8,17
 #load d bigdisk.img chs=615,8,17
 #load d geos.img chs=615,8,17
