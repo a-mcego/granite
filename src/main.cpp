@@ -73,11 +73,13 @@ struct GlobalSettings
     bool sound_on{true};
     bool entertrace{false};
     bool A20{true};
+    u32 A20mask{0x7FF};
     bool ctrl_alt{false};
 
     void SetA20(bool value)
     {
         A20 = value;
+        A20mask = A20?0x7FF:0x77F;
         //std::cout << "A20 is now: " << A20 << std::endl;
     }
 
@@ -1324,7 +1326,7 @@ void configline(std::string line)
             CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
             //CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
             testcpu.mem.testmode = true;
-            globalsettings.A20 = false;
+            globalsettings.SetA20(false);
             testcpu.reset();
             memset(mac.p.membytes.bytes, 0, (1<<20)+65536);
 

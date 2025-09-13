@@ -15,46 +15,21 @@ struct SQEMS
 
     static constexpr u32 MAX_PAGES = 512; //16kB pages
     static constexpr u32 MEMORY_SIZE = MAX_PAGES*16384;
+    static constexpr u8 MAP_SIZE = 64;
 
     u8 memory[MEMORY_SIZE] = {};
 
-    u32 pages[WRITABLE_PAGE_COUNT] = {};
+    u32 page_map[MAP_SIZE] = {};
 
     u32 current_page_index = 0;
     u32 current_page_set_lo = 0;
     bool auto_increment = false;
 
-    //16kB chunk number for each page by default.
-    static constexpr u8 default_pages[PAGE_COUNT] =
+    static constexpr u8 reverse_page_lookup[36] =
     {
-        0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,
-        0x38,0x39,0x3A,0x3B,0x10,0x11,0x12,0x13,
-        0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,
-        0x1C,0x1D,0x1E,0x1F,0x20,0x21,0x22,0x23,
-        0x24,0x25,0x26,0x27,0x00,0x01,0x02,0x03,
-        0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,
-        0x0C,0x0D,0x0E,0x0F
-    };
-
-    // Page lookup table - translates memory address to page index. 16 kB chunks
-    static constexpr u8 page_lookup[64] =
-    {
-        0xFF,0xFF,0xFF,0xFF,// 0x00000 (inaccessible)
-        0xFF,0xFF,0xFF,0xFF,// 0x10000 (inaccessible)
-        0xFF,0xFF,0xFF,0xFF,// 0x20000 (inaccessible)
-        0xFF,0xFF,0xFF,0xFF,// 0x30000 (inaccessible)
-        12, 13, 14, 15,     // 0x40000
-        16, 17, 18, 19,     // 0x50000
-        20, 21, 22, 23,     // 0x60000
-        24, 25, 26, 27,     // 0x70000
-        28, 29, 30, 31,     // 0x80000
-        32, 33, 34, 35,     // 0x90000
-        0xFF,0xFF,0xFF,0xFF,// 0xA0000
-        0xFF,0xFF,0xFF,0xFF,// 0xB0000
-        0xFF,0xFF,0xFF,0xFF,// 0xC0000
-        4, 5, 6, 7,         // 0xD0000
-        8, 9, 10, 11,       // 0xE0000
-        0xFF,0xFF,0xFF,0xFF,// 0xF0000
+        48,49,50,51,52,53,54,55,56,57,58,59,
+        16,17,18,19,20,21,22,23,24,25,26,27,
+        28,29,30,31,32,33,34,35,36,37,38,39,
     };
 
     SQEMS()
@@ -64,9 +39,9 @@ struct SQEMS
     void reset()
     {
         // Initialize page registers to default mappings
-        for (u32 i = 0; i < WRITABLE_PAGE_COUNT; i++)
+        for (u32 i = 0; i < MAP_SIZE; i++)
         {
-            pages[i] = default_pages[i] << PAGE_SHIFT;  // Default page mappings
+            page_map[i] = i<<PAGE_SHIFT;
         }
         current_page_index = 0;
         current_page_set_lo = 0;
@@ -84,7 +59,7 @@ struct SQEMS
                 }
                 else
                 {
-                    current_page_index = data;  // Mask off auto-increment bit
+                    current_page_index = data&0x3F;
                 }
                 auto_increment = (data & AUTOINCREMENT_FLAG) != 0;
                 //std::cout << "D" << std::hex << u16(data) << " -> P" << std::hex << u32(current_page_index) << std::endl;
@@ -98,26 +73,15 @@ struct SQEMS
             case PAGE_SET_REGISTER_HI:
                 {
                     //std::cout << "Datahi " << u16(data) << std::endl;
-                    u32 combined = (u32(data) << 8) | current_page_set_lo;
-                    if (combined == 0xFFFF)
-                    {
-                        // Unmap page - restore default
-                        pages[current_page_index&0x3F] = (default_pages[current_page_index&0x3F]) << PAGE_SHIFT;
-                        //std::cout << "P 0x" << std::hex << u32(current_page_index) << " set to default: " << (u32(default_pages[current_page_index])<<PAGE_SHIFT) << std::endl;
-                    }
-                    else
-                    {
-                        // Set page
-                        pages[current_page_index&0x3F] = u32(combined) << PAGE_SHIFT;
-                        //std::cout << "P 0x" << std::hex << u32(current_page_index) << " set to: " << (u32(combined)<<PAGE_SHIFT) << std::endl;
-                        //if ((u32(combined)<<PAGE_SHIFT) == 0xE0000)
-                        //    startprinting=true;
-                    }
+                    u32 combined = (u32(data) << 8) | u32(current_page_set_lo);
+                    if (combined >= MAX_PAGES)
+                        combined = reverse_page_lookup[current_page_index];
+                    page_map[reverse_page_lookup[current_page_index]] = u32(combined) << PAGE_SHIFT;
 
                     if (auto_increment)
                     {
                         current_page_index++;
-                        if ((current_page_index) >= WRITABLE_PAGE_COUNT)
+                        if (current_page_index >= WRITABLE_PAGE_COUNT)
                         {
                             current_page_index = 0;
                         }
@@ -136,10 +100,10 @@ struct SQEMS
                 return current_page_index;// | (auto_increment?0x40:0x00) | 0x80;
 
             case PAGE_SET_REGISTER_LO:
-                return u8(pages[current_page_index] >> PAGE_SHIFT);
+                return u8(page_map[reverse_page_lookup[current_page_index]] >> PAGE_SHIFT);
 
             case PAGE_SET_REGISTER_HI:
-                return u8(pages[current_page_index] >> (PAGE_SHIFT + 8)) | 0xFC;
+                return u8(page_map[reverse_page_lookup[current_page_index]] >> (PAGE_SHIFT + 8));// | 0xFC;
 
             default:
                 return 0;
@@ -149,39 +113,29 @@ struct SQEMS
     bool is_ems(u32 address)
     {
         //if beyond 1 MB
-        if ((address >> PAGE_SHIFT) >= 64)
+        /*if ((address >> PAGE_SHIFT) >= 64)
             return false;
         //if not EMS
         if (page_lookup[address >> PAGE_SHIFT] == 0xFF)
-            return false;
+            return false;*/
         return true;
     }
 
-    u32 translate_addr(u32 address)
-    {
-        if (!is_ems(address))
-            return address;
-        return get_ems_addr(address);
-    }
+    //sqems.get_ems_addr(address)
 
     u32 get_ems_addr(u32 address)
     {
-        u32 page_idx = page_lookup[address >> PAGE_SHIFT];
-        u32 ems_addr = pages[page_idx] | (address & BASE_MASK);
+        u32 ems_addr = page_map[address >> PAGE_SHIFT] | (address & BASE_MASK);
         //std::cout << std::hex << address << " -> EMS:" << ems_addr << std::endl;
         return ems_addr;
     }
 
     void w8(u32 address, u8 data)
     {
-        if (address < MEMORY_SIZE)
-            memory[address] = data;
+        memory[page_map[address >> PAGE_SHIFT] | (address & BASE_MASK)] = data;
     }
     u8 r8(u32 address)
     {
-        u8 ret = 0xFF;
-        if (address < MEMORY_SIZE)
-            ret = memory[address];
-        return ret;
+        return memory[page_map[address >> PAGE_SHIFT] | (address & BASE_MASK)];
     }
 };

@@ -42,7 +42,7 @@ struct MemoryManager8088
             {
                 if (sqems.is_ems(address))
                 {
-                    data = sqems.r8(sqems.translate_addr(address));
+                    data = sqems.r8(sqems.get_ems_addr(address));
                 }
                 else if (address < membytes.size)
                 {
@@ -73,7 +73,7 @@ struct MemoryManager8088
             {
                 if (sqems.is_ems(address))
                 {
-                    sqems.w8(sqems.translate_addr(address), data);
+                    sqems.w8(sqems.get_ems_addr(address), data);
                 }
                 else if
                     (

@@ -93,7 +93,7 @@ struct MemoryManager286
     u8 r8(u32 address)
     {
         u8 data = 0xFF;
-        u16 map_index = ((address>>13)&(globalsettings.A20?0x7FF:0x77F));
+        u16 map_index = ((address>>13)&globalsettings.A20mask);
         switch(devicemap[map_index])
         {
         case DEVICETYPE::NONE:
@@ -112,7 +112,7 @@ struct MemoryManager286
             data = ltems._8(address&0xFFFF);
             break;
         case DEVICETYPE::SQEMS:
-            data = sqems.r8(sqems.translate_addr(address));
+            data = sqems.r8(address);
             break;
         case DEVICETYPE::ROM:
         case DEVICETYPE::BOARD_MEMORY:
@@ -124,7 +124,7 @@ struct MemoryManager286
     }
     void w8(u32 address, u8 data)
     {
-        u16 map_index = ((address>>13)&(globalsettings.A20?0x7FF:0x77F));
+        u16 map_index = ((address>>13)&globalsettings.A20mask);
         switch(devicemap[map_index])
         {
         case DEVICETYPE::NONE:
@@ -144,7 +144,7 @@ struct MemoryManager286
             ltems._8(address&0xFFFF) = data;
             break;
         case DEVICETYPE::SQEMS:
-            sqems.w8(sqems.translate_addr(address), data);
+            sqems.w8(address, data);
             break;
         case DEVICETYPE::BOARD_MEMORY:
             membytes.bytes[address] = data;
