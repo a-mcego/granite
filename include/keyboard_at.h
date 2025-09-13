@@ -12,7 +12,7 @@ struct CHIP8042 //AT keyboard etc
 
     deque<u8> scancode_queue;
     deque<u8> output_buffer;
-    u16 kbd_wait{};
+    u32 kbd_wait{};
 
     u16 clear_input_bit{}; //time to clear the input bit
     //u16 set_output_bit{}; //time to set the output bit
@@ -85,6 +85,7 @@ struct CHIP8042 //AT keyboard etc
     void output(u8 data)
     {
         output_buffer.push_back(data);
+        std::cout << "output buf <- " << u32(data) << " size=" << output_buffer.size() << std::endl;
         status_byte |= 0x01;
     }
 
@@ -102,17 +103,22 @@ struct CHIP8042 //AT keyboard etc
         {
             u8 result{};
             //std::cout << "read command is: " << (u32)command << std::endl;
-            //std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", queue now=" << output_buffer.size() << " with data " << u32(output_buffer.front()) << std::endl;
+            std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", queue now=" << output_buffer.size() << " with data " << u32(output_buffer.front()) << std::endl;
 
             if (!output_buffer.empty())
             {
                 result = output_buffer.front();
                 output_buffer.pop_front();
                 status_byte &= ~0x08;
+                status_byte |= 0x01;
             }
             if (output_buffer.empty())
             {
                 status_byte &= ~0x01;
+            }
+            else
+            {
+
             }
             return result;
         }
@@ -141,7 +147,7 @@ struct CHIP8042 //AT keyboard etc
             //std::cout << std::hex << globalsettings.current_IP << ": keyboard write to 0x6" << u16(port) << ", with data " << u16(data) << std::endl;
         if (port == 0)
         {
-            status_byte &= ~0x0B;
+            status_byte &= ~0x0A;
             //status_byte = (status_byte&0b1111'1110);
             //status_byte |= 0x03; //input byte done - don't do more!
             //clear_input_bit = 128;
@@ -278,6 +284,10 @@ struct CHIP8042 //AT keyboard etc
             {
                 output(P1);
             }
+            else if (data == 0xD0) //read P2
+            {
+                output(P2);
+            }
             else if (data == 0xD1) //write P2
             {
             }
@@ -301,7 +311,7 @@ struct CHIP8042 //AT keyboard etc
 
     void cycle()
     {
-        status_byte = (status_byte&~0x01) | (output_buffer.empty()?0:1);
+        //status_byte = (status_byte&~0x01) | (output_buffer.empty()?0:1);
 
         if (clear_input_bit > 0)
         {
@@ -319,19 +329,26 @@ struct CHIP8042 //AT keyboard etc
                 output(scancode_queue.front());
                 status_byte |= 1;
                 scancode_queue.pop_front();
+                std::cout << "outbuf size: " << output_buffer.size() << std::endl;
 
-                if (ram[0]&0x01) //IRQ enabled?
-                {
-                    P2 |= 0x10;
-                    pic.request_interrupt(1);
-                }
-                kbd_wait = 2048;
+
+
             }
         }
 
         if (kbd_wait > 0)
         {
             --kbd_wait;
+        }
+        if (kbd_wait == 0)
+        {
+            if (!output_buffer.empty() && (ram[0]&0x01)) //IRQ enabled?
+            {
+                //std::cout << "IRQ1" << std::endl;
+                P2 |= 0x10;
+                pic.request_interrupt(1);
+                kbd_wait = (1<<16);
+            }
         }
     }
 };

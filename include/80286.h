@@ -701,6 +701,11 @@ struct CPU80286
         is_inside_multi_part_instruction = false;
 
         globalsettings.current_IP = get_offset(SEG::CS)+registers[IP];
+        if (globalsettings.current_IP == 0x7C00)
+        {
+            std::cout << "7C00 gotten!" << std::endl;
+            //startprinting = true;
+        }
 
         u8 instruction = read_inst<u8>();
 
@@ -715,7 +720,7 @@ struct CPU80286
         {
             ++prefix_byte_n;
             instruction = read_inst<u8>();
-            if (startprinting || DEBUG_LEVEL > 1)
+            if ((startprinting || DEBUG_LEVEL > 1) && (get_offset(SEG::CS)+registers[IP]-1) < 0xF0000)
                 std::cout << "prefix read. " << (msw&1?"&":"#") << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS+IP = " << get_offset(SEG::CS) << ":" << registers[IP]-1 << " = " << get_offset(SEG::CS)+registers[IP]-1 << std::endl;
         }
         if (false);
