@@ -164,6 +164,16 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
     } drives[4];
 
     u8 selected_drive{};
+/*
+ Bit 7: Request for Master (data register ready for CPU access)
+ Bit 6: Data Input/Output (0=CPU->FDC, 1=FDC->CPU)
+ Bit 5: Non-DMA Mode (1=in non-DMA mode)
+ Bit 4: Command Busy (FDC is executing a command)
+ Bit 3: Drive 3 Busy (drive 3 is in seek mode)
+ Bit 2: Drive 2 Busy (drive 2 is in seek mode)
+ Bit 1: Drive 1 Busy (drive 1 is in seek mode)
+ Bit 0: Drive 0 Busy (drive 0 is in seek mode)
+*/
     u8 main_status{0x80}; // RQM DIO NDM CB D3B D2B D1B D0B
     u8 st0{};
     u8 st1{};
@@ -175,12 +185,21 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
     //3 = 1000kbps
     u8 datarate{};
 
-    u8 registers[8] = {}; // not all registers are used, but we'll do it this way to be simple
+/*
+ Bit 7: Drive 3 motor
+ Bit 6: Drive 2 motor
+ Bit 5: Drive 1 motor
+ Bit 4: Drive 0 motor
+ Bit 3: Enable IRQ/DMA
+ Bit 2: Reset
+ Bit 10: Drive select
+*/
+    u8 dor{};
 
     u8 is_selected_and_on(u8 drive)
     {
-        bool on = registers[2]&(0x10<<drive);
-        bool selected = (registers[2]&0x3) == drive;
+        bool on = dor&(0x10<<drive);
+        bool selected = (dor&0x3) == drive;
         return on && selected;
     }
 
@@ -304,6 +323,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
     u8 current_command{};
     u8 current_full_command{};
     u8 fifo_input_bytes_left{};
+    u16 id_interrupt_time{};
 
     void write(u8 port, u8 data) //port from 0 to 7! inclusive.
     {
@@ -344,7 +364,8 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                         u8 databyte = out_buffer.back();
                         u8 drive_n = databyte&0x03;
                         out_buffer.clear();
-                        main_status &= ~0xC0;
+                        main_status |= 0x40; //fdc -> cpu
+                        main_status |= 0x80; //ready for data
                         u8 st3 = 0;
                         //bit7 is fault, no fault
                         //bit6 is writeprotect
@@ -437,16 +458,16 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             else //FIFO not active, start a new command
             {
                 // Handle FDC commands here
-                if (FLOPPY_DEBUG)
+                //if (FLOPPY_DEBUG)
                     cout << "PORT 5 means COMMAND! ";
 
                 u8 command = data&0x1F;
 
-                if (FLOPPY_DEBUG)
+                //if (FLOPPY_DEBUG)
                     if (commandnames[command])
                         cout << commandnames[command] << " - ";
 
-                if (FLOPPY_DEBUG)
+                //if (FLOPPY_DEBUG)
                     cout << "number=" << u32(command) << endl;
                 switch (data&0x1F)
                 {
@@ -476,6 +497,22 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                         main_status |= 0x10;
                         out_buffer.clear();
                         break;
+                    case 0x0A: // Read ID
+                        fifo_input_bytes_left = 0;
+                        current_command = (data&0x1F);
+                        current_full_command = data;
+                        out_buffer.clear();
+                        out_buffer.push_back(st0);
+                        out_buffer.push_back(st1);
+                        out_buffer.push_back(st2);
+                        out_buffer.push_back(drives[selected_drive].current_cylinder); //cylinder
+                        out_buffer.push_back(0); //head
+                        out_buffer.push_back(1); //Sector
+                        out_buffer.push_back(2); //N ??
+                        main_status |= 0x40; //fdc -> cpu
+                        main_status &= ~0x80; //not ready for data
+                        id_interrupt_time = RESET_CYCLES;
+                        break;
                     case 0x07: // Recalibrate (seek to cyl 0)
                         fifo_input_bytes_left = 1;
                         current_command = (data&0x1F);
@@ -495,7 +532,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                         break;
                     default:
                         std::cout << "Unsupported FDC command " << u32(data) << "/" << u32(data&0x1F) << endl;
-                        std::abort();
+                        //std::abort();
                 }
                 if (FLOPPY_DEBUG)
                     cout << "expecting " << u32(fifo_input_bytes_left) << " more bytes." << endl;
@@ -523,7 +560,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             }
 
             selected_drive = (data&0x03);
-            if (!(registers[port]&0x04) && (data&0x04))
+            if (!(dor&0x04) && (data&0x04))
                 reset_state = RESET_CYCLES;
 
             for(int i=0; i<4; ++i)
@@ -532,7 +569,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                     cout << "Drive #" << i << " motor " << ((data&(0x10<<i))?"ON":"OFF") << endl;
                 drives[i].motor = (data&(0x10<<i));
             }
-            registers[port] = data;
+            dor = data;
         }
         else
         {
@@ -556,6 +593,14 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                 st0 = 0xC0;
                 st1 = 0;
                 st2 = 0;
+                pic.request_interrupt(6);
+            }
+        }
+        if (id_interrupt_time > 0)
+        {
+            --id_interrupt_time;
+            if (id_interrupt_time == 0)
+            {
                 pic.request_interrupt(6);
             }
         }
