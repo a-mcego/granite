@@ -221,7 +221,7 @@ struct IOSystem
         {
             cout << "NMI interrupt setting: " << data << endl;
         }*/
-        else if (sqems.is_port(port))
+        else if (port >= 0xE8 && port <= 0xEF)
         {
             sqems.write(port,data&0xFF);
         }
