@@ -33,6 +33,13 @@ struct HARDDISK_ATA
     static const u8 ERROR_TR0  = 0x02; // Track 000 Error
     static const u8 ERROR_DAM  = 0x01; // Data Address Mark Not Found
 
+    // Diagnostic error register values
+    static const u8 DIAG_ERROR_NONE              = 0x01;
+    static const u8 DIAG_ERROR_CONTROLLER        = 0x02;
+    static const u8 DIAG_ERROR_SECTOR_BUFFER     = 0x03;
+    static const u8 DIAG_ERROR_ECC_DEVICE        = 0x04;
+    static const u8 DIAG_ERROR_CONTROL_PROCESSOR = 0x05;
+
     // Registers
     u8 error_register{};
     u8 write_precomp{};
@@ -74,7 +81,8 @@ struct HARDDISK_ATA
 
     void write(u8 port, u16 data)
     {
-        //std::cout << globalsettings.current_IP << " ATA write " << u32(port) << ":" << u32(data) << std::endl;
+        if (startprinting)
+            std::cout << globalsettings.current_IP << " ATA write " << u32(port) << ":" << u32(data) << std::endl;
         switch(port)
         {
             case 0: // Data Register
@@ -129,6 +137,11 @@ struct HARDDISK_ATA
                 break;
 
             case 0x0E: // 3F6
+                if (!(data&0x04) && (fixed_disk_register&0x04))
+                {
+                    //reset puts us into diagnostic mode
+                    error_register = DIAG_ERROR_NONE;
+                }
                 fixed_disk_register = data;
                 break;
         }
@@ -206,13 +219,14 @@ struct HARDDISK_ATA
                 data = result;
                 break;
         }
-        //std::cout << globalsettings.current_IP << " ATA read " << u32(port) << ":" << u32(data) << std::endl;
+        if (startprinting)
+            std::cout << std::hex << globalsettings.current_IP << " ATA read " << u32(port) << ":" << u32(data) << std::endl;
         return data;
     }
 
     void execute_command(u8 cmd)
     {
-        std::cout << globalsettings.current_IP << " ATA command: " << u32(cmd) <<  std::endl;
+        //std::cout << std::hex << globalsettings.current_IP << " ATA command: " << u32(cmd) <<  std::endl;
 
         if (false);
         else if ((cmd&0xF0) == 0x10) //restore
@@ -231,6 +245,7 @@ struct HARDDISK_ATA
         {
             u16 cylinder = (cylinder_high << 8) | cylinder_low;
             u16 head = drive_head & 0x0F;
+
             if (!disks.disk[current_disk()].type.size_is(cylinder,head,sector_count))
             {
                 std::cout << "Disk size mismatch between bios and actual disk." << std::endl;
@@ -270,18 +285,18 @@ struct HARDDISK_ATA
         {
             //diagnose
             status_register = STATUS_READY | STATUS_DSC;
-            error_register = 0x01; // No error
+            error_register = DIAG_ERROR_NONE;
             send_irq_delay = SEND_IRQ_DELAY;
         }
-        else if (cmd==0x91) //???
+        else if (cmd==0x91) //set parameters
         {
             send_irq_delay = SEND_IRQ_DELAY;
             status_register |= STATUS_BUSY;
         }
         else
         {
-            std::cout << "Unknown ATA command " << u32(cmd) << std::endl;
-            std::abort();
+            std::cout << "Unknown ATA command " << std::hex << u32(cmd) << std::endl;
+            //std::abort();
             error_register = 0x04; // Abort
             status_register = STATUS_READY | STATUS_ERR;
         }
