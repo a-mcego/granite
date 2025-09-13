@@ -3,7 +3,7 @@
 
 struct LTEMS
 {
-    u8 memory[4*1024*1024+1] = {};
+    u8 memory[4*1024*1024] = {};
 
     u32 pages[4] = {};
 
