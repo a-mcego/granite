@@ -73,6 +73,7 @@ struct GlobalSettings
     bool sound_on{true};
     bool entertrace{false};
     bool A20{true};
+    bool ctrl_alt{false};
 
     void SetA20(bool value)
     {
@@ -895,6 +896,11 @@ void key_callback([[maybe_unused]] GLFWwindow* window, int key, [[maybe_unused]]
                 lockstep = false;
                 cout << "Lockstep disengaged." << endl;
             }
+            else if (key == GLFW_KEY_B)
+            {
+                globalsettings.ctrl_alt = true;
+                cout << "Ctrl+Alt engaged." << endl;
+            }
             else if (key == GLFW_KEY_V)
             {
                 if (mac.p.cga.output == mac.p.cga.OUTPUT::RGB)
@@ -990,10 +996,26 @@ void key_callback([[maybe_unused]] GLFWwindow* window, int key, [[maybe_unused]]
             }*/
             if (globalsettings.machine == GlobalSettings::MACHINE_AT)
             {
+                if (globalsettings.ctrl_alt)
+                {
+                    mac.p.kbd_at.press(key_lookup_xt[GLFW_KEY_LEFT_CONTROL] | (action == GLFW_RELEASE ? 0x80 : 0));
+                    mac.p.kbd_at.press(key_lookup_xt[GLFW_KEY_LEFT_ALT] | (action == GLFW_RELEASE ? 0x80 : 0));
+                    if (action == GLFW_RELEASE)
+                        globalsettings.ctrl_alt = false;
+                }
                 mac.p.kbd_at.press(pc_scancode | (action == GLFW_RELEASE ? 0x80 : 0));
             }
             else
+            {
+                if (globalsettings.ctrl_alt)
+                {
+                    mac.p.kbd_xt.press(key_lookup_xt[GLFW_KEY_LEFT_CONTROL] | (action == GLFW_RELEASE ? 0x80 : 0));
+                    mac.p.kbd_xt.press(key_lookup_xt[GLFW_KEY_LEFT_ALT] | (action == GLFW_RELEASE ? 0x80 : 0));
+                    if (action == GLFW_RELEASE)
+                        globalsettings.ctrl_alt = false;
+                }
                 mac.p.kbd_xt.press(pc_scancode | (action == GLFW_RELEASE ? 0x80 : 0));
+            }
         }
     }
 
