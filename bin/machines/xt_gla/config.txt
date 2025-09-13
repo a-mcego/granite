@@ -1,5 +1,6 @@
 cpu 80286
 cpu_multiplier 301/200
+#cpu_multiplier 1/3
 
 #machine pc
 #rom fe000 rom/pcbios/BIOS_IBM5150_27OCT82_1501476_U33.BIN
@@ -19,7 +20,12 @@ machine xt
 
 gpu vga
 #rom c0000 rom/ibm_vga.bin
-rom c0000 rom/BOCHS-VGABIOS.bin
+#rom c0000 rom/BOCHS-VGABIOS.bin
+#rom c0000 rom/deico-dvga-cs1.bin #doesnt initialize vga properly, 1 long 3 short, no proper video
+#rom c0000 rom/paradise-vga-revX3-19880714.BIN #produces one D6 beep, no video, signal is 7 Hz vsync
+rom c0000 rom/labway-tvga8800br.bin
+
+
 
 #gpu ega
 #rom c0000 rom/ct-8190s_v3.32.bin
@@ -59,7 +65,10 @@ rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #load a disk/msdos6.2/Disk1.img
 #load a disk/freedos/FD13-D1.IMG
 #load a disk/msfs1-d1.img
+#load a disk/elks_paint.img
 
+#load b disk/VGABIN.img
+load b disk/intel.ima
 #load b disk/cpc40/disk2.img
 #load b disk/8088mph.360
 #load b disk/area5150.img
@@ -74,12 +83,14 @@ rom f0000 rom/IBM_XEBEC_5000059_1982.BIN
 #load b disk/panzer.img
 #load b disk/sound4.img
 
-load c cdisk.img chs=375,8,17
+#load c cdisk.img chs=375,8,17
+load c cpc40.img chs=615,4,17
 #load d ddisk.img chs=375,8,17
 #load d bigdisk.img chs=615,8,17
 #load d geos.img chs=615,8,17
 #load d cpc40.img chs=615,4,17
 load d 286vgad.img chs=615,12,17
+#load d 286vgad2.img chs=615,12,17
 
 #load c ddisk.img
 #load d edisk.img
