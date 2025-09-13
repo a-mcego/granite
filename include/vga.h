@@ -440,6 +440,10 @@ struct VGA
         {
             if (crtc_choice < CRTC_REG_COUNT)
                 data = crtc_regs[crtc_choice];
+            else if (crtc_choice == 0x1E)
+                //trident SVGA:
+                //bits 76: 00=256k, 01=512k, 10=768k, 11=1024k vram
+                data = 0b00'00'0000;
         }
         else if (port == 0x0A+port_add) // 3DA - Input Status Register 1
         {
