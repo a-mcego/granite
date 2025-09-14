@@ -127,8 +127,6 @@ struct MiniAudio
             audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
             ++audio_write_offset;
         }
-        //audio_buffer[audio_write_offset] = globalsettings.sound_on?i16(data):i16(0);
-        //++audio_write_offset;
     }
 };
 
