@@ -90,7 +90,7 @@ struct MemoryManager286
         }
     }
 
-    u8 r8(u32 address)
+    u8 r8(u64 address)
     {
         u8 data = 0xFF;
         u16 map_index = ((address>>13)&globalsettings.A20mask);
@@ -122,7 +122,7 @@ struct MemoryManager286
 
         return data;
     }
-    void w8(u32 address, u8 data)
+    void w8(u64 address, u8 data)
     {
         u16 map_index = ((address>>13)&globalsettings.A20mask);
         switch(devicemap[map_index])
@@ -151,14 +151,14 @@ struct MemoryManager286
             break;
         }
     }
-    u16 r16(u32 address)
+    u16 r16(u64 address)
     {
         u16 data{};
         data |= r8(address);
         data |= u16(r8(address+1))<<8;
         return data;
     }
-    void w16(u32 address, u16 data)
+    void w16(u64 address, u16 data)
     {
         w8(address,data&0xFF);
         w8(address+1,(data>>8));

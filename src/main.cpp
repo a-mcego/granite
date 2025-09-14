@@ -506,23 +506,21 @@ struct Machine
         }
     }
 
-    void real_stuff(u64 clock)
+    u32 miniaudio_counter{}, pit_counter{};
+    void real_stuff(u64 clock) //ran at 14.318/8 MHz
     {
-        if (clock%8 == 0)
+        if (globalsettings.graphics == GlobalSettings::HEGA)
         {
-            if (globalsettings.graphics == GlobalSettings::HEGA)
+            hega_counter += p.hega.clock_numer();
+            while (hega_counter >= p.hega.clock_denom())
             {
-                hega_counter += p.hega.clock_numer();
-                while (hega_counter >= p.hega.clock_denom())
-                {
-                    p.hega.cycle();
-                    hega_counter -= p.hega.clock_denom();
-                }
+                p.hega.cycle();
+                hega_counter -= p.hega.clock_denom();
             }
-            else if (globalsettings.graphics == GlobalSettings::CGA)
-                p.cga.cycle();
         }
-        if (clock%16 == 0)
+        else if (globalsettings.graphics == GlobalSettings::CGA)
+            p.cga.cycle();
+        if ((clock&0x0F) == 0)
         {
             if (globalsettings.machine == GlobalSettings::MACHINE_AT)
             {
@@ -537,31 +535,39 @@ struct Machine
                     reset_cpu();
             }
             p.harddisk.cycle();
+            if (globalsettings.gblast_enabled && (clock&0xFF) == 0)
+                p.gameblaster.cycle();
+            if ((clock&0x1FF) == 0)
+            {
+                p.diskettecontroller.cycle();
+                p.harddisk_ata.cycle();
+            }
+            static_assert(GAMEPORT_CYCLE==64, "GAMEPORT_CYCLE has been changed from 64 :O");
+            if ((clock&(GAMEPORT_CYCLE-1)) == 0) //GAMEPORT_CYCLE == 64
+                p.gameport.cycle();
+        }
+        miniaudio_counter += 8;
+        if (miniaudio_counter >= 298) //ca. 48kHz. handles sound output in general
+        {
+            miniaudio_counter -= 298;
+            p.miniaudio.cycle();
         }
 
-
-        if (clock%215 == 0) //ca. every 15 microseconds.
+        /*if (clock%215 == 0) //ca. every 15 microseconds.
         {
             global_port0x61 ^= 0x10;
-            p.harddisk_ata.cycle();
-        }
-        if (clock%12 == 0)
+        }*///TODO: Fix this, make a read_port0x61() fnuction in globalsettings
+        pit_counter += 2;
+        if (pit_counter >= 3)
         {
+            pit_counter -= 3;
             p.pit.cycle();
+            if (globalsettings.opl_enabled && clock%288 == 0)
+            {
+                p.ym3812.cycle();
+                p.ym3812.cycle_timers();
+            }
         }
-        if (clock%512 == 0)
-            p.diskettecontroller.cycle();
-        if (clock%298 == 0) //ca. 48kHz. handles sound output in general
-            p.miniaudio.cycle();
-        if (globalsettings.opl_enabled && clock%288 == 0)
-        {
-            p.ym3812.cycle();
-            p.ym3812.cycle_timers();
-        }
-        if (clock%GAMEPORT_CYCLE == 0)
-            p.gameport.cycle();
-        if (globalsettings.gblast_enabled && clock%256 == 0)
-            p.gameblaster.cycle();
         if (globalsettings.sblast_enabled)
             p.soundblaster.cycle();
     }
@@ -1690,10 +1696,11 @@ void run_emu()
             double newTime = glfwGetTime();
             if (newTime-previousTime >= 0.1)
                 previousTime = newTime-0.1;
-            u64 cycles_done = (newTime-previousTime)*(14318180.0);
+            const double MASTER_CLOCK = 14318180.0*0.125;
+            u64 cycles_done = (newTime-previousTime)*(MASTER_CLOCK);
             for(u64 i=0; i<cycles_done; ++i)
             {
-                ++clockgen_real;
+                clockgen_real += 8;
                 //fast stuff
                 if (lockstep)
                 {
@@ -1702,7 +1709,7 @@ void run_emu()
                 //realtime stuff
                 mac.real_stuff(clockgen_real);
             }
-            previousTime += double(cycles_done)/14318180.0;
+            previousTime += double(cycles_done)/MASTER_CLOCK;
         }
         /*if ((loop_counter&0xFFFF) == 0)
         {
