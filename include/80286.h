@@ -249,7 +249,7 @@ struct CPU80286
 
     bool parity(u8 value)
     {
-        return !__builtin_parity(value);
+        return !__builtin_parity(value); //TODO: alternative if this builtins isnt available
     }
 
     template<typename T>
@@ -728,16 +728,18 @@ struct CPU80286
 
     u16 original_ip{};
 
+    std::atomic<u64> cyclecounter{};
+
     void cycle()
     {
         bool previous_trap = flag(F_TRAP);
-        ++cycles;
+        ++cyclecounter;
 
-        if (delay)
+        /*if (delay)
         {
             --delay;
             return;
-        }
+        }*/
 
         if (pic.irq_to_cpu != -1)
         {
@@ -754,15 +756,15 @@ struct CPU80286
 
         inhibit_ss = false;
 
-        if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
+        /*if (get_offset(SEG::CS) == 0 && registers[IP] == 0)
         {
             //cout << "Trying to run code at CS:IP 0:0... resetting." << endl;
             reset();
             //std::abort();
-        }
+        }*/
         original_ip = registers[IP];
 
-        is_inside_multi_part_instruction = false;
+        //is_inside_multi_part_instruction = false;
 
         globalsettings.current_IP = get_offset(SEG::CS)+registers[IP];
         /*if (globalsettings.current_IP == 0x7C00)
@@ -1575,7 +1577,7 @@ struct CPU80286
                     break;
                 }
                 registers[IP] = original_ip;
-                is_inside_multi_part_instruction = true;
+                //is_inside_multi_part_instruction = true;
             } while(false);
             else
             {

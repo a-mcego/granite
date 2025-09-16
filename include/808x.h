@@ -261,6 +261,7 @@ struct CPU8086
     {
         halt = false;
         clear_prefix();
+        mem.reset();
         for(u32 i=0; i<16; ++i)
             registers[i] = 0x0000;
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
@@ -637,6 +638,12 @@ struct CPU8086
             --delay;
             return;
         }
+
+        if (pic.irq_to_cpu != -1)
+        {
+            irq(pic.irq_to_cpu);
+        }
+
         inhibit_ss = false;
         if (halt)
         {

@@ -33,15 +33,15 @@ struct VGA
 
     u32 clock_numer() const
     {
-        //return ((misc&0x04)?99693:88616)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
+        return ((misc&0x04)?99693:88616)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
         //return ((misc&0x04)?88616:88616)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
-        return 1;
+        //return 1;
     }
 
     u32 clock_denom() const
     {
-        //return 50400*2;
-        return 1;
+        return 50400*2;
+        //return 1;
     }
 
     bool debugprint{};
@@ -85,27 +85,53 @@ struct VGA
         return !(seq_regs[MEMORY_MODE]&0x04);
     }
 
-    bool adjust_address_for_memory_map(u32& address)
+    bool map_active[4] = {true,true,true,true};
+    u32 map_address_mask = 0x1FFFF;
+
+
+    void update_memory_map()
     {
         u8 memory_map = ((gfx_regs[MISCELLANEOUS]>>2)&0x03);
 
-        if (memory_map == 1 && address >= 0x10000)
-            return false;
-        if (memory_map == 2)
+        switch(memory_map)
         {
-            if (address < 0x10000 || address >= 0x18000)
-                return false;
-            address -= 0x10000;
-            return true;
+        case 0:
+            map_address_mask = 0x1FFFF;
+            map_active[0] = true;
+            map_active[1] = true;
+            map_active[2] = true;
+            map_active[3] = true;
+            break;
+        case 1:
+            map_address_mask = 0xFFFF;
+            map_active[0] = true;
+            map_active[1] = true;
+            map_active[2] = false;
+            map_active[3] = false;
+            break;
+        case 2:
+            map_address_mask = 0x7FFF;
+            map_active[0] = false;
+            map_active[1] = false;
+            map_active[2] = true;
+            map_active[3] = false;
+            break;
+        case 3:
+            map_address_mask = 0x7FFF;
+            map_active[0] = false;
+            map_active[1] = false;
+            map_active[2] = false;
+            map_active[3] = true;
+            break;
         }
-        if (memory_map == 3)
-        {
-            if (address < 0x18000)
-                return false;
-            address -= 0x18000;
-            return true;
-        }
-        return true;
+
+    }
+
+    bool adjust_address_for_memory_map(u32& address)
+    {
+        bool ret = map_active[(address>>15)&0x03];
+        address &= map_address_mask;
+        return ret;
     }
 
     //address from 00000 to 1FFFF
@@ -113,13 +139,13 @@ struct VGA
     {
         if (!adjust_address_for_memory_map(address))
         {
-            if (debugprint)
-                std::cout << "vga W?!" << std::endl;
+            //if (debugprint)
+            //    std::cout << "vga W?!" << std::endl;
             return;
         }
 
-        if (debugprint)
-            std::cout << "vga W=" << std::hex << address << " writemode=" << (gfx_regs[MODE_REGISTER]&0x03) << std::endl;
+        //if (debugprint)
+        //    std::cout << "vga W=" << std::hex << address << " writemode=" << (gfx_regs[MODE_REGISTER]&0x03) << std::endl;
 
         u32 bmask = gfx_regs[BIT_MASK];
         bmask |= bmask<<8;
@@ -230,14 +256,14 @@ struct VGA
     {
         if (!adjust_address_for_memory_map(address))
         {
-            if (debugprint)
-                std::cout << "vga R?!" << std::endl;
+            //if (debugprint)
+            //    std::cout << "vga R?!" << std::endl;
             latch = 0xFFFFFFFF;
             return 0xFF;
         }
 
-        if (debugprint)
-            std::cout << "vga R=" << std::hex << address << ", readmode=" << ((gfx_regs[MODE_REGISTER]&0x08)?"cmp":"norm") << std::endl;
+        //if (debugprint)
+        //    std::cout << "vga R=" << std::hex << address << ", readmode=" << ((gfx_regs[MODE_REGISTER]&0x08)?"cmp":"norm") << std::endl;
 
         u32 plane_id = (gfx_regs[READ_MAP_SELECT])&0x03;
 
@@ -536,6 +562,7 @@ struct VGA
             if (gfx_choice < GFX_REG_COUNT)
             {
                 gfx_regs[gfx_choice] = data;
+                update_memory_map();
                 if(debugprint)
                     cout << "vga w gfx  " << u32(gfx_choice) << ":" << u32(data) << std::endl;
             }

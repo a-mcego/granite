@@ -19,10 +19,128 @@ struct MemoryManager8088
 
     bool testmode{};
 
+    void reset()
+    {
+        sqems.reset();
+    }
 
-    bool cga_used{};
+    enum struct DEVICETYPE : u8
+    {
+        NONE,
+        VIDEO_CGA,
+        VIDEO_EGA,
+        VIDEO_VGA,
+        ROM,
+        LTEMS,
+        SQEMS,
+        BOARD_MEMORY
+    };
+
+    DEVICETYPE devicemap[128] = {};
+
+    void register_device(DEVICETYPE device, u32 address)
+    {
+        devicemap[(address>>13)&0x7FF] = device;
+    }
+
+    void register_devs()
+    {
+        if (testmode)
+        {
+            for(u32 addr=0x00000; addr<0x100000; addr+=8192)
+                register_device(DEVICETYPE::BOARD_MEMORY, addr);
+        }
+        else
+        {
+            DEVICETYPE video_device = DEVICETYPE::VIDEO_CGA;
+            if (globalsettings.graphics == GlobalSettings::HEGA)
+                video_device = DEVICETYPE::VIDEO_EGA;
+            else if (globalsettings.graphics == GlobalSettings::VGA)
+                video_device = DEVICETYPE::VIDEO_VGA;
+            for(u32 addr=0x00000; addr<0x40000; addr+=8192)
+                register_device(DEVICETYPE::BOARD_MEMORY, addr);
+            for(u32 addr=0x40000; addr<0xA0000; addr+=8192)
+                register_device(DEVICETYPE::SQEMS, addr);
+            for(u32 addr=0xA0000; addr<0xC0000; addr+=8192)
+                register_device(video_device, addr);
+            for(u32 addr=0xC0000; addr<0xC8000; addr+=8192)
+                register_device(DEVICETYPE::ROM, addr);
+            for(u32 addr=0xC8000; addr<0xD0000; addr+=8192)
+                register_device(DEVICETYPE::BOARD_MEMORY, addr);
+            for(u32 addr=0xD0000; addr<0xE0000; addr+=8192)
+                register_device(DEVICETYPE::SQEMS, addr);
+            for(u32 addr=0xE0000; addr<0xF0000; addr+=8192)
+                register_device(DEVICETYPE::BOARD_MEMORY, addr);
+            for(u32 addr=0xF0000; addr<0x100000; addr+=8192)
+                register_device(DEVICETYPE::ROM, addr);
+        }
+    }
 
     u8 r8(u16 segment, u16 index)
+    {
+        u32 address = ((segment<<4)+index)&0xFFFFF;
+        u8 data = 0xFF;
+        u16 map_index = (address>>13);
+        switch(devicemap[map_index])
+        {
+        case DEVICETYPE::NONE:
+            break;
+        case DEVICETYPE::VIDEO_CGA:
+            if (cga.address_in_memory_map(address))
+                data = cga.memory8(address-cga.MEMORY_MAP_START());
+            break;
+        case DEVICETYPE::VIDEO_EGA:
+            data = hega.r8(address&0x1FFFF);
+            break;
+        case DEVICETYPE::VIDEO_VGA:
+            data = vga.r8(address&0x1FFFF);
+            break;
+        case DEVICETYPE::LTEMS:
+            data = ltems._8(address&0xFFFF);
+            break;
+        case DEVICETYPE::SQEMS:
+            data = sqems.r8(address);
+            break;
+        case DEVICETYPE::ROM:
+        case DEVICETYPE::BOARD_MEMORY:
+            data = membytes.bytes[address];
+            break;
+        }
+
+        return data;
+    }
+    void w8(u16 segment, u16 index, u8 data)
+    {
+        u32 address = ((segment<<4)+index)&0xFFFFF;
+        u16 map_index = (address>>13);
+        switch(devicemap[map_index])
+        {
+        case DEVICETYPE::NONE:
+        case DEVICETYPE::ROM:
+            break;
+        case DEVICETYPE::VIDEO_CGA:
+            if (cga.address_in_memory_map(address))
+                cga.memory8(address-cga.MEMORY_MAP_START()) = data;
+            break;
+        case DEVICETYPE::VIDEO_EGA:
+            hega.w8(address&0x1FFFF, data);
+            break;
+        case DEVICETYPE::VIDEO_VGA:
+            vga.w8(address&0x1FFFF, data);
+            break;
+        case DEVICETYPE::LTEMS:
+            ltems._8(address&0xFFFF) = data;
+            break;
+        case DEVICETYPE::SQEMS:
+            sqems.w8(address, data);
+            break;
+        case DEVICETYPE::BOARD_MEMORY:
+            membytes.bytes[address] = data;
+            break;
+        }
+    }
+
+    /*u8 r8(u16 segment, u16 index)
     {
         u8 data = 0xFF;
 
@@ -90,7 +208,7 @@ struct MemoryManager8088
         {
             membytes.bytes[address] = data;
         }
-    }
+    }*/
     u16 r16(u16 segment, u16 index)
     {
         u16 data{};

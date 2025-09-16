@@ -588,7 +588,8 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
             if (reset_state == 0) //RESET DONE!
             {
                 out_buffer.clear();
-                cout << "FLOPPY Reset is now done!" << endl;
+                if (FLOPPY_DEBUG)
+                    cout << "FLOPPY Reset is now done!" << endl;
                 main_status = 0x80;
                 st0 = 0xC0;
                 st1 = 0;
@@ -618,10 +619,12 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                 }
                 else
                 {
-                    std::cout << "seek " << u32(cur) << "->";
+                    if (FLOPPY_DEBUG)
+                        std::cout << "seek " << u32(cur) << "->";
                     cur += (cur<target)?1:-1;
                     sampleplayer.play(0);
-                    std::cout << u32(cur) << std::endl;
+                    if (FLOPPY_DEBUG)
+                        std::cout << u32(cur) << std::endl;
                     interrupt_timer = SEEK_ONE_TRACK;
                 }
             }

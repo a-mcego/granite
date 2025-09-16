@@ -480,9 +480,10 @@ struct Machine
 
     u32 hega_counter{};
 
+    template<u64 CLOCK_SKIP>
     void fast_stuff([[maybe_unused]] u64 clock)
     {
-        cpu_cycle_accum += cpumult_num;
+        cpu_cycle_accum += cpumult_num*CLOCK_SKIP;
         while(cpu_cycle_accum >= 0)
         {
             cpu_cycle_accum -= cpumult_denom;
@@ -490,63 +491,51 @@ struct Machine
         }
     }
 
-    void gfx_stuff(u64 clock)
+    u32 miniaudio_counter{}, pit_counter{};
+    template<u64 CLOCK_SKIP>
+    void real_stuff(u64 clock) //ran at 14.318/CLOCK_SKIP MHz
     {
-        if (clock%8 == 0)
+        if ((clock&0x07) == 0)
         {
-            if (globalsettings.graphics == GlobalSettings::VGA)
+            if (globalsettings.graphics == GlobalSettings::HEGA)
             {
-                hega_counter += p.vga.clock_numer();
-                while (hega_counter >= p.vga.clock_denom())
+                hega_counter += p.hega.clock_numer();
+                while (hega_counter >= p.hega.clock_denom())
                 {
-                    p.vga.cycle();
-                    hega_counter -= p.vga.clock_denom();
+                    p.hega.cycle();
+                    hega_counter -= p.hega.clock_denom();
                 }
             }
-        }
-    }
-
-    u32 miniaudio_counter{}, pit_counter{};
-    void real_stuff(u64 clock) //ran at 14.318/8 MHz
-    {
-        if (globalsettings.graphics == GlobalSettings::HEGA)
-        {
-            hega_counter += p.hega.clock_numer();
-            while (hega_counter >= p.hega.clock_denom())
+            else if (globalsettings.graphics == GlobalSettings::CGA)
+                p.cga.cycle();
+            if ((clock&0x0F) == 0)
             {
-                p.hega.cycle();
-                hega_counter -= p.hega.clock_denom();
+                if (globalsettings.machine == GlobalSettings::MACHINE_AT)
+                {
+                    p.kbd_at.cycle();
+                    if (p.kbd_at.is_reset())
+                        reset_cpu();
+                }
+                else
+                {
+                    p.kbd_xt.cycle();
+                    if (p.kbd_xt.is_reset())
+                        reset_cpu();
+                }
+                p.harddisk.cycle();
+                if (globalsettings.gblast_enabled && (clock&0xFF) == 0)
+                    p.gameblaster.cycle();
+                if ((clock&0x1FF) == 0)
+                {
+                    p.diskettecontroller.cycle();
+                    p.harddisk_ata.cycle();
+                }
+                static_assert(GAMEPORT_CYCLE==64, "GAMEPORT_CYCLE has been changed from 64 :O");
+                if ((clock&(GAMEPORT_CYCLE-1)) == 0) //GAMEPORT_CYCLE == 64
+                    p.gameport.cycle();
             }
         }
-        else if (globalsettings.graphics == GlobalSettings::CGA)
-            p.cga.cycle();
-        if ((clock&0x0F) == 0)
-        {
-            if (globalsettings.machine == GlobalSettings::MACHINE_AT)
-            {
-                p.kbd_at.cycle();
-                if (p.kbd_at.is_reset())
-                    reset_cpu();
-            }
-            else
-            {
-                p.kbd_xt.cycle();
-                if (p.kbd_xt.is_reset())
-                    reset_cpu();
-            }
-            p.harddisk.cycle();
-            if (globalsettings.gblast_enabled && (clock&0xFF) == 0)
-                p.gameblaster.cycle();
-            if ((clock&0x1FF) == 0)
-            {
-                p.diskettecontroller.cycle();
-                p.harddisk_ata.cycle();
-            }
-            static_assert(GAMEPORT_CYCLE==64, "GAMEPORT_CYCLE has been changed from 64 :O");
-            if ((clock&(GAMEPORT_CYCLE-1)) == 0) //GAMEPORT_CYCLE == 64
-                p.gameport.cycle();
-        }
-        miniaudio_counter += 8;
+        miniaudio_counter += CLOCK_SKIP;
         if (miniaudio_counter >= 298) //ca. 48kHz. handles sound output in general
         {
             miniaudio_counter -= 298;
@@ -557,10 +546,10 @@ struct Machine
         {
             global_port0x61 ^= 0x10;
         }*///TODO: Fix this, make a read_port0x61() fnuction in globalsettings
-        pit_counter += 2;
-        if (pit_counter >= 3)
+        pit_counter += CLOCK_SKIP;
+        if (pit_counter >= 12)
         {
-            pit_counter -= 3;
+            pit_counter -= 12;
             p.pit.cycle();
             if (globalsettings.opl_enabled && clock%288 == 0)
             {
@@ -1638,30 +1627,31 @@ void updatejoysticks()
 #include "synchapi.h"
 void run_gfx()
 {
+    if (globalsettings.graphics != GlobalSettings::VGA)
+    {
+        return;
+    }
+
     double previousTime=glfwGetTime();
     u64 loop_counter=0, clockgen_real=0;
     while(true)
     {
-        //the loop is ca. ~14.31818 MHz
-        //++loop_counter;
         Sleep(1);
 
-        //if ((loop_counter&0x1F) == 0) //calculate how many cycles we need to do
+        double newTime = glfwGetTime();
+        if (newTime-previousTime >= 0.1)
+            previousTime = newTime-0.1;
+        double MASTER_HZ = 14318180.0*0.125 * double(mac.p.vga.clock_numer()) / double(mac.p.vga.clock_denom());
+        u64 cycles_done = (newTime-previousTime)*(MASTER_HZ);
+        for(u64 i=0; i<cycles_done; ++i)
         {
-            double newTime = glfwGetTime();
-            if (newTime-previousTime >= 0.1)
-                previousTime = newTime-0.1;
-            u64 cycles_done = (newTime-previousTime)*(14318180.0);
-            for(u64 i=0; i<cycles_done; ++i)
-            {
-                ++clockgen_real;
-                mac.gfx_stuff(clockgen_real);
-            }
-            previousTime += double(cycles_done)/14318180.0;
+            mac.p.vga.cycle();
         }
+        previousTime += double(cycles_done)/MASTER_HZ;
     }
 }
 
+template<u64 CLOCK_SKIP>
 void run_emu()
 {
     double previousTime=0.0;
@@ -1675,23 +1665,23 @@ void run_emu()
         {
             ++clockgen_fast;
 
-            mac.fast_stuff(clockgen_fast);
+            mac.fast_stuff<0x40>(clockgen_fast);
 
             //realtime stuff
             if (lockstep) //implies turbo==true
             {
-                mac.real_stuff(clockgen_fast);
+                mac.real_stuff<CLOCK_SKIP>(clockgen_fast);
             }
             if (!lockstep && turbo)
             {
-                mac.real_stuff(clockgen_fast);
-                mac.real_stuff(clockgen_fast);
-                mac.real_stuff(clockgen_fast);
+                mac.real_stuff<CLOCK_SKIP>(clockgen_fast);
+                mac.real_stuff<CLOCK_SKIP>(clockgen_fast);
+                mac.real_stuff<CLOCK_SKIP>(clockgen_fast);
             }
         }
 
         //do realtime stuff
-        if (!turbo && (loop_counter&0x3F) == 0) //calculate how many cycles we need to do
+        if (!turbo) //calculate how many cycles we need to do
         {
             double newTime = glfwGetTime();
             if (newTime-previousTime >= 0.1)
@@ -1704,10 +1694,10 @@ void run_emu()
                 //fast stuff
                 if (lockstep)
                 {
-                    mac.fast_stuff(clockgen_real);
+                    mac.fast_stuff<CLOCK_SKIP>(clockgen_real);
                 }
                 //realtime stuff
-                mac.real_stuff(clockgen_real);
+                mac.real_stuff<CLOCK_SKIP>(clockgen_real);
             }
             previousTime += double(cycles_done)/MASTER_CLOCK;
         }
@@ -1783,6 +1773,7 @@ int main(int argc, char* argv[])
 
     mac.p.membytes.set_size((2)<<20);
     readConfigFile(configFilename);
+    mac.p.mem88.register_devs();
     mac.p.mem286.register_devs();
     initialize_key_lookup();
     screen.SCREEN_start();
@@ -1808,7 +1799,7 @@ int main(int argc, char* argv[])
     mac.p.init_device_lookup();
     mac.reset_cpu();
 
-    std::thread emu_thread(run_emu);
+    std::thread emu_thread(run_emu<8>);
     std::thread gfx_thread(run_gfx);
 
     while(true)
@@ -1824,6 +1815,16 @@ int main(int argc, char* argv[])
         if (glfwGetTime()-startTime >= 1.0)
         {
             startTime += 1.0;
+
+            //if (mac.cpu80286.cyclecounter)
+            {
+                u64 c = mac.cpu80286.cyclecounter;
+                std::stringstream ssr;
+                ssr << c/1000000.0 << " Mcycles/s";
+                std::cout << ssr.str() << std::endl;
+                mac.cpu80286.cyclecounter = 0;
+            }
+
             if (mac.p.hega.frames > 0)
             {
                 std::cout << std::dec << mac.p.hega.frames << " FPS (HEGA)" << std::endl;

@@ -968,6 +968,7 @@ struct CPU8088MC
     {
         halt = false;
         clear_prefix();
+        mem.reset();
         for(u32 i=0; i<32; ++i)
             registers[i] = 0x0000;
         registers[CS] = ~registers[CS]; //set code segment to 0xFFFF for reset
