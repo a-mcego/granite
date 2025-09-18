@@ -20,6 +20,7 @@
 					<Add option="-Wpessimizing-move -Wredundant-move -Wint-to-pointer-cast" />
 					<Add option="-Wparentheses -Werror=parentheses" />
 					<Add option="-Wno-type-limits -Wno-stringop-overflow -Wno-array-bounds" />
+					<Add option="-mavx" />
 					<Add directory="include" />
 				</Compiler>
 				<Linker>

@@ -154,9 +154,46 @@ struct MemoryManager286
     u16 r16(u64 address)
     {
         u16 data{};
+        u16 map_index = ((address>>13)&globalsettings.A20mask);
+        switch(devicemap[map_index])
+        {
+        case DEVICETYPE::NONE:
+            break;
+        case DEVICETYPE::VIDEO_CGA:
+            if (cga.address_in_memory_map(address))
+            {
+                data = cga.memory8(address-cga.MEMORY_MAP_START());
+                data |= cga.memory8(address+1-cga.MEMORY_MAP_START())<<8;
+            }
+            break;
+        case DEVICETYPE::VIDEO_EGA:
+            data = hega.r8(address&0x1FFFF);
+            data |= hega.r8((address+1)&0x1FFFF)<<8;
+            break;
+        case DEVICETYPE::VIDEO_VGA:
+            data = vga.r8(address&0x1FFFF);
+            data |= vga.r8((address+1)&0x1FFFF)<<8;
+            break;
+        case DEVICETYPE::LTEMS:
+            data = ltems._8(address&0xFFFF);
+            data |= ltems._8((address+1)&0xFFFF)<<8;
+            break;
+        case DEVICETYPE::SQEMS:
+            data = sqems.r16(address);
+            break;
+        case DEVICETYPE::ROM:
+        case DEVICETYPE::BOARD_MEMORY:
+            data = *(u16*)(&membytes.bytes[address]);
+            //data |= membytes.bytes[address+1]<<8;
+            break;
+        }
+
+        return data;
+
+        /*u16 data{};
         data |= r8(address);
         data |= u16(r8(address+1))<<8;
-        return data;
+        return data;*/
     }
     void w16(u64 address, u16 data)
     {

@@ -144,6 +144,12 @@ struct CHIP8259 //PIC
         irr &= ~(1 << irq);
         update();
     }
+    void cpu_ack_irq()
+    {
+        isr &= ~(1 << irq_to_cpu);
+        irr &= ~(1 << irq_to_cpu);
+        update();
+    }
 
     u8 vector_pos()
     {

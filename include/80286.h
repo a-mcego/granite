@@ -656,14 +656,8 @@ struct CPU80286
             load_segment(SEG::CS, mem.r16(idtr_base + n*mult+2));
             set_flag(F_INTERRUPT,false);
             set_flag(F_TRAP, false);
-            if (!forced)
-            {
-                //if (startprinting)
-                //    cout << "IRQ: CPU ACK " << u32(n-8) << endl;
-                //pic.cpu_ack_irq(n-pic.vector_pos());
-                return true;
-            }
-            return false;
+
+            return !forced;
         }
         return false;
     }
@@ -699,7 +693,7 @@ struct CPU80286
         //std::abort();
     }
 
-    void irq(u8 n)
+    /*void irq(u8 n)
     {
         if (n >= 8)
         {
@@ -716,7 +710,7 @@ struct CPU80286
                 pic.cpu_ack_irq(n);
             }
         }
-    }
+    }*/
 
     void push(u16 data)
     {
@@ -766,10 +760,11 @@ struct CPU80286
 
         if (pic.irq_to_cpu != -1)
         {
-            if (pic.irq_to_cpu == 2 && pic2.irq_to_cpu != -1)
-                irq(pic2.irq_to_cpu+8);
-            else
-                irq(pic.irq_to_cpu);
+            CHIP8259& chosen_pic = (pic.irq_to_cpu == 2 && pic2.irq_to_cpu != -1)?pic2:pic;
+            if (interrupt(chosen_pic.irq_to_cpu+chosen_pic.vector_pos(), false))
+            {
+                chosen_pic.cpu_ack_irq();
+            }
         }
 
         if (halt)
@@ -1009,7 +1004,7 @@ struct CPU80286
                 set_flag(F_OVERFLOW,result>=0x80 || result < -0x80);
                 set_flag(F_CARRY,result>=0x80 || result < -0x80);
                 set_flag(F_AUX_CARRY,false);
-                set_flag(F_ZERO,(result&0xFFFF)==0);
+                set_flag(F_ZERO,result==0);
 
                 get_r16(modrm_r) = result;
 

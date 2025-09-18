@@ -17,7 +17,7 @@ struct SQEMS
     static constexpr u32 MEMORY_SIZE = MAX_PAGES*16384;
     static constexpr u8 MAP_SIZE = 64;
 
-    u8 memory[MEMORY_SIZE] = {};
+    u8 memory[MEMORY_SIZE+1] = {};
 
     u32 page_map[MAP_SIZE] = {};
 
@@ -134,8 +134,16 @@ struct SQEMS
     {
         memory[page_map[address >> PAGE_SHIFT] | (address & BASE_MASK)] = data;
     }
+    void w16(u32 address, u16 data)
+    {
+        *(u16*)(&memory[page_map[address >> PAGE_SHIFT] | (address & BASE_MASK)]) = data;
+    }
     u8 r8(u32 address)
     {
         return memory[page_map[address >> PAGE_SHIFT] | (address & BASE_MASK)];
+    }
+    u16 r16(u32 address)
+    {
+        return *(u16*)(&memory[page_map[address >> PAGE_SHIFT] | (address & BASE_MASK)]);
     }
 };
