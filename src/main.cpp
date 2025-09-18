@@ -396,7 +396,6 @@ struct IOSystem
 struct Machine;
 using CPUCycleFn = void (Machine::*)();
 using CPUResetFn = void (Machine::*)();
-using CPUIrqFn = bool (Machine::*)(int);
 struct Machine
 {
     IOSystem p;
@@ -411,7 +410,6 @@ struct Machine
 
     CPUCycleFn cycle_fn;
     CPUResetFn reset_fn;
-    CPUIrqFn irq_fn;
 
     void init_cpu(u32 cpu_type, i32 prefetch_queue_size)
     {
@@ -419,28 +417,24 @@ struct Machine
         {
             cycle_fn = &Machine::cycle_8086;
             reset_fn = &Machine::reset_8086;
-            irq_fn = &Machine::irq_if_accept_8086;
             cpu8086.prefetch_queue_size = prefetch_queue_size;
         }
         else if (cpu_type == 1)
         {
             cycle_fn = &Machine::cycle_8088mc;
             reset_fn = &Machine::reset_8088mc;
-            irq_fn = &Machine::irq_if_accept_8088mc;
             cpu8088mc.prefetch_queue_size = prefetch_queue_size;
         }
         else if (cpu_type == 2)
         {
             cycle_fn = &Machine::cycle_80186;
             reset_fn = &Machine::reset_80186;
-            irq_fn = &Machine::irq_if_accept_80186;
             cpu80186.prefetch_queue_size = prefetch_queue_size;
         }
         else if (cpu_type == 3)
         {
             cycle_fn = &Machine::cycle_80286;
             reset_fn = &Machine::reset_80286;
-            irq_fn = &Machine::irq_if_accept_80286;
         }
 
         p.pic2.main_pic = &p.pic;
@@ -456,11 +450,6 @@ struct Machine
     void reset_80186() { cpu80186.reset(); }
     void reset_80286() { cpu80286.reset(); }
 
-    bool irq_if_accept_8086(int irq) { bool ret = cpu8086.accepts_interrupts(); if (ret) cpu8086.irq(irq); return ret; }
-    bool irq_if_accept_8088mc(int irq) { bool ret = cpu8088mc.accepts_interrupts(); if (ret) cpu8088mc.irq(irq); return ret; }
-    bool irq_if_accept_80186(int irq) { bool ret = cpu80186.accepts_interrupts(); if (ret) cpu80186.irq(irq); return ret; }
-    bool irq_if_accept_80286(int irq) { bool ret = cpu80286.accepts_interrupts(); if (ret) cpu80286.irq(irq); return ret; }
-
     void cycle_cpu()
     {
         (this->*cycle_fn)();
@@ -468,10 +457,6 @@ struct Machine
     void reset_cpu()
     {
         (this->*reset_fn)();
-    }
-    bool irq_if_accept(int irq)
-    {
-        return (this->*irq_fn)(irq);
     }
 
     u64 cpumult_num{1};
