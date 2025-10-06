@@ -9,7 +9,8 @@
     #undef OVERFLOW
 #endif
 
-struct VGA
+template<bool GD5428>
+struct VGACARD
 {
     static constexpr u32 BYTELOOKUP[16] =
     {
@@ -31,22 +32,41 @@ struct VGA
         0xFFFFFFFF,
     };
 
+    //TODO: GD5428
     u32 clock_numer() const
     {
         return ((misc&0x04)?99693:88616)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
-        //return ((misc&0x04)?88616:88616)*((seq_regs[CLOCKING_MODE]&0x08)?1:2);
-        //return 1;
+
+        //GD5428:
+        /*
+        EDCLK(what is this?) == 1
+        misc3:2 00 25.180 MHz
+        misc3:2 01 28.325 MHz
+        misc3:2 10 41.165 MHz
+        misc3:2 11 36.082 MHz
+
+        EDCLK == 0
+        misc3 1 DCLK pin (DAC and CRTC counters)
+        misc3 0 DCLK pin (DAC only)
+
+        appendix B8 for more VCLK frequencies..
+        */
     }
 
+    //TODO: GD5428
     u32 clock_denom() const
     {
-        return 50400*2;
-        //return 1;
+        //also do SR1&0x01 ? the 8/9 one. SR1:0 == 0 means 9, SR1:0 == 1 means 8. so basically
+        //could do it here, 50400 vs. 56700
+        return (seq_regs[CLOCKING_MODE]&0x08?50400*2:56700*2);
     }
 
     bool debugprint{};
 
-    u32 mem[0x10000] = {}; //0x10000 per plane (64KB each)
+    static constexpr u64 MEMSIZE = GD5428?0x40000:0x10000; //1 MB vs. 256kB
+    //TODO: whatabout GD5428 2 MB support?
+
+    u32 mem[MEMSIZE] = {}; //0x10000 per plane (64KB each)
 
     u32 latch{};
 
@@ -57,8 +77,6 @@ struct VGA
     u8 dac_state{}; // 0=read index, 1=read r, 2=read g, 3=read b (similar for write)
     u8 dac_palette[256*3] = {}; // RGB values (6-bit each)
     u8 dac_state_register{}; //0 = read, 3 = write
-
-    VGA(){}
 
     u32 get_write_mask()
     {
@@ -343,8 +361,29 @@ struct VGA
         MAP_MASK,
         CHAR_MAP_SELECT,
         MEMORY_MODE,
+        GD5428_UNLOCK_ALL_EXTENSIONS=0x06,//0x06: load with xxx1x010 to enable. otherwise it's 00001111
+        GD5428_EXTENDED_SEQ_MODE=0x07,//0x07: 7:4 memorysegment 3:0, 3 reserved, 2:1 select CRTC char clock divider, 0 select high-res 256 color
+        GD5428_EEPROM_CONTROL=0x08, //0x08: doesn't exist on 486 local bus or VLB
+        GD5428_SCRATCHPAD_0=0x09, //internal use only
+        GD5428_SCRATCHPAD_1=0x0A, //internal use only
+        GD5428_SCRATCHPAD_2=0x14, //internal use only (689)
+        GD5428_SCRATCHPAD_3=0x15, //internal use only (689)
+
+        GD5428_VCLK0_NUMERATOR=0x0B, //7 reserved, 6-0 value
+        GD5428_VCLK1_NUMERATOR=0x0C, //7 reserved, 6-0 value
+        GD5428_VCLK2_NUMERATOR=0x0D, //7 reserved, 6-0 value
+        GD5428_VCLK3_NUMERATOR=0x0E, //7 reserved, 6-0 value
+
+        GD5428_DRAM_CONTROL=0x0F, // 4:3 DRAM data bus width, 2:0 read-only CF11:9 others look at the doc
+        GD5428_GFX_CURSOR_POS_X=0x10, //special, high 8 bits in value, low 3 bits in high 3 bits of index reg
+        GD5428_GFX_CURSOR_POS_Y=0x11, //same as above
+        GD5428_CURSOR_ATTRS=0x12, //7 overscan color protect, 2 cursor size select 1=64x64,0=32x32, 1 enable DAC extended color, 0 cursor enable
+        GD5428_CURSOR_PATTERN=0x13, //5:0 select 32x32, or 5:2 select 64x64 cursor
+
+        GD5428_PERFORMANCE_TUNING=0x16, //don't write to this!
+        GD5428_CFG_READBACK_EXT_CTRL=0x17, //not 5420. has 5429 specific ones (6 2 1), 5:3 read system bus select, 0 shadow DAC writes on local bus
     } seq_choice{};
-    static const u8 SEQ_REG_COUNT = 0x05;
+    static const u8 SEQ_REG_COUNT = 0x20;
     u8 seq_regs[SEQ_REG_COUNT] = {};
 
     enum GFX_REGISTER //index=3CE, value=3CF
@@ -394,14 +433,17 @@ struct VGA
         V_BLANK_END,
         MODE_CONTROL_CRTC,
 
-        LINE_COMPARE
-        //??
-        //READ_BACK_CRT_LATCH = 0x22?
-        //ATTRIBUTE_INDEX_TOGGLE = 0x24?
-        //ATTRIBUTE_INDEX = 0x23
+        LINE_COMPARE,
+
+        //these three were never documented by IBM
+        READ_BACK_CRT_LATCH = 0x22,
+        ATTRIBUTE_TOGGLE_READBACK = 0x24,
+        ATTRIBUTE_INDEX_READBACK = 0x26,
+
+        /* GD5428 extended 0x19 0x1A 0x1B 0x25 0x27 */
     } crtc_choice{};
 
-    static const u8 CRTC_REG_COUNT = 0x19;
+    static const u8 CRTC_REG_COUNT = 0x40;
     u8 crtc_regs[CRTC_REG_COUNT] = {};
 
     u8 misc{}; //3C2 write, 3CC read
@@ -697,15 +739,43 @@ struct VGA
     u16 v_display_end{};
     u16 v_retrace_start{};
     u16 vblank_start{};
+    u16 vblank_end{};
+    u16 h_blank_end{};
     u8 scan_doubling{};
+    u16 crtc_offset{};
 
     void update_crtc_params()
     {
         // Extract timing values with overflow bits
+        //
+        h_blank_end = (crtc_regs[H_BLANK_END]&0x1F) + ((crtc_regs[H_RETRACE_END]&0x80)?0x20:0x00);
+        if constexpr (GD5428)
+        {
+            h_blank_end |= (crtc_regs[0x1A]<<2)&0xC0;
+        }
+        //0x06
         v_total = crtc_regs[V_TOTAL] + ((crtc_regs[OVERFLOW]&0x01)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x20)?0x200:0x000);
+        //0x12
         v_display_end = crtc_regs[V_DISPLAY_END] + ((crtc_regs[OVERFLOW]&0x02)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x40)?0x200:0x000);
+        //0x10
         v_retrace_start = crtc_regs[V_RETRACE_START] + ((crtc_regs[OVERFLOW]&0x04)?0x100:0x000) + ((crtc_regs[OVERFLOW]&0x80)?0x200:0x000);
-        vblank_start = crtc_regs[V_BLANK_START] + ((crtc_regs[OVERFLOW]&0x08)?0x100:0x000);
+        //0x15
+        vblank_start = crtc_regs[V_BLANK_START] + ((crtc_regs[OVERFLOW]&0x08)?0x100:0x000) + ((crtc_regs[MAX_SCAN_LINE]&0x20)?0x200:0x000);;
+        //0x16
+        vblank_end = crtc_regs[V_BLANK_END];
+        if constexpr (GD5428)
+        {
+            vblank_end |= (crtc_regs[0x1A]<<2)&0x300;
+        }
+        crtc_offset = crtc_regs[OFFSET];
+        if constexpr (GD5428)
+        {
+            crtc_offset |= (crtc_regs[0x1B]&0x10)?0x100:0x000;
+        }
+
+        //TODO: line compare register
+
+
         scan_doubling = (crtc_regs[MAX_SCAN_LINE]&0x80)>>7;
     }
     void cycle() // 8 pixels per cycle
@@ -714,7 +784,7 @@ struct VGA
 
 
         column += 1;
-        column = (column>=(crtc_regs[H_TOTAL]+2)?0:column);
+        column = (column>=(crtc_regs[H_TOTAL]+5)?0:column);
 
         if (column == 0) // new line
         {
@@ -781,7 +851,7 @@ struct VGA
 
             }
 
-            offset += current_startaddress + logical_line*crtc_regs[OFFSET]*2 + column;
+            offset += current_startaddress + logical_line*crtc_offset*2 + column;
 
             if (attr_regs[MODE_CONTROL_ATTR] & 0x40) //256 color mode
             {
@@ -845,7 +915,7 @@ struct VGA
         else // Text mode
         {
             int x = column;
-            u32 offset = current_startaddress + logical_line*crtc_regs[OFFSET]*2 + x;
+            u32 offset = current_startaddress + logical_line*crtc_offset*2 + x;
             u8 char_code = r32(offset) & 0xFF;
 
             u8 attribute = (r32(offset) >> 8) & 0xFF;
@@ -883,3 +953,5 @@ struct VGA
         }
     }
 };
+
+using VGA = VGACARD<false>;
