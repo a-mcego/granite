@@ -25,6 +25,7 @@ gpu vga
 #rom c0000 rom/paradise-vga-revX3-19880714.BIN #produces one D6 beep, no video, signal is 7 Hz vsync
 #rom c0000 rom/labway-tvga8800br.bin
 rom c0000 rom/CLGD5428.bin
+#rom c0000 rom/S3_Virge_DX_72MHz_STOCK.BIN
 
 
 

@@ -224,7 +224,7 @@ struct CHIP8042 //AT keyboard etc
             }
             else if (command == 0xE0) //read test inputs
             {
-                if (ram[0]&0x04) //kbd disabled
+                if (ram[0]&0x10) //kbd disabled
                 {
                     output(0);
                 }

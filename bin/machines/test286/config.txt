@@ -1,10 +1,26 @@
+#        F_CARRY=0,
+#        F_PARITY=2,
+#        F_AUX_CARRY=4,
+#        F_ZERO=6,
+#        F_SIGN=7,
+#        F_TRAP=8,
+#        F_INTERRUPT=9,
+#        F_DIRECTIONAL=10,
+#        F_OVERFLOW=11
 cpu 80286
-test C:\80286-main\v1_real_mode\69.bin
-test C:\80286-main\v1_real_mode\6B.bin
-test C:\80286-main\v1_real_mode\F6.4.bin
-test C:\80286-main\v1_real_mode\F6.5.bin
-test C:\80286-main\v1_real_mode\F7.4.bin
-test C:\80286-main\v1_real_mode\F7.5.bin
+
+#test C:\80286-main\v1_real_mode\C8.bin
+#test C:\80286-main\v1_real_mode\F6.6.bin
+#test C:\80286-main\v1_real_mode\F6.7.bin
+#test C:\80286-main\v1_real_mode\F7.6.bin
+#test C:\80286-main\v1_real_mode\F7.7.bin
+#end_tests
+
+test C:\80286-main\v1_real_mode\F6.6.bin
+test C:\80286-main\v1_real_mode\F6.7.bin
+end_tests
+test C:\80286-main\v1_real_mode\F7.6.bin
+test C:\80286-main\v1_real_mode\F7.7.bin
 end_tests
 
 test C:\80286-main\v1_real_mode\00.bin
@@ -105,10 +121,10 @@ test C:\80286-main\v1_real_mode\68.bin
 test C:\80286-main\v1_real_mode\69.bin
 test C:\80286-main\v1_real_mode\6A.bin
 test C:\80286-main\v1_real_mode\6B.bin
-#test C:\80286-main\v1_real_mode\6C.bin
-#test C:\80286-main\v1_real_mode\6D.bin
-#test C:\80286-main\v1_real_mode\6E.bin
-#test C:\80286-main\v1_real_mode\6F.bin
+test C:\80286-main\v1_real_mode\6C.bin
+test C:\80286-main\v1_real_mode\6D.bin
+test C:\80286-main\v1_real_mode\6E.bin
+test C:\80286-main\v1_real_mode\6F.bin
 test C:\80286-main\v1_real_mode\70.bin
 test C:\80286-main\v1_real_mode\71.bin
 test C:\80286-main\v1_real_mode\72.bin
@@ -288,18 +304,18 @@ test C:\80286-main\v1_real_mode\E0.bin
 test C:\80286-main\v1_real_mode\E1.bin
 test C:\80286-main\v1_real_mode\E2.bin
 test C:\80286-main\v1_real_mode\E3.bin
-#test C:\80286-main\v1_real_mode\E4.bin
-#test C:\80286-main\v1_real_mode\E5.bin
-#test C:\80286-main\v1_real_mode\E6.bin
-#test C:\80286-main\v1_real_mode\E7.bin
+test C:\80286-main\v1_real_mode\E4.bin
+test C:\80286-main\v1_real_mode\E5.bin
+test C:\80286-main\v1_real_mode\E6.bin
+test C:\80286-main\v1_real_mode\E7.bin
 test C:\80286-main\v1_real_mode\E8.bin
 test C:\80286-main\v1_real_mode\E9.bin
 test C:\80286-main\v1_real_mode\EA.bin
 test C:\80286-main\v1_real_mode\EB.bin
-#test C:\80286-main\v1_real_mode\EC.bin
-#test C:\80286-main\v1_real_mode\ED.bin
-#test C:\80286-main\v1_real_mode\EE.bin
-#test C:\80286-main\v1_real_mode\EF.bin
+test C:\80286-main\v1_real_mode\EC.bin
+test C:\80286-main\v1_real_mode\ED.bin
+test C:\80286-main\v1_real_mode\EE.bin
+test C:\80286-main\v1_real_mode\EF.bin
 test C:\80286-main\v1_real_mode\F4.bin
 test C:\80286-main\v1_real_mode\F5.bin
 test C:\80286-main\v1_real_mode\F6.0.bin
@@ -308,16 +324,16 @@ test C:\80286-main\v1_real_mode\F6.2.bin
 test C:\80286-main\v1_real_mode\F6.3.bin
 test C:\80286-main\v1_real_mode\F6.4.bin
 test C:\80286-main\v1_real_mode\F6.5.bin
-test C:\80286-main\v1_real_mode\F6.6.bin
-test C:\80286-main\v1_real_mode\F6.7.bin
+#test C:\80286-main\v1_real_mode\F6.6.bin
+#test C:\80286-main\v1_real_mode\F6.7.bin
 test C:\80286-main\v1_real_mode\F7.0.bin
 test C:\80286-main\v1_real_mode\F7.1.bin
 test C:\80286-main\v1_real_mode\F7.2.bin
 test C:\80286-main\v1_real_mode\F7.3.bin
 test C:\80286-main\v1_real_mode\F7.4.bin
 test C:\80286-main\v1_real_mode\F7.5.bin
-test C:\80286-main\v1_real_mode\F7.6.bin
-test C:\80286-main\v1_real_mode\F7.7.bin
+#test C:\80286-main\v1_real_mode\F7.6.bin
+#test C:\80286-main\v1_real_mode\F7.7.bin
 test C:\80286-main\v1_real_mode\F8.bin
 test C:\80286-main\v1_real_mode\F9.bin
 test C:\80286-main\v1_real_mode\FA.bin

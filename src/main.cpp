@@ -21,6 +21,7 @@
 #include <concepts>
 #include <vector>
 #include <thread>
+#include <map>
 
 #define MA_NO_DECODING
 #define MA_NO_ENCODING
@@ -219,6 +220,7 @@ struct IOSystem
         OPL,
         HARDDISK,
         HARDDISK_ATA,
+        HARDDISK_ATA_16, //16 bit read/write
         GAMEPORT,
         LTEMS,
         CMOS,
@@ -226,6 +228,11 @@ struct IOSystem
     };
 
     IO_DEVICE device_lookup[0x400] = {};
+
+    void init_device_lookup_for_test()
+    {
+        for (u16 port = 0x00; port < 0x400; ++port) device_lookup[port] = IO_DEVICE::NONE;
+    }
 
     void init_device_lookup()
     {
@@ -248,6 +255,7 @@ struct IOSystem
         for (u16 port = 0x0C0; port <= 0x0DF; ++port) device_lookup[port] = IO_DEVICE::DMA2;//handle >>1!!
         for (u16 port = 0x0E8; port <= 0x0EF; ++port) device_lookup[port] = IO_DEVICE::SQEMS;
         for (u16 port = 0x1F0; port <= 0x1F7; ++port) device_lookup[port] = IO_DEVICE::HARDDISK_ATA;
+        device_lookup[0x1F0] = IO_DEVICE::HARDDISK_ATA_16;
         for (u16 port = 0x201; port <= 0x201; ++port) device_lookup[port] = IO_DEVICE::GAMEPORT;
 
         for (u16 port = 0x220; port <= 0x22F; ++port)
@@ -289,7 +297,8 @@ struct IOSystem
         if constexpr(std::same_as<IOSIZE,u16>)
         {
             //TODO: 16-bit I/O properly
-            if (port == 0x1F0)
+            //if (port == 0x1F0)
+            if (device_lookup[port&0x3FF] == IO_DEVICE::HARDDISK_ATA_16)
             {
                 harddisk_ata.write(0, data);
                 return;
@@ -342,7 +351,7 @@ struct IOSystem
         if constexpr(std::same_as<IOSIZE,u16>)
         {
             //TODO: 16-bit I/O properly
-            if (port == 0x1F0)
+            if (device_lookup[port&0x3FF] == IO_DEVICE::HARDDISK_ATA_16)// port == 0x1F0)
                 return harddisk_ata.read(0);
 
             return io_in<u8>(port) | (io_in<u8>(port+1) << 8);
@@ -1290,13 +1299,20 @@ void configline(std::string line)
             return ret;
         };
 
+        struct FailureData
+        {
+            u32 flags_failed_should_be_0[16] = {};
+            u32 flags_failed_should_be_1[16] = {};
+            u32 flags_good_0[16] = {};
+            u32 flags_good_1[16] = {};
+            u32 regs_failed[16] = {};
+            u32 mem_failures{};
+        };
+        std::map<u32,FailureData> failure_data;
 
         u32 test_id = 0;
         u32 tests_failed = 0;
 
-        u32 flags_failed[16] = {};
-        u32 regs_failed[16] = {};
-        u32 mem_failures{};
         while(ptr < filedata.size())
         {
             cycles = 0;
@@ -1306,9 +1322,12 @@ void configline(std::string line)
             CPU80286 testcpu(mac.p.mem286, mac.p.pic, mac.p.pic2, mac.p);
             //CPU8086 testcpu(mac.p.mem88, mac.p.pic, mac.p.pic2, mac.p);
             testcpu.mem.testmode = true;
+            mac.p.init_device_lookup_for_test();
+            testcpu.mem.register_devs(); //todo: make conditional using requires
             globalsettings.SetA20(false);
             testcpu.reset();
-            memset(mac.p.membytes.bytes, 0, (1<<20)+65536);
+            testcpu.test_subtype = 0;
+            memset(mac.p.membytes.bytes, 0xC3, (1<<20)+65536);
 
             u16 start_regs[14] = {};
             u16 final_regs[14] = {};
@@ -1318,6 +1337,8 @@ void configline(std::string line)
                 start_regs[i] = data16();
                 testcpu.registers[testcpu.registermap[i]] = start_regs[i];
             }
+            testcpu.finish_flags();
+            testcpu.set_flag(CPU80286::F_INTERRUPT, false);
 
             u32 initial_ram_n = data32();
             for(u32 i=0; i<initial_ram_n; ++i)
@@ -1326,15 +1347,22 @@ void configline(std::string line)
                 u32 value = data32();
                 mac.p.membytes.bytes[address] = value;
             }
+            for(int i=0; i<14; ++i)
+            {
+                final_regs[i] = data16();
+            }
+            testcpu.should_flags = (final_regs[12]);
 
             testcpu.load_tmp_segs_for_test();
             //testcpu.print_regs();
             do
             {
+                testcpu.is_inside_multi_part_instruction = false;
                 testcpu.cycle();
             } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
             do
             {
+                testcpu.is_inside_multi_part_instruction = false;
                 testcpu.cycle();
             } while(testcpu.is_inside_multi_part_instruction || testcpu.delay > 0);
 
@@ -1342,36 +1370,41 @@ void configline(std::string line)
             testcpu.store_tmp_segs_for_test();
             //testcpu.print_regs();
 
-            for(int i=0; i<14; ++i)
-            {
-                final_regs[i] = data16();
-            }
+            FailureData& fd = failure_data[testcpu.test_subtype];
 
             for(int i=0; i<14; ++i)
             {
-                if (i==12)
-                    continue;
                 [[maybe_unused]] const char* const regnames[14] =
                 {
                     "AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "ES", "CS", "SS", "DS", "FL", "IP"
                 };
                 u16 test_reg = testcpu.registers[testcpu.registermap[i]];
-                if (final_regs[i] != test_reg)
+                //if (final_regs[i] != test_reg)
                 {
-                    //std::cout << "reg " << std::hex << regnames[i] << "=" << test_reg << " but supposed=" << final_regs[i] << std::endl;
-                    test_passed = false;
+                    if (final_regs[i] != test_reg)
+                    {
+                        //std::cout << "reg " << std::hex << regnames[i] << "=" << test_reg << " but supposed=" << final_regs[i] << std::endl;
+                        test_passed = false;
+                        fd.regs_failed[i] += 1;
+                    }
                     if (i==12)
                     {
                         for(int flag=0; flag<16; ++flag)
                         {
-                            flags_failed[flag] += bool(final_regs[i]&(1<<flag)) ^ bool(test_reg&(1<<flag));
+                            if (bool(final_regs[i]&(1<<flag)))
+                                fd.flags_failed_should_be_1[flag] += bool(final_regs[i]&(1<<flag)) ^ bool(test_reg&(1<<flag));
+                            else
+                                fd.flags_failed_should_be_0[flag] += bool(final_regs[i]&(1<<flag)) ^ bool(test_reg&(1<<flag));
+                            if (bool(final_regs[i]&(1<<flag)))
+                                fd.flags_good_1[flag] += bool(final_regs[i]&(1<<flag)) == bool(test_reg&(1<<flag));
+                            else
+                                fd.flags_good_0[flag] += bool(final_regs[i]&(1<<flag)) == bool(test_reg&(1<<flag));
                         }
                     }
-                    regs_failed[i] += 1;
                 }
                 if ((test_reg^final_regs[i]))
                 {
-                    cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                    //cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
@@ -1383,7 +1416,7 @@ void configline(std::string line)
 
                 if (mac.p.membytes.bytes[address] != value)
                 {
-                    ++mem_failures;
+                    ++fd.mem_failures;
                     test_passed = false;
                     //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mac.p.membytes.bytes[address]) << ", should be " << u32(value) << std::dec << endl;
                 }
@@ -1403,15 +1436,32 @@ void configline(std::string line)
         {
             cout << std::dec;
             cout << test_filename << ": " << tests_failed << " TESTS FAILED!" << endl;
-            cout << "Reg failures:   ";
-            for(int i=0; i<14; ++i)
-                cout << regs_failed[i] << (i%4==3?"  ":" ");
-            cout << endl;
-            cout << "Flag failures:   ";
-            for(int i=0; i<16; ++i)
-                cout << flags_failed[i] << (i%4==3?"  ":" ");
-            cout << endl;
-            cout << "Mem failures:   " << std::dec << mem_failures << std::hex << std::endl;
+            for(auto& [subtype, fd]: failure_data)
+            {
+                cout << "----SUBTYPE " << subtype << "----" << std::endl;
+                cout << std::dec;
+                cout << "Reg failures:   ";
+                for(int i=0; i<14; ++i)
+                    cout << fd.regs_failed[i] << (i%4==3?"  ":" ");
+                cout << endl;
+                cout << "Flag good     0->0:  ";
+                for(int i=0; i<16; ++i)
+                    cout << setw(4) << fd.flags_good_0[i] << (i%4==3?"  ":" ");
+                cout << endl;
+                cout << "Flag failures 1->0:  ";
+                for(int i=0; i<16; ++i)
+                    cout << setw(4) << fd.flags_failed_should_be_0[i] << (i%4==3?"  ":" ");
+                cout << endl;
+                cout << "Flag failures 0->1:  ";
+                for(int i=0; i<16; ++i)
+                    cout << setw(4) << fd.flags_failed_should_be_1[i] << (i%4==3?"  ":" ");
+                cout << endl;
+                cout << "Flag good     1->1:  ";
+                for(int i=0; i<16; ++i)
+                    cout << setw(4) << fd.flags_good_1[i] << (i%4==3?"  ":" ");
+                cout << endl;
+                cout << "Mem failures:   " << std::dec << fd.mem_failures << std::hex << std::endl;
+            }
         }
     }
     else if (command == "end_tests")

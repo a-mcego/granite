@@ -15,7 +15,7 @@ struct CHIPLS612N //DMA page registers, POST card value
     {
         if (port == 0)
         {
-            std::cout << "---POSTCARD--- " << u32(data) << std::endl;
+            //std::cout << "---POSTCARD--- " << u32(data) << std::endl;
             //if (data==0x0C)
             //    startprinting=true;
         }

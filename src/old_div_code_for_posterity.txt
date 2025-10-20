@@ -1,0 +1,525 @@
+            else if (op==6 || op == 7) //DIV IDIV
+            {
+                auto div8a = [this](u16 ax, u8 divisor) -> u16
+                {
+                    //u16 rem = ax;
+
+                    u8 hi=ax>>8;
+                    u8 lo=ax&0xFF;
+                    bool q_overflow = (hi >= divisor);
+
+                    bool printall = false;//q_overflow && !((ax>>9) < divisor) && (divisor == 0x31);//(ax==0xf243 || (ax==0xF24A));
+
+                    //printall = printall || (divisor>0 && (ax==0x181 || ax==0x1a8));
+                    //printall = printall || (divisor>0 && (ax<0x281) && (hi >= divisor));
+
+                    //bool printall = false;//q_overflow && !((ax>>9) < divisor);
+                    if (printall)
+                    {
+                        std::cout << std::hex;
+                        std::cout << "ax=" << std::setw(4) << std::setfill(' ') << u16(ax) << " ";
+                        std::cout << "ax>>1=" << std::setw(2) << std::setfill(' ') << u16(u8(ax>>1)) << " ";
+                        std::cout << "d=" << std::setw(2) << std::setfill(' ') << u16(divisor) << " ";
+                        std::cout << std::setw(2) << std::hex;
+                    }
+                    bool carry,carry2;
+                    u8 cmpl{};
+                    u8 cmpr{divisor};
+                    for(int x=0; x<8; ++x)
+                    {
+                        if (x==7 && q_overflow)
+                        {
+                            break;
+                        }
+
+                        carry = lo&0x80;
+                        lo <<= 1;
+                        carry2 = hi&0x80;
+                        hi = (hi<<1) | carry;
+
+                        //set_flag(F_CARRY, hi < divisor); //
+                        //set_flag(F_OVERFLOW, hi < divisor); //shouldn't this be wrong?! but it's right.
+                        cmpl = hi;
+                        if (carry2 || (hi >= divisor))
+                        {
+                            cmpr = divisor;
+                            hi -= divisor;
+                            lo += 1;
+                        }
+                        else
+                        {
+                            cmpr = 0;
+                        }
+                    }
+                    if (printall)
+                    {
+                        std::cout << std::hex;
+                        std::cout << "|" << u16(hi) << ' ' << u16(lo) << " ";
+                    }
+
+                    if (!q_overflow) //don't do int0
+                    {
+                        cmp_flags<u8>(cmpl, cmpr, cmpl-cmpr); //not all flags!
+                        //set_flag(F_PARITY, parity(hi)); //4
+                        //set_flag(F_AUX_CARRY, true); //4
+                        //set_flag(F_ZERO, hi == 0); //6
+                        //set_flag(F_SIGN, hi&0x80); //7
+                    }
+                    else //do int0
+                    {
+                        //test_flags<u8>(rem>>8); //works when divisor==0, however cannot cause a carry -> cannot work
+                        if (divisor == 0)
+                            cmp_flags<u8>(ax>>1, divisor, (ax>>1)-divisor); //has carry
+                        else if((ax>>9) < divisor)
+                        {
+                            hi = u16(ax>>1)%u16(divisor*2);
+                            cmp_flags<u8>(hi, divisor, hi-divisor); //has carry
+                        }
+                        else
+                        {
+
+                            //diviso 0x10
+                            //0xE0-0xEF should have carry
+                            //0xF0-0xFF should not have carry. 0xF0 should be 0
+
+                            //
+
+                            cmpl = u16(ax>>1)+2*divisor;
+                            cmpr = divisor;
+                            //cmpl = (hi+divisor)|(divisor<<7);
+                            //cmpr = divisor;
+                            //cmpl += cmpr+(cmpr<<7);
+                            if (printall) cout << "cmp " << u16(cmpl) << "," << u16(cmpr) << " ";
+                            cmp_flags<u8>(cmpl, cmpr, cmpl-cmpr); //has carry
+                        }
+
+                        if (printall)//divisor>0 && ax==0xFFFF)//&& (should_flags&0x40))
+                        {
+                            std::cout << std::setw(0) << std::setfill(' ');
+                            std::cout << (registers[FLAGS]&0x8D5) << "<>";
+                            std::cout << (should_flags&0x8D5) << std::endl;
+                        }
+
+                    }
+                    return (hi<<8) | lo;
+                };
+
+
+                auto div8b = [this](u16 ax, u8 divisor) -> u16
+                {
+                    u16 D = u16(divisor) << 8;
+                    u8 Q = 0;
+
+                    bool q_overflow = (ax >= D);
+
+                    bool printall = (divisor==1) && (ax==0x181 || ax == 0x1a8 || ax == 0x1cb || ax == 0xFFFF);
+
+                    printall = printall || ((divisor==2) && (ax==0x23b));
+
+                    printall = (ax==0xf243 || (ax==0xF24A));
+
+                    i32 R = ax;
+                    if (printall) std::cout << std::hex << "op=" << ax << "/" << u16(divisor) << ", flags=" << should_flags << std::endl;
+
+                    u8 saved_value = 0;
+                    for (int i = 7; i >= 0; --i)
+                    {
+                        if (i==6) saved_value = u8(R>>8);
+                        if (q_overflow && i==0)
+                            break;
+                        D >>=1;
+                        if (printall) std::cout << "R=" << R << " Q="<< u16(Q) << " D="<< u16(D) << std::endl;
+                        Q <<= 1;
+                        if (R >= D)
+                        {
+                            Q |= 1;
+                            R = R - D;
+                        }
+                        else
+                        {
+                            //R = R + D;
+                        }
+                    }
+
+                    /*
+                    Q = Q - (u8)(~Q);
+
+                    if (R < 0)
+                    {
+                        Q = Q - 1;
+                        R = R + D;  // Restore remainder to positive
+                    }*/
+                    if (printall) std::cout << "R=" << R << " Q="<< u16(Q) << " D="<< u16(D) << std::endl;
+
+                    // Extract final remainder (R >> n, where n=8)
+                    u8 remainder = R;
+                    u8 quotient = Q;
+
+                    // Set flags
+                    if (!q_overflow)
+                    {
+                        cmp_flags<u8>(remainder,divisor,remainder-divisor);
+                        /*set_flag(F_PARITY, parity(remainder));
+                        set_flag(F_AUX_CARRY, true);
+                        set_flag(F_ZERO, remainder == 0);
+                        set_flag(F_SIGN, remainder & 0x80);
+                        set_flag(F_CARRY, false);  // Need to determine actual behavior
+                        set_flag(F_OVERFLOW, false);*/
+                    }
+                    else  // overflow case
+                    {
+                        // Your mystery flags - comparing initial R (0) vs D?
+                        //cmp_flags<u8>(0, divisor, (u8)(0 - divisor));
+                        cmp_flags<u8>(saved_value, divisor, saved_value-divisor);
+                    }
+
+                    return (remainder << 8) | quotient;
+                };
+
+
+                auto div8c = [this](u16 ax, u8 divisor, bool printall) -> u16
+                {
+                    //u16 rem = ax;
+
+                    u16 hi=ax>>8;
+                    u8 lo=ax&0xFF;
+                    bool q_overflow = (hi >= divisor);
+
+                    if (printall)
+                    {
+                        std::cout << std::hex;
+                        std::cout << "ax=" << std::setw(4) << std::setfill(' ') << u16(ax) << " ";
+                        //std::cout << "ax>>1=" << std::setw(2) << std::setfill(' ') << u16(u8(ax>>1)) << " ";
+                        std::cout << "d=" << std::setw(2) << std::setfill(' ') << u16(divisor) << " ";
+                        std::cout << std::setw(2) << std::hex;
+                    }
+                    bool carry,carry2;
+                    u8 cmpl{};
+                    u8 cmpr{divisor};
+                    for(int x=0; x<7; ++x)
+                    {
+                        if (printall)
+                            std::cout << std::hex << "|" << std::setw(2) << u16(hi) << ' ' << std::setw(2) << u16(lo) << " ";
+                        carry = lo&0x80;
+                        lo <<= 1;
+                        carry2 = hi&0x80;
+                        hi = ((hi<<1) | carry)&0x7FF;
+                        if (printall)
+                            std::cout << std::hex << "," << std::setw(2) << u16(hi) << ' ' << std::setw(2) << u16(lo) << " ";
+                        cmpl = hi;
+                        if (carry2 || (hi >= divisor))
+                        {
+                            cmpr = divisor;
+                            hi -= divisor;
+                            lo += 1;
+                        }
+                        else
+                        {
+                            cmpr = 0;
+                        }
+                    }
+                    if (printall)
+                    {
+                        std::cout << std::hex << "|" << std::setw(2) << u16(hi)<< ' ' << std::setw(2) << u16(lo) << " ";
+                    }
+
+                    if (!q_overflow) //don't do int0
+                    {
+
+                        carry = lo&0x80;
+                        lo <<= 1;
+                        carry2 = hi&0x80;
+                        hi = (hi<<1) | carry;
+                        lo |= (carry2?1:0);
+
+                        cmp_flags<u8>(hi, divisor, hi-divisor); //not all flags!
+                        cmpl = hi;
+
+                        if (hi >= divisor)
+                        {
+                            lo |= 1;
+                        }
+
+                        if (lo&1)
+                        {
+                            hi -= divisor;
+                        }
+
+
+                        //set_flag(F_PARITY, parity(hi)); //4
+                        //set_flag(F_AUX_CARRY, true); //4
+                        //set_flag(F_ZERO, hi == 0); //6
+                        //set_flag(F_SIGN, hi&0x80); //7
+                    }
+                    else //do int0
+                    {
+                        //test_flags<u8>(rem>>8); //works when divisor==0, however cannot cause a carry -> cannot work
+                        if (divisor == 0)
+                            cmp_flags<u8>(ax>>1, divisor, (ax>>1)-divisor); //has carry
+                        else
+                        {
+
+                            //diviso 0x10
+                            //0xE0-0xEF should have carry
+                            //0xF0-0xFF should not have carry. 0xF0 should be 0
+
+                            //
+
+                            //cmpl = u16(ax>>1)+2*divisor;
+                            //cmpr = divisor;
+                            //cmpl = (hi+divisor)|(divisor<<7);
+                            //cmpr = divisor;
+                            //cmpl += cmpr+(cmpr<<7);
+
+                            /*carry = lo&0x80;
+                            lo <<= 1;
+                            carry2 = hi&0x80;
+                            hi = (hi<<1) | carry;*/
+
+                            cmpl = hi-0x7F;
+                            //cmpl = hi-0x7D;
+                            cmpr = divisor;
+
+                            if (printall) cout << "cmp " << u16(cmpl) << "," << u16(cmpr) << " ";
+                            cmp_flags<u8>(cmpl, cmpr, cmpl-cmpr); //has carry
+                        }
+
+                        if (printall)//divisor>0 && ax==0xFFFF)//&& (should_flags&0x40))
+                        {
+                            std::cout << std::setw(0) << std::setfill(' ');
+                            std::cout << (registers[FLAGS]&0x8D5) << "<>";
+                            std::cout << (should_flags&0x8D5) << std::endl;
+                        }
+
+                    }
+                    return (hi<<8) | lo;
+                };
+
+                auto div8d = [this](u16 ax, u8 divisor, bool printall) -> u16
+                {
+                    //u16 rem = ax;
+
+
+                    u16 div16 = divisor<<8;
+                    bool q_overflow = (ax >= div16);
+                    u8 quotient{};
+
+                    u16 mask = 0xFFFF;
+
+                    if (printall)
+                    {
+                        std::cout << std::hex;
+                        std::cout << "ax=" << std::setw(4) << std::setfill(' ') << u16(ax) << " ";
+                        //std::cout << "ax>>1=" << std::setw(2) << std::setfill(' ') << u16(u8(ax>>1)) << " ";
+                        std::cout << "d=" << std::setw(2) << std::setfill(' ') << u16(divisor) << " ";
+                        std::cout << std::setw(2) << std::hex;
+                    }
+                    for(int x=0; x<8; ++x)
+                    {
+                        if (printall)
+                        {
+                            std::cout << std::hex << "|" << std::setw(2) << u16(ax) << ' ';
+                            std::cout << std::setw(2) << u16(quotient) << " ";
+                            std::cout << std::setw(2) << u16(div16) << " ";
+                        }
+                        quotient <<= 1;
+                        cmp_flags<u8>(ax, div16, ax-div16);
+                        if (ax >= div16)
+                        {
+                            ax -= div16;
+                            quotient |= 1;
+                        }
+                        ax &= mask;
+                        mask >>= 1;
+                        div16 >>= 1;
+                    }
+                    if (printall)
+                    {
+                        std::cout << std::hex << "|" << std::setw(2) << u16(ax) << ' ';
+                        std::cout << std::setw(2) << u16(quotient) << " ";
+                        std::cout << std::setw(2) << u16(div16) << " ";
+                    }
+
+                    if (!q_overflow) //don't do int0
+                    {
+
+                        quotient <<= 1;
+                        cmp_flags<u8>(ax, div16, ax-div16);
+                        if (ax >= div16)
+                        {
+                            ax -= div16;
+                            quotient |= 1;
+                        }
+
+                        set_flag(F_OVERFLOW, flag(F_CARRY));
+                        set_flag(F_PARITY, parity(ax)); //4
+                        set_flag(F_AUX_CARRY, true); //4
+                        set_flag(F_ZERO, u8(ax) == 0); //6
+                        set_flag(F_SIGN, ax&0x80); //7
+                        if (printall)
+                        {
+                            std::cout << std::hex << "|" << std::setw(2) << u16(ax) << ' ';
+                            std::cout << std::setw(2) << u16(quotient) << " ";
+                            std::cout << "cmp " << u16(ax) << "," << u16(div16) << " ";
+                            std::cout << std::setw(0) << std::setfill(' ');
+                            std::cout << (registers[FLAGS]&0x8D5) << "<>";
+                            std::cout << (should_flags&0x8D5) << std::endl;
+                        }
+                    }
+                    else //do int0
+                    {
+                        if (divisor == 0)
+                            cmp_flags<u8>(ax>>1, divisor, (ax>>1)-divisor); //has carry
+                        else
+                        {
+                            //cmpl: if quotient was 1 on the last iteration,
+                            //quotient&1 is 1
+                            //~quotient&1 is 0
+                            //therefore we subtract nothing
+                            //
+                            //u8 cmpl = (ax>>1)+div16-((~quotient)&1);
+                            u8 cmpl = (ax>>1)+div16-((quotient&1)?0:divisor);
+                            //cmpl = hi-0x7D;
+                            u8 cmpr = div16;
+
+                            if (printall) cout << "cmp " << u16(cmpl) << "," << u16(cmpr) << " ";
+                            cmp_flags<u8>(cmpl, cmpr, cmpl-cmpr); //has carry
+                        }
+
+                        if (printall)//divisor>0 && ax==0xFFFF)//&& (should_flags&0x40))
+                        {
+                            std::cout << std::setw(0) << std::setfill(' ');
+                            std::cout << (registers[FLAGS]&0x8D5) << "<>";
+                            std::cout << (should_flags&0x8D5) << std::endl;
+                        }
+
+                    }
+                    return (ax<<8) | quotient;
+                };
+                u32 errors=0;
+                auto div8 = div8d;
+
+                /*int divider = 1;
+
+                std::stringstream sstr;
+                sstr << divider << ".bin";
+
+                FILE* filu = fopen(sstr.str().c_str(),"rb");
+                for(int currax=0; currax<0x10000; ++currax)
+                {
+                    std::cout << std::setfill('0');
+                    if (currax%0x10 == 0)
+                        std::cout << std::endl;
+                    if (currax%0x40 == 0)
+                        std::cout << std::hex << currax << std::endl;
+                    should_flags = 0;
+                    fseek(filu,currax*2,SEEK_SET);
+                    fread(&should_flags,2,1,filu);
+                    div8d(currax, divider, false);
+                    if ((registers[FLAGS]&0x8D5) != (should_flags&0x8D5))
+                    {
+                        if ((registers[FLAGS]&0x8D5) != (should_flags&0x8D5))
+                        {
+                            ++errors;
+                        }
+                        div8d(currax, divider, true);
+                        //std::cout << std::hex << "ax=" << std::setw(4) << std::setfill(' ') << u16(currax) << " ";
+                        //std::cout << "ax>>1=" << std::setw(2) << std::setfill(' ') << u16(u8(currax>>1)) << " ";
+                        //std::cout << std::hex << std::setw(3) << std::hex << (registers[FLAGS]&0x8D5) << " shouldbe " << std::setw(3) << (should_flags&0x8D5) << std::endl;
+                    }
+                }
+                std::cout << std::dec << errors << " errors."<< std::endl;
+                fclose(filu);
+                std::abort();*/
+
+
+                //auto div8 = div8b;
+
+                if (rm == 0)
+                {
+                    div8(registers[AX], rm, false);
+                    /*set_flag(F_CARRY, false); //0
+                    set_flag(F_PARITY,parity(registers[AX]>>1)); //2
+                    set_flag(F_AUX_CARRY,false); //4
+                    set_flag(F_ZERO,((registers[AX]>>1)&0xFF)==0); //6
+                    set_flag(F_SIGN, registers[AX]&0x100); //7
+                    set_flag(F_OVERFLOW, false); //11*/
+                    //std::cout << std::hex << "div by 0: AX=" << registers[AX] << std::endl;
+                    test_subtype = 2;
+                    throw 0;
+                }
+
+                if (op == 6) //DIV
+                {
+                    u8 denominator = rm;
+                    u16 oldAX = registers[AX];
+                    u16 result = registers[AX]/denominator;
+                    //u8 remainder = registers[AX] % denominator;
+
+                    if (result >= 0x100)
+                    {
+                        u16 value = div8(oldAX, denominator, false);
+
+                        //u8 flagvalue = (registers[AX]>>1)-~(value>>8);
+                        /*if (should_zero)
+                        {
+                            std::cout << "ARGH: " << u16(flagvalue) << " . " << u16(rm) << "." << u16(value) << std::endl;
+                        }*/
+
+                        /*set_flag(F_CARRY, false); //0
+                        set_flag(F_PARITY,parity(flagvalue)); //2
+                        set_flag(F_AUX_CARRY,false); //4
+                        set_flag(F_ZERO,flagvalue==0); //6
+                        set_flag(F_SIGN, flagvalue&0x80); //7
+                        set_flag(F_OVERFLOW, false); //11*/
+
+                        //set_flag(F_CARRY, carryflag); //0
+                        //set_flag(F_PARITY,parity(result)); //2
+                        //set_flag(F_AUX_CARRY,true); //4
+                        //set_flag(F_ZERO,(remainder&0x07)==0); //6
+                        //set_flag(F_SIGN, remainder&0x80); //7
+                        //set_flag(F_OVERFLOW, false); //11
+                        //std::cout << std::hex  << "quotient overflow: " << registers[AX] << " div " << u16(denominator) << ", flags:" << flagstostr(should_flags) << std::endl;
+                        test_subtype = (result < 0x200)?3:1;
+                        if (test_subtype == 3 && rm<=0x7)
+                        {
+                            //std::cout << std::hex << oldAX << "/" << u16(rm) << " = " << (registers[FLAGS]&0x8D5) << " " << (should_flags&0x8D5) << std::endl;
+                        }
+                        throw 0;
+                    }
+                    registers[AX] = div8(oldAX, denominator, false);//(remainder<<8)|quotient;
+                    //std::cout << std::hex << "yay: " << oldAX << " div " << u16(denominator) << ", /=" << u16(registers[AX]&0xFF) << ", %=" << u16(registers[AX]>>8) << std::endl;
+
+                    //set_flag(F_CARRY, (remainder&0x80) || (quotient&0x01)==0); //0
+                    //set_flag(F_CARRY, carryflag);
+                    //set_flag(F_ZERO,remainder==0); //6
+
+                    //cmp: set_flag(F_OVERFLOW, ((a ^ b) & (a ^ result)) >> 7);
+                    //rcl set_flag(F_OVERFLOW, (bool(rm & 0x80) != bool(rm & 0x100)));
+                    //rcr set_flag(F_OVERFLOW, (bool(rm & 0x80) != bool(rm & 0x40)));
+                    //set_flag(F_OVERFLOW, (remainder&0x80) || (quotient&0x1)); //11
+                    //set_flag(F_OVERFLOW, carryflag); //11
+                    cycles_used += (modrm_is_register?14:17); //286
+                    test_subtype = 0;
+                }
+                else if (op == 7) //IDIV
+                {
+                    //std::cout << "DIVISIO PIQ 2" << std::endl;
+
+                    i8 denominator = i8(rm);
+                    i16 result = i16(registers[AX]) / denominator;
+                    if (result < -0x80 || result >= 0x80) //186+ accept -0x80
+                    {
+                        divide_by_zero(original_ip);
+                    }
+                    else
+                    {
+                        i8 quotient = result&0xFF;
+                        i8 remainder = i16(registers[AX]) % denominator;
+                        registers[AX] = (remainder<<8)|u8(quotient);
+                        set_flag(F_PARITY,false);
+                    }
+                    cycles_used += (modrm_is_register?17:20); //286
+                }
+            }
+        }
