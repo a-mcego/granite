@@ -63,3 +63,4 @@ deps
 
 *.ods
 *.ods#
+bin/ignored
