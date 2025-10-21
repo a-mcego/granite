@@ -2459,50 +2459,41 @@ struct CPU80286
                 {
                     u16 div16 = divisor<<8;
                     bool q_overflow = (ax >= div16);
-                    u8 quotient{};
 
-                    u16 mask = 0xFFFF;
-                    u8 cmpl{};
+                    bool carry{};
                     for(int x=0; x<8; ++x)
                     {
-                        quotient <<= 1;
-                        cmpl = (ax>>1);
-                        if (ax >= div16)
+                        cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
+                        if (ax >= div16 || carry)
                         {
                             ax -= div16;
-                            quotient |= 1;
+                            ax |= 1;
                         }
-                        ax &= mask;
-                        mask >>= 1;
-                        div16 >>= 1;
+                        carry = ax&0x8000;
+                        ax<<=1;
                     }
-                    if (!q_overflow) //don't do int0
+                    if (q_overflow)
                     {
-                        quotient <<= 1;
-                        set_flag(F_CARRY, u8(ax)<u8(div16)); //0
-                        set_flag(F_AUX_CARRY, true); //4
-                        set_flag(F_OVERFLOW, flag(F_CARRY)); //11
-                        if (ax >= div16)
-                        {
-                            ax -= div16;
-                            quotient |= 1;
-                        }
-
-                        set_flag(F_PARITY, parity(ax)); //2
-                        set_flag(F_ZERO, u8(ax) == 0); //6
-                        set_flag(F_SIGN, ax&0x80); //7
-                        registers[AX] = (ax<<8) | quotient;
-                    }
-                    else //do int0
-                    {
-                        cmp_flags<u8>(cmpl, div16, cmpl-div16);
                         throw 0;
                     }
+                    //DIV5 microcode op sets these three flags?
+                    //they seem illogical but pass tests.
+                    set_flag(F_CARRY,     u8(ax>>8)<divisor);
+                    set_flag(F_OVERFLOW,  u8(ax>>8)<divisor);
+                    set_flag(F_AUX_CARRY, true);
+                    if (ax >= div16 || carry)
+                    {
+                        ax -= div16;
+                        ax |= 1;
+                    }
+                    set_flag(F_PARITY, parity(ax>>8));
+                    set_flag(F_ZERO, u8(ax>>8) == 0);
+                    set_flag(F_SIGN, ax&0x8000);
+                    registers[AX] = ax;
                 };
 
                 if (rm == 0)
                 {
-                    test_subtype = 2;
                     div8(registers[AX], rm);
                 }
 
