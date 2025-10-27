@@ -1927,11 +1927,15 @@ struct CPU80286
                 u16 frame_temp = tempSP;
                 if (nesting_level > 0)
                 {
+                    u16 last_write=tempSP;
                     for (u8 i = 1; i < nesting_level; ++i)
                     {
                         tempBP -= 2;
                         u16 value = mem_r16(SEG::SS, tempBP);
+                        if (last_write == tempBP) //pass MOO tests with this. weird thing tho. like a bus error. this might be wrong! or a CPU bug!
+                            value &= 0xFF00;
                         push_with(value,tempSP);
+                        last_write = tempSP;
                     }
                     push_with(frame_temp,tempSP);
                 }
