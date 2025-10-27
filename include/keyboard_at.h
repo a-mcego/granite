@@ -125,8 +125,8 @@ struct CHIP8042 //AT keyboard etc
         if (port == 1)
         {
             if (startprinting)
-                std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(global_port0x61) << std::endl;
-            return global_port0x61;
+                std::cout << globalsettings.current_IP << ": keyboard read from 0x6" << u16(port) << ", with data " << u32(globalsettings.global_port0x61) << std::endl;
+            return globalsettings.global_port0x61;
         }
         if (port == 4)
         {
@@ -244,7 +244,7 @@ struct CHIP8042 //AT keyboard etc
         }
         else if (port == 1)
         {
-            global_port0x61 = (global_port0x61&~0x0F) | (data&0x0F);
+            globalsettings.global_port0x61 = (globalsettings.global_port0x61&~0x0F) | (data&0x0F);
             return;
         }
         else if (port == 4)

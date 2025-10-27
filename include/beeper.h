@@ -21,7 +21,7 @@ struct BEEPER
 
 
 
-        sampleA = ((value&&(global_port0x61&0x02))?60*256:0)*(pb0?-1:1); //TODO: make pc work again
+        sampleA = ((value&&(globalsettings.global_port0x61&0x02))?60*256:0)*(pb0?-1:1); //TODO: make pc work again
         sampleB = ((sampleB<<5)-sampleB+sampleA)>>5; //crude lowpass
         sampleC = ((sampleC<<5)-sampleC+sampleB)>>5; //crude lowpass
     }

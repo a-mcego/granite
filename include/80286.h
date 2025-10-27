@@ -2455,14 +2455,20 @@ struct CPU80286
             }
             else if (op==6 || op == 7) //DIV IDIV
             {
-                auto div8 = [this](u16 ax, u8 divisor) -> void
+                bool sign1 = false, sign2 = false;
+
+                auto divN = [this, &sign1,&sign2]<size_t N>(u16 ax, u8 divisor, bool carry) -> void
                 {
                     u16 div16 = divisor<<8;
                     bool q_overflow = (ax >= div16);
 
-                    bool carry{};
-                    for(int x=0; x<8; ++x)
+                    std::stringstream ss;
+                    ss << "debug: ";
+                    ss << "sgn=" <<sign1 <<sign2<< " ";
+
+                    for(int x=0; x<N; ++x)
                     {
+                        ss << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
                         cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
                         if (ax >= div16 || carry)
                         {
@@ -2474,6 +2480,20 @@ struct CPU80286
                     }
                     if (q_overflow)
                     {
+                        //cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
+
+                        u8 al = registers[AX]&0xFF;
+                        test_subtype = (divisor==0)?2:1;
+                        cmp_flags<u8>(al,divisor,al-divisor);
+                        set_flag(F_AUX_CARRY,true); //only for idiv
+
+                        ss << std::setw(4) << std::setfill('0') << ax;
+                        ss << " origAX=" << std::setw(4) << std::setfill('0') << registers[AX];
+                        ss << " divisor=" << std::setw(2) << u16(divisor) << std::setw(4);
+                        ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5);
+                        if (should_flags&0x40)
+                            std::cout << ss.str() << std::endl;
+
                         throw 0;
                     }
                     //DIV5 microcode op sets these three flags?
@@ -2492,34 +2512,56 @@ struct CPU80286
                     registers[AX] = ax;
                 };
 
-                if (rm == 0)
-                {
-                    div8(registers[AX], rm);
-                }
-
                 if (op == 6) //DIV
                 {
                     cycles_used += (modrm_is_register?14:17); //286
-                    test_subtype = 0;
-                    div8(registers[AX], rm);
+                    divN.operator()<8>(registers[AX], rm, false);
                 }
                 else if (op == 7) //IDIV
                 {
                     //std::cout << "DIVISIO PIQ 2" << std::endl;
 
                     i8 denominator = i8(rm);
-                    i16 result = i16(registers[AX]) / denominator;
-                    if (result < -0x80 || result >= 0x80) //186+ accept -0x80
+                    i16 oldAX = registers[AX];
+
+                    //std::cout << i16(registers[AX]) << "/" << i16(i8(rm)) << " = ";
+                    if (denominator<0)
                     {
-                        divide_by_zero(original_ip);
+                        denominator = -denominator;
+                        sign1=!sign1;
                     }
-                    else
+                    i16 absax = registers[AX];
+                    if (absax<0)
                     {
-                        i8 quotient = result&0xFF;
-                        i8 remainder = i16(registers[AX]) % denominator;
-                        registers[AX] = (remainder<<8)|u8(quotient);
-                        set_flag(F_PARITY,false);
+                        absax = -absax;
+                        sign2 = true;
+                        sign1=!sign1;
                     }
+                    bool carry = (absax&0x8000);
+                    absax <<= 1;
+                    divN.operator()<7>(absax, denominator, false);
+                    test_subtype = 0;
+
+                    u8 quotient = registers[AX];
+                    u8 remainder = registers[AX]>>8;
+
+                    set_flag(F_CARRY,    sign1==sign2);
+                    set_flag(F_OVERFLOW, sign1==sign2);
+                    set_flag(F_AUX_CARRY, true);
+
+                    if (sign1)
+                    {
+                        quotient = -quotient;
+                    }
+                    if (sign2)
+                    {
+                        remainder = -remainder;
+                        set_flag(F_PARITY, parity(remainder));
+                        set_flag(F_ZERO, remainder == 0);
+                        set_flag(F_SIGN, remainder&0x80);
+                    }
+
+                    registers[AX] = (remainder<<8)|quotient;
                     cycles_used += (modrm_is_register?17:20); //286
                 }
             }

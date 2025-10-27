@@ -1282,7 +1282,7 @@ struct CPU8088MC
     void cycle()
     {
         bool previous_trap = flag(F_TRAP);
-        ++cycles;
+        ++globalsettings.cycles;
 
         if (delay)
         {
@@ -1310,7 +1310,7 @@ struct CPU8088MC
         u8 instruction = read_inst<u8>();
         if (startprinting)
         {
-            std::cout << "#" << std::dec << cycles << std::hex << ": " << u32(instruction) << " @ " << registers[CS]*16+registers[IP]-1;
+            std::cout << "#" << std::dec << globalsettings.cycles << std::hex << ": " << u32(instruction) << " @ " << registers[CS]*16+registers[IP]-1;
             print_regs();
         }
 
@@ -1320,7 +1320,7 @@ struct CPU8088MC
             ++prefix_byte_n;
             instruction = read_inst<u8>();
             if (startprinting || DEBUG_LEVEL > 1)
-                std::cout << "prefix read. #" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+                std::cout << "prefix read. #" << std::dec << globalsettings.cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
         }
 
         if (false);
@@ -2196,15 +2196,15 @@ struct CPU8088MC
             }
             else
             {
-                std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+                std::cout << "#" << std::dec << globalsettings.cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
                 std::cout << "Unimplemented opcode combo: 0x" << u32(instruction) << " 0x" << u32(modrm) << std::endl;
                 std::abort();
             }
         }
         else
         {
-            std::cout << "#" << std::dec << cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
-            std::cout << "# " << std::dec << cycles << std::hex << ", Unknown opcode: 0x" << u32(instruction) << std::endl;
+            std::cout << "#" << std::dec << globalsettings.cycles << std::hex << ": " << "Executing 0x" << u32(instruction) << " at CS:IP = " << registers[CS] << ":" << registers[IP]-1 << " = " << registers[CS]*16+registers[IP]-1 << std::endl;
+            std::cout << "# " << std::dec << globalsettings.cycles << std::hex << ", Unknown opcode: 0x" << u32(instruction) << std::endl;
             std::abort();
         }
 

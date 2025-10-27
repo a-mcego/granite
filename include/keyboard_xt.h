@@ -145,7 +145,7 @@ struct CHIP8255 //PC/XT keyboard etc
             }
         }
         regs[port] = data;
-        global_port0x61 = regs[1];
+        globalsettings.global_port0x61 = regs[1];
         //TODO: do i need to add these somewhere else
         //beeper.pb0 = (regs[1]&0x01)?1:0;
         //beeper.pb1 = (regs[1]&0x02)?1:0;

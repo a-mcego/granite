@@ -9,15 +9,9 @@
 #        F_OVERFLOW=11
 cpu 80286
 
-#test C:\80286-main\v1_real_mode\C8.bin
-#test C:\80286-main\v1_real_mode\F6.6.bin
-#test C:\80286-main\v1_real_mode\F6.7.bin
-#test C:\80286-main\v1_real_mode\F7.6.bin
-#test C:\80286-main\v1_real_mode\F7.7.bin
-#end_tests
-
-test C:\80286-main\v1_real_mode\F6.6.bin
-test C:\80286-main\v1_real_mode\F6.7.bin
+test C:\80286-main\v1_real_mode\01.moo
+#test C:\80286-main\v1_real_mode\F6.7.moo
+#test C:\80286-main\v1_real_mode\F6.6.moo
 end_tests
 test C:\80286-main\v1_real_mode\F7.6.bin
 test C:\80286-main\v1_real_mode\F7.7.bin

@@ -223,7 +223,7 @@ struct CHIP8253 //PIT
         {
             Channel& c = channels[i];
 
-            if (i==2 && !(global_port0x61&0x01))
+            if (i==2 && !(globalsettings.global_port0x61&0x01))
             {
                 continue;
             }
