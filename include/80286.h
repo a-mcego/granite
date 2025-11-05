@@ -2488,15 +2488,15 @@ struct CPU80286
 
                         u8 al = registers[AX]&0xFF;
                         test_subtype = (divisor==0)?2:1;
-                        cmp_flags<u8>(al,divisor,al-divisor);
-                        set_flag(F_AUX_CARRY,true); //only for idiv
+                        //cmp_flags<u8>(al,divisor,al-divisor);
+                        //set_flag(F_AUX_CARRY,true); //only for idiv
 
                         ss << std::setw(4) << std::setfill('0') << ax;
                         ss << " origAX=" << std::setw(4) << std::setfill('0') << registers[AX];
                         ss << " divisor=" << std::setw(2) << u16(divisor) << std::setw(4);
                         ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5);
-                        if (should_flags&0x40)
-                            std::cout << ss.str() << std::endl;
+                        //if (should_flags&0x40)
+                        //    std::cout << ss.str() << std::endl;
 
                         throw 0;
                     }
@@ -2515,6 +2515,145 @@ struct CPU80286
                     set_flag(F_SIGN, ax&0x8000);
                     registers[AX] = ax;
                 };
+                auto idivN = [this]<size_t N>(u16 ax, u8 divisor, bool printthings) -> void
+                {
+                    bool sgn1 = false, sgn2 = false;
+                    registers[AX] = ax;
+                    i8 denominator = divisor;
+                    i16 oldAX = ax;
+
+                    //std::cout << i16(registers[AX]) << "/" << i16(i8(rm)) << " = ";
+                    if (denominator<0)
+                    {
+                        denominator = -denominator-1;
+                        sgn1=!sgn1;
+                    }
+                    i16 absax = oldAX;
+                    if (absax<0)
+                    {
+                        absax = -absax-2+divisor;
+                        sgn2 = true;
+                        sgn1=!sgn1;
+                    }
+                    absax <<= 1;
+                    //bool carry = (absax&0x8000);
+                    bool carry = false;
+
+                    u16 div16 = denominator<<8;
+                    bool q_overflow = (u16(absax) >= div16);
+                    ax = absax;
+
+                    std::stringstream ss;
+                    ss << "ax=" << std::hex << oldAX;
+                    ss << " s=" <<sgn1 <<sgn2<< " ";
+
+                    for(int x=0; x<7; ++x)
+                    {
+                        ss  << x << ":" << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
+                        cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
+                        if (ax >= div16 || carry)
+                        {
+                            ax -= div16;
+                            ax += 1;
+                        }
+                        carry = ax&0x4000;
+                        ax<<=1;
+                    }
+                    if (q_overflow)
+                    {
+                        ss << "X:" << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
+                        auto bx = ax;
+                        if (ax >= div16 || carry)
+                        {
+                            bx -= div16;
+                            bx += 1;
+                            ss << "BX:" << std::hex << std::setw(4) << std::setfill('0') << bx << " ";
+                        }
+                        else
+                        {
+                            ss << "------- ";
+                        }
+                        //bx <<= 1;
+                        u8 quotient = bx;
+                        u8 remainder = bx>>8;
+                        u8 cmpl = remainder;//-1-divisor;
+                        u8 cmpr = divisor;
+                        u8 cmplr = cmpl-cmpr;
+                        cmp_flags<u8>(cmpl, cmpr, cmplr);
+                        if (sgn1)
+                        {
+                            quotient = -quotient;
+                            bx = (remainder<<8)|quotient;
+                        }
+                        if (sgn2)
+                        {
+                            quotient = bx;
+                            remainder = bx>>8;
+
+                            cmpl = remainder+1-divisor;
+                            cmpr = divisor;
+                            cmplr = cmpl-cmpr;
+                            set_flag(F_AUX_CARRY, ((cmpl ^ cmpr ^ cmplr) & 0x10) != 0);
+                            set_flag(F_OVERFLOW, ((cmpl ^ cmpr) & (cmpl ^ cmplr)) >> 7);
+                            set_flag(F_SIGN, !((cmpl-cmpr)&0x80));
+                            remainder = -remainder;
+                            set_flag(F_PARITY, parity(remainder-divisor+1));
+                            set_flag(F_ZERO, remainder == 0);
+                        }
+                        ax = (remainder<<8)|quotient;
+                        registers[AX] = ax;
+
+                        test_subtype = (divisor==0)?2:1;
+
+                        ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5) << " err=" << ((should_flags&0x8D5)^(registers[FLAGS]&0x8D5));
+                        if (printthings)
+                            std::cout << ss.str() << std::endl;
+
+                        return;
+                    }
+                    if (ax >= div16 || carry)
+                    {
+                        ax -= div16;
+                        ax |= 1;
+                    }
+                    cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
+
+                    //DIV5 microcode op sets these three flags?
+                    //they seem illogical but pass tests.
+                    set_flag(F_CARRY,    sgn1==sgn2);
+                    //set_flag(F_OVERFLOW, sgn1==sgn2);
+                    set_flag(F_AUX_CARRY, true);
+
+                    u8 quotient = ax;
+                    u8 remainder = ax>>8;
+                    if (sgn1)
+                    {
+                        quotient = -quotient;
+                    }
+                    if (sgn2)
+                    {
+                        remainder = -remainder;
+                        set_flag(F_PARITY, parity(remainder));
+                        set_flag(F_ZERO, remainder == 0);
+                        set_flag(F_SIGN, remainder&0x80);
+                    }
+
+                    //cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
+                    //set_flag(F_CARRY,     u8(ax>>8)<divisor);
+                    //set_flag(F_OVERFLOW,  u8(ax>>8)<divisor);
+                    //set_flag(F_AUX_CARRY, true);
+                    /*set_flag(F_PARITY, parity(ax>>8));
+                    set_flag(F_ZERO, u8(ax>>8) == 0);
+                    set_flag(F_SIGN, ax&0x8000);*/
+                    registers[AX] = (remainder<<8)|quotient;
+                    ss << std::setw(4) << std::setfill('0') << ax;
+                    ss << " origAX=" << std::setw(4) << std::setfill('0') << oldAX;
+                    ss << " divisor=" << std::setw(2) << u16(divisor) << std::setw(4);
+                    ss << " AX=" << std::setw(4) << std::setfill('0') << ax;
+                    ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5) << " err=" << ((should_flags&0x8D5)^(registers[FLAGS]&0x8D5));
+                    if (printthings)
+                        std::cout << ss.str() << std::endl;
+                };
 
                 if (op == 6) //DIV
                 {
@@ -2523,9 +2662,51 @@ struct CPU80286
                 }
                 else if (op == 7) //IDIV
                 {
+                    int divider = 3; //------------------------------------------------------------------------------------
+                    std::cin >> divider;
+
+                    std::stringstream sstr;
+                    sstr << "idiv" << divider << ".bin";
+
+                    int errors = 0;
+                    FILE* filu = fopen(sstr.str().c_str(),"rb");
+                    for(int ax_value=0x0; ax_value<0x10000; ++ax_value)
+                    {
+                        //std::cout << "-------------------------------------" << std::endl;
+                        //std::cout << std::setfill('0');
+                        /*if (ax_value%0x10 == 0)
+                            std::cout << std::endl;
+                        if (ax_value%0x40 == 0)*/
+                        should_flags = 0;
+                        fseek(filu,ax_value*2,SEEK_SET);
+                        fread(&should_flags,2,1,filu);
+                        idivN.operator()<7>(ax_value, divider, false);
+                        const u16 ARITH_FLAG_MASK = 0x8D5;
+                        if ((registers[FLAGS]&ARITH_FLAG_MASK) != (should_flags&ARITH_FLAG_MASK))
+                        {
+                            if ((registers[FLAGS]&ARITH_FLAG_MASK) != (should_flags&ARITH_FLAG_MASK))
+                            {
+                                ++errors;
+                            }
+                            idivN.operator()<7>(ax_value, divider, true);
+                            //std::cout << std::hex << "ax=" << std::setw(4) << std::setfill(' ') << u16(ax_value) << " ";
+                            //std::cout << "ax>>1=" << std::setw(2) << std::setfill(' ') << u16(u8(currax>>1)) << " ";
+                            //std::cout << std::hex << std::setw(3) << std::hex << (registers[FLAGS]&ARITH_FLAG_MASK);
+                            if ((registers[FLAGS]&ARITH_FLAG_MASK) != (should_flags&ARITH_FLAG_MASK))
+                            {
+                                //std::cout << " shouldbe " << std::setw(3) << (should_flags&ARITH_FLAG_MASK);
+                            }
+                            //std::cout << std::endl;
+                        }
+
+                    }
+                    std::cout << std::dec << errors << " errors."<< std::endl;
+                    fclose(filu);
+                    std::abort();
+
                     //std::cout << "DIVISIO PIQ 2" << std::endl;
 
-                    i8 denominator = i8(rm);
+                    /*i8 denominator = i8(rm);
                     i16 oldAX = registers[AX];
 
                     //std::cout << i16(registers[AX]) << "/" << i16(i8(rm)) << " = ";
@@ -2566,7 +2747,7 @@ struct CPU80286
                     }
 
                     registers[AX] = (remainder<<8)|quotient;
-                    cycles_used += (modrm_is_register?17:20); //286
+                    cycles_used += (modrm_is_register?17:20); //286*/
                 }
             }
         }
