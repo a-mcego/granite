@@ -1278,31 +1278,14 @@ void configline(std::string line)
     }
     else if (command == "test")
     {
-        //readonly_start = 0xFFFF0000;
-        //TODO: make mem controller for test mode
         string test_filename;
         iss >> test_filename;
 
         Moo::Reader mooreader;
-        mooreader.LoadFromFile(test_filename);
+        mooreader.AddFromFile(test_filename);
+        mooreader.AddRevocationList("C:\\80286-main\\revocation_list.txt");
 
-        /*cout << "Testing " << test_filename << endl;
-
-        vector<u8> filedata = readfile(test_filename);
-        u32 ptr = 0;
-
-        auto data16 = [&]()->u16
-        {
-            u16 ret = *(u16*)(((u8*)(void*)filedata.data())+ptr);
-            ptr += sizeof(u16);
-            return ret;
-        };
-        auto data32 = [&]()->u32
-        {
-            u32 ret = *(u32*)(((u8*)(void*)filedata.data())+ptr);
-            ptr += sizeof(u32);
-            return ret;
-        };*/
+        cout << "Testing " << test_filename << endl;
 
         struct FailureData
         {
@@ -1320,6 +1303,9 @@ void configline(std::string line)
         //while(ptr < filedata.size())
         for (const auto& test : mooreader.tests)
         {
+            if (mooreader.IsRevoked(test))
+                continue;
+
             globalsettings.cycles = 0;
             u32 test_id = test.index;
             //cout << std::dec << "---------------------------TEST #" << test_id << "---------------------------" << std::hex << std::endl;
@@ -1338,34 +1324,35 @@ void configline(std::string line)
             u16 start_regs[14] = {};
             u16 final_regs[14] = {};
 
-            start_regs[1] = test.GetInitialRegister(Moo::REG16::CX);
-            start_regs[2] = test.GetInitialRegister(Moo::REG16::DX);
-            start_regs[3] = test.GetInitialRegister(Moo::REG16::BX);
-            start_regs[4] = test.GetInitialRegister(Moo::REG16::SP);
-            start_regs[5] = test.GetInitialRegister(Moo::REG16::BP);
-            start_regs[6] = test.GetInitialRegister(Moo::REG16::SI);
-            start_regs[7] = test.GetInitialRegister(Moo::REG16::DI);
-            start_regs[8] = test.GetInitialRegister(Moo::REG16::ES);
-            start_regs[9] = test.GetInitialRegister(Moo::REG16::CS);
-            start_regs[10] = test.GetInitialRegister(Moo::REG16::SS);
-            start_regs[11] = test.GetInitialRegister(Moo::REG16::DS);
-            start_regs[12] = test.GetInitialRegister(Moo::REG16::FLAGS);
-            start_regs[13] = test.GetInitialRegister(Moo::REG16::IP);
+            start_regs[0] = test.GetInitialRegister(Moo::REG16::AX, false);
+            start_regs[1] = test.GetInitialRegister(Moo::REG16::CX, false);
+            start_regs[2] = test.GetInitialRegister(Moo::REG16::DX, false);
+            start_regs[3] = test.GetInitialRegister(Moo::REG16::BX, false);
+            start_regs[4] = test.GetInitialRegister(Moo::REG16::SP, false);
+            start_regs[5] = test.GetInitialRegister(Moo::REG16::BP, false);
+            start_regs[6] = test.GetInitialRegister(Moo::REG16::SI, false);
+            start_regs[7] = test.GetInitialRegister(Moo::REG16::DI, false);
+            start_regs[8] = test.GetInitialRegister(Moo::REG16::ES, false);
+            start_regs[9] = test.GetInitialRegister(Moo::REG16::CS, false);
+            start_regs[10] = test.GetInitialRegister(Moo::REG16::SS, false);
+            start_regs[11] = test.GetInitialRegister(Moo::REG16::DS, false);
+            start_regs[12] = test.GetInitialRegister(Moo::REG16::FLAGS, false);
+            start_regs[13] = test.GetInitialRegister(Moo::REG16::IP, false);
 
-            final_regs[0] = test.GetFinalRegister(Moo::REG16::AX);
-            final_regs[1] = test.GetFinalRegister(Moo::REG16::CX);
-            final_regs[2] = test.GetFinalRegister(Moo::REG16::DX);
-            final_regs[3] = test.GetFinalRegister(Moo::REG16::BX);
-            final_regs[4] = test.GetFinalRegister(Moo::REG16::SP);
-            final_regs[5] = test.GetFinalRegister(Moo::REG16::BP);
-            final_regs[6] = test.GetFinalRegister(Moo::REG16::SI);
-            final_regs[7] = test.GetFinalRegister(Moo::REG16::DI);
-            final_regs[8] = test.GetFinalRegister(Moo::REG16::ES);
-            final_regs[9] = test.GetFinalRegister(Moo::REG16::CS);
-            final_regs[10] = test.GetFinalRegister(Moo::REG16::SS);
-            final_regs[11] = test.GetFinalRegister(Moo::REG16::DS);
-            final_regs[12] = test.GetFinalRegister(Moo::REG16::FLAGS);
-            final_regs[13] = test.GetFinalRegister(Moo::REG16::IP);
+            final_regs[0] = test.GetFinalRegister(Moo::REG16::AX, false);
+            final_regs[1] = test.GetFinalRegister(Moo::REG16::CX, false);
+            final_regs[2] = test.GetFinalRegister(Moo::REG16::DX, false);
+            final_regs[3] = test.GetFinalRegister(Moo::REG16::BX, false);
+            final_regs[4] = test.GetFinalRegister(Moo::REG16::SP, false);
+            final_regs[5] = test.GetFinalRegister(Moo::REG16::BP, false);
+            final_regs[6] = test.GetFinalRegister(Moo::REG16::SI, false);
+            final_regs[7] = test.GetFinalRegister(Moo::REG16::DI, false);
+            final_regs[8] = test.GetFinalRegister(Moo::REG16::ES, false);
+            final_regs[9] = test.GetFinalRegister(Moo::REG16::CS, false);
+            final_regs[10] = test.GetFinalRegister(Moo::REG16::SS, false);
+            final_regs[11] = test.GetFinalRegister(Moo::REG16::DS, false);
+            final_regs[12] = test.GetFinalRegister(Moo::REG16::FLAGS, false);
+            final_regs[13] = test.GetFinalRegister(Moo::REG16::IP, false);
 
             for(int i=0; i<14; ++i)
             {
@@ -1377,15 +1364,9 @@ void configline(std::string line)
             u32 initial_ram_n = test.init_state.ram.size();
             for(u32 i=0; i<test.init_state.ram.size(); ++i)
             {
-                //u32 address = data32();
-                //u32 value = data32();
                 const auto& ram_entry = test.init_state.ram[i];
                 mac.p.membytes.bytes[ram_entry.address] = ram_entry.value;
             }
-            /*for(int i=0; i<14; ++i)
-            {
-                final_regs[i] = data16();
-            }*/
             testcpu.should_flags = (final_regs[12]);
 
             testcpu.load_tmp_segs_for_test();
@@ -1439,7 +1420,7 @@ void configline(std::string line)
                 }
                 if ((test_reg^final_regs[i]))
                 {
-                    cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
+                    //cout << test_filename << "#" << std::dec << test_id << std::hex <<  ": " << regnames[u32(i)] << ": " << start_regs[i] << "->" << final_regs[i] << " cpu gave " << test_reg << " , diff=" << (test_reg^final_regs[i]) << std::dec << endl;
                 }
             }
 
@@ -1453,26 +1434,24 @@ void configline(std::string line)
                 {
                     ++fd.mem_failures;
                     test_passed = false;
-                    //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mac.p.membytes.bytes[address]) << ", should be " << u32(value) << std::dec << endl;
+                    /*cout << test_filename << "#" << std::dec
+                    << test_id << ": Memory bytes at "
+                    << std::hex << ram_entry.address
+                    << " not correct: " << std::hex
+                    << u32(mac.p.membytes.bytes[ram_entry.address])
+                    << ", should be " << u32(ram_entry.value) << std::dec << endl;*/
                 }
             }
 
-            /*u32 final_ram_n = data32();
-            for(u32 i=0; i<final_ram_n; ++i)
-            {
-                u32 address = data32();
-                u32 value = data32();
-
-                if (mac.p.membytes.bytes[address] != value)
-                {
-                    ++fd.mem_failures;
-                    test_passed = false;
-                    //cout << test_filename << "#" << std::dec << test_id << ": Memory bytes at " << std::hex << address << " not correct: " << std::hex << u32(mac.p.membytes.bytes[address]) << ", should be " << u32(value) << std::dec << endl;
-                }
-            }*/
-
             if (!test_passed)
+            {
                 tests_failed += 1, ++tests_totalfailed;
+                /*for(int i=0; i<20; ++i)
+                {
+                    std::cout << std::setfill('0') << std::setw(2) << std::hex << u16(test.hash[i]);
+                }
+                std::cout << std::endl;*/
+            }
 
             ++test_id;
             ++tests_totaldone;
@@ -1488,6 +1467,7 @@ void configline(std::string line)
             for(auto& [subtype, fd]: failure_data)
             {
                 cout << "----SUBTYPE " << subtype << "----" << std::endl;
+                cout << std::setfill(' ');
                 cout << std::dec;
                 cout << "Reg failures:   ";
                 for(int i=0; i<14; ++i)
