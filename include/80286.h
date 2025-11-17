@@ -2579,12 +2579,9 @@ struct CPU80286
                         u8 cmpr = divisor;
                         u8 cmplr = cmpl-cmpr;
                         cmp_flags<u8>(cmpl, cmpr, cmplr);
+                        u8 pbyte = denominator-1-remainder;
                         if (sgn1 && sgn2)
                         {
-                            quotient = bx;
-                            remainder = bx>>8;
-
-                            u8 pbyte = denominator-1-remainder;
                             set_flag(F_SIGN, (pbyte&0x80));
 
                             cmpl = denominator-1;
@@ -2596,35 +2593,9 @@ struct CPU80286
                             set_flag(F_PARITY, parity(pbyte));
                             set_flag(F_AUX_CARRY, (((remainder) ^ (divisor) ^ (remainder-divisor)) & 0x10));
                             set_flag(F_ZERO, pbyte == 0);
-
-                            /*quotient = bx;
-
-                            remainder = (ax>>8);
-
-                            cmpl = remainder-1-divisor;
-                            cmpr = divisor;
-                            cmplr = cmpl-cmpr;
-                            set_flag(F_OVERFLOW, ((cmpl ^ cmpr) & (cmpl ^ cmplr)) >> 7);
-                            set_flag(F_SIGN, !((cmpl-cmpr)&0x80));
-
-                            u8 pbyte = divisor-(bx>>8);
-                            if (pbyte == divisor)
-                                pbyte = 0;
-                            set_flag(F_AUX_CARRY, ((pbyte ^ cmpr ^ (pbyte-cmpr)) & 0x10) != 0);
-                            set_flag(F_PARITY, parity(pbyte));
-                            set_flag(F_ZERO, pbyte == 0);
-
-                            remainder = -remainder;
-                            quotient = -quotient;
-
-                            ss << " p=" << u16(pbyte);*/
                         }
                         else if (sgn1)
                         {
-                            quotient = bx;
-                            remainder = (bx>>8);
-
-                            u8 pbyte = denominator-1-remainder;
                             set_flag(F_SIGN, !(pbyte&0x80));
 
                             cmpl = denominator-1;
@@ -2635,29 +2606,12 @@ struct CPU80286
                             ss << "lr=" << u16(cmpl) << "," << u16(cmpr) << " p=" << u16(pbyte) << " ";
                             set_flag(F_PARITY, parity(pbyte));
                             set_flag(F_AUX_CARRY, (((cmpl) ^ (cmpr) ^ (cmplr)) & 0x10));
-                            set_flag(F_ZERO, cmplr == 0xFF);
-
-                            /*cmpl = remainder+divisor;
-                            cmpr = divisor;
-                            cmplr = cmpl-cmpr;
-                            set_flag(F_OVERFLOW, ((cmpl ^ cmpr) & (cmpl ^ cmplr)) >> 7);
-
-                            u8 pbyte = denominator-remainder-1;
-                            set_flag(F_SIGN, !((pbyte-denominator+denominator)&0x80));
-                            set_flag(F_AUX_CARRY, ((pbyte ^ divisor ^ (pbyte+divisor)) & 0x10) != 0);
-                            set_flag(F_PARITY, parity(pbyte));
-                            set_flag(F_CARRY, denominator<pbyte);
-                            ss << " p   =" << u16(pbyte);
-                            set_flag(F_ZERO, remainder-denominator == 0);*/
+                            set_flag(F_ZERO, u8(pbyte+1) == 0);
 
                             quotient = -quotient;
                         }
                         else if (sgn2)
                         {
-                            quotient = bx;
-                            remainder = bx>>8;
-
-                            u8 pbyte = denominator-1-remainder;
                             set_flag(F_SIGN, (pbyte&0x80));
 
                             cmpl = denominator-1;
@@ -2669,30 +2623,7 @@ struct CPU80286
                             set_flag(F_PARITY, parity(pbyte));
                             set_flag(F_AUX_CARRY, (((denominator-1) ^ (remainder) ^ (denominator-1-remainder)) & 0x10));
                             set_flag(F_ZERO, pbyte == 0);
-
-                            /*quotient = bx;
-                            remainder = (bx>>8);
-
-                            cmpl = remainder-1;
-                            cmpr = denominator;
-                            cmplr = cmpl-cmpr;
-                            //set_flag(F_AUX_CARRY, ((cmpl ^ cmpr ^ cmplr) & 0x10) != 0);
-                            //set_flag(F_AUX_CARRY, true);
-                            set_flag(F_OVERFLOW, ((cmpl ^ cmpr) & (cmpl ^ cmplr)) >> 7);
-
-                            u8 pbyte = (denominator-remainder);
-                            set_flag(F_SIGN, ((pbyte)&0x80));
-                            set_flag(F_AUX_CARRY, (((pbyte) ^ denominator ^ ((pbyte)-denominator)) & 0x10) == 0);
-                            set_flag(F_PARITY, parity(pbyte));
-                            set_flag(F_CARRY, u8((ax>>8)-1) >= u8(denominator*2));
-                            ss << " p=" << setw(2) << setfill('0') << u16(pbyte) << setw(0) << setfill(' ');
-                            set_flag(F_ZERO, pbyte == denominator);
-
-                            remainder = -remainder;
-                            quotient = -quotient;*/
                         }
-                        //ax = (remainder<<8)|quotient;
-
                         test_subtype = (divisor==0)?2:1;
 
                         ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5) << " err=" << ((should_flags&0x8D5)^(registers[FLAGS]&0x8D5));
@@ -2715,8 +2646,7 @@ struct CPU80286
                     u8 quotient = ax;
                     u8 remainder = ax>>8;
 
-                    //set_flag(F_CARRY,    sgn1==sgn2);
-                    set_flag(F_AUX_CARRY, !(((divisor-1) ^ (remainder) ^ (divisor-1-remainder)) & 0x10));
+                    set_flag(F_AUX_CARRY, !(((denominator-1) ^ (remainder) ^ (denominator-1-remainder)) & 0x10));
 
                     u8 pbyte = denominator-1-remainder;
                     set_flag(F_PARITY, parity(pbyte));
@@ -2731,15 +2661,7 @@ struct CPU80286
                         set_flag(F_SIGN, (remainder&0x80));
                         set_flag(F_AUX_CARRY, !(((denominator-1) ^ (remainder) ^ (denominator-1-remainder)) & 0x10));
                         set_flag(F_ZERO, pbyte == 0);
-                        /*set_flag(F_SIGN, (remainder&0x80));
-                        u8 pbyte = divisor-remainder;
-                        if (pbyte == divisor)
-                            pbyte = 0;
-                        set_flag(F_PARITY, parity(pbyte));
-                        set_flag(F_ZERO, remainder == 0);
-                        set_flag(F_AUX_CARRY, !(((divisor-1) ^ (remainder-1) ^ (divisor-remainder)) & 0x10));
-                        if(remainder == 0)
-                            set_flag(F_AUX_CARRY,true);*/
+
                         quotient = -quotient;
                         remainder = -remainder;
                     }
@@ -2747,7 +2669,6 @@ struct CPU80286
                     {
                         set_flag(F_SIGN, true);
                         set_flag(F_CARRY, false);
-                        //set_flag(F_AUX_CARRY, false);
                         set_flag(F_AUX_CARRY, (((denominator-1) ^ (remainder) ^ (denominator-1-remainder)) & 0x10));
                         set_flag(F_ZERO, false);
                         set_flag(F_OVERFLOW, false);
@@ -2762,12 +2683,8 @@ struct CPU80286
                         set_flag(F_AUX_CARRY, (((denominator-1) ^ (remainder) ^ (denominator-1-remainder)) & 0x10));
                         set_flag(F_ZERO, pbyte == 0);
                         remainder = -remainder;
-                        //set_flag(F_AUX_CARRY,false);
                     }
-                    else
-                    {
-                        //set_flag(F_AUX_CARRY, (divisor ^ remainder ^ (divisor-remainder)) & 0x10);
-                    }
+
                     if (sgn2)
                     {
                         remainder = -remainder;
@@ -2778,20 +2695,8 @@ struct CPU80286
                             quotient += 1;
                         }
                         remainder = -remainder;
-                        /*ax += 0x100;
-                        if ((ax>>8) == denominator)
-                        {
-                            ax = (ax&0xFF)+1;
-                        }*/
                     }
 
-                    //cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
-                    //set_flag(F_CARRY,     u8(ax>>8)<divisor);
-                    //set_flag(F_OVERFLOW,  u8(ax>>8)<divisor);
-                    //set_flag(F_AUX_CARRY, true);
-                    /*set_flag(F_PARITY, parity(ax>>8));
-                    set_flag(F_ZERO, u8(ax>>8) == 0);
-                    set_flag(F_SIGN, ax&0x8000);*/
                     ax = (remainder<<8)|quotient;
                     registers[AX] = ax;
                     ss << std::setw(4) << std::setfill('0') << ax;
@@ -2854,51 +2759,6 @@ struct CPU80286
                     idivN.operator()<7>(registers[AX], rm, false);
 
                     std::cout << "%" << (registers[AX]>>8) << " /" << (registers[AX]&0xFF) << std::endl;
-
-                    //std::cout << "DIVISIO PIQ 2" << std::endl;
-
-                    /*i8 denominator = i8(rm);
-                    i16 oldAX = registers[AX];
-
-                    //std::cout << i16(registers[AX]) << "/" << i16(i8(rm)) << " = ";
-                    if (denominator<0)
-                    {
-                        denominator = -denominator;
-                        sign1=!sign1;
-                    }
-                    i16 absax = registers[AX];
-                    if (absax<0)
-                    {
-                        absax = -absax;
-                        sign2 = true;
-                        sign1=!sign1;
-                    }
-                    bool carry = (absax&0x8000);
-                    absax <<= 1;
-                    divN.operator()<7>(absax, denominator, false);
-                    test_subtype = 0;
-
-                    u8 quotient = registers[AX];
-                    u8 remainder = registers[AX]>>8;
-
-                    set_flag(F_CARRY,    sign1==sign2);
-                    set_flag(F_OVERFLOW, sign1==sign2);
-                    set_flag(F_AUX_CARRY, true);
-
-                    if (sign1)
-                    {
-                        quotient = -quotient;
-                    }
-                    if (sign2)
-                    {
-                        remainder = -remainder;
-                        set_flag(F_PARITY, parity(remainder));
-                        set_flag(F_ZERO, remainder == 0);
-                        set_flag(F_SIGN, remainder&0x80);
-                    }
-
-                    registers[AX] = (remainder<<8)|quotient;
-                    cycles_used += (modrm_is_register?17:20); //286*/
                 }
             }
         }
