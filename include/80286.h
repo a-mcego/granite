@@ -2703,36 +2703,18 @@ struct CPU80286
                         sgn1=!sgn1;
                     }
 
-
-                    absax <<= 1;
-
                     u16 div16 = denominator<<8;
-                    //bool q_overflow = (u16(absax) >= div16);
                     ax = absax;
 
-                    std::stringstream ss;
-                    ss << "ax=" << std::hex << oldAX;
-                    ss << " d=" << std::hex << u16(divisor);
-                    ss << " s=" << sgn1 <<sgn2<< " ";
-
-                    for(int x=0; x<7; ++x)
+                    for(int x=0; x<8; ++x)
                     {
-                        ss  << x << ":" << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
+                        ax<<=1;
                         if (ax >= div16)
                         {
                             ax -= div16;
                             ax += 1;
                         }
-                        ax<<=1;
                     }
-                    if (ax >= div16)
-                    {
-                        ax -= div16;
-                        ax |= 1;
-                    }
-                    test_subtype = 0;
-                    test_subtype += (sgn1?1:0);
-                    test_subtype += (sgn2?2:0);
 
                     if (sgn1 && (ax&0xFF) == 0x80)
                     {
@@ -2741,7 +2723,6 @@ struct CPU80286
 
                     if (q_overflow)
                     {
-                        ss << "X:" << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
                         u8 quotient = ax;
                         u8 remainder = ax>>8;
 
@@ -2756,16 +2737,8 @@ struct CPU80286
                             cmp_flags<u8>(cmpl,cmpr,cmplr);
                             set_flag(F_CARRY, cmpr<denominator);
                             set_flag(F_OVERFLOW, cmpr<denominator);
-
                             set_flag(F_PARITY, parity(remainder));
-                            ss << " pval=" << u16(remainder);
-
-                            cmpl = remainder;
-                            cmpr = denominator-1;
-                            cmplr = cmpl-cmpr;
                             set_flag(F_SIGN, ((-remainder-1)&0x80));
-                            if (cmplr == 0)
-                                set_flag(F_SIGN, false);
                             remainder = -remainder;
                         }
                         else if (sgn2) //invert remainder
@@ -2773,10 +2746,7 @@ struct CPU80286
                             cmp_flags<u8>(cmpl,cmpr,cmplr);
                             set_flag(F_OVERFLOW, cmpl<cmplr);
                             set_flag(F_PARITY, parity(remainder));
-                            ss << " pval=" << u16(remainder);
                             set_flag(F_SIGN, ((-remainder-1)&0x80));
-                            if (cmplr == 0)
-                                set_flag(F_SIGN, false);
                             remainder = -remainder;
                         }
                         else if (sgn1) //invert quotient
@@ -2784,9 +2754,7 @@ struct CPU80286
                             cmp_flags<u8>(cmpl,cmpr,cmplr);
                             set_flag(F_OVERFLOW, cmpl<cmplr);
                             set_flag(F_SIGN, cmplr != 255);
-                            //set_flag(F_ZERO, u8(cmplr+1) == 0);
                             set_flag(F_PARITY, parity(remainder));
-                            ss << " pval=" << u16(remainder);
                             set_flag(F_ZERO, remainder==0);
                             set_flag(F_SIGN, remainder&0x80);
                         }
@@ -2801,7 +2769,6 @@ struct CPU80286
                             set_flag(F_PARITY, parity(remainder));
                             set_flag(F_SIGN, remainder&0x80);
                             set_flag(F_ZERO, remainder==0);
-                            ss << " pval=" << u16(remainder);
                         }
 
                         if (sgn2)
@@ -2809,47 +2776,30 @@ struct CPU80286
                             remainder = -remainder;
                             remainder += 1;
                         }
-                            if (remainder == denominator)
-                            {
-                                remainder = 0;
-                                quotient += (sgn1?-1:1);
-                                set_flag(F_PARITY, parity(remainder));
-                                ss << " Spval=" << u16(remainder);
-                                set_flag(F_ZERO, remainder==0);
-                            }
+                        if (remainder == denominator)
+                        {
+                            remainder = 0;
+                            quotient += (sgn1?-1:1);
+                            set_flag(F_PARITY, parity(remainder));
+                            set_flag(F_ZERO, remainder==0);
+                            set_flag(F_SIGN, remainder&0x80);
+                        }
                         if (sgn2)
                         {
                             remainder = -remainder;
                         }
                         set_flag(F_AUX_CARRY,true);
 
-                        test_subtype += (divisor==0)?8:4;
-                        if (bool(flag(F_PARITY)) != bool(should_flags&0x04))
-                            printthings = true;
-                        ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5) << " err=" << ((should_flags&0x8D5)^(registers[FLAGS]&0x8D5));
-                        if (printthings)
-                            std::cout << ss.str() << std::endl;
-
                         throw 0;
                         return;
                     }
-                    //cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
-                    //std::cout << std::hex << " s=" << sgn1 <<sgn2 << " ";
-                    //std::cout << " " << std::setw(2) << std::setfill('0') << u16(u8(-remainder));
-                    //std::cout << " " << std::setw(2) << std::setfill('0') << i16(denominator);
-                    //std::cout << " " << std::setw(2) << std::setfill('0') << u16(remainder);
-                    //std::cout << " SF=" << bool(should_flags&0x80);// << " OF=" << bool(should_flags&0x800);
-                    //std::cout << std::setw(0) << std::setfill(' ') << std::endl;
 
                     u8 quotient = ax;
                     u8 remainder = ax>>8;
 
-                    //u8 cmpl = denominator-1;
-                    //u8 cmpr = remainder;
                     u8 cmpl = denominator-1;
                     u8 cmpr = remainder;
                     u8 cmplr = cmpl-cmpr;
-
 
                     cmp_flags<u8>(cmpl, cmpr, cmplr);
                     set_flag(F_PARITY, parity(remainder));
@@ -2885,7 +2835,6 @@ struct CPU80286
                     }
                     else
                     {
-                        //set_flag(F_AUX_CARRY, !((cmpl^cmpr^cmplr) & 0x10));
                         set_flag(F_CARRY, true);
                         set_flag(F_OVERFLOW, true);
                         set_flag(F_ZERO, remainder==0);
@@ -2895,26 +2844,21 @@ struct CPU80286
                     {
                         remainder = -remainder;
                         remainder += 1;
-                        if (remainder == denominator)
-                        {
-                            remainder = 0;
-                            quotient += (sgn1?-1:1);
-                        }
+                    }
+                    if (remainder == denominator)
+                    {
+                        remainder = 0;
+                        quotient += (sgn1?-1:1);
+                    }
+                    if (sgn2)
+                    {
                         remainder = -remainder;
                         set_flag(F_PARITY, parity(remainder));
                         set_flag(F_ZERO, remainder==0);
                     }
                     set_flag(F_AUX_CARRY,true);
 
-                    ax = (remainder<<8)|quotient;
-                    registers[AX] = ax;
-                    ss << std::setw(4) << std::setfill('0') << ax;
-                    ss << " origAX=" << std::setw(4) << std::setfill('0') << oldAX;
-                    ss << " divisor=" << std::setw(2) << u16(divisor) << std::setw(4);
-                    ss << " AX=" << std::setw(4) << std::setfill('0') << ax;
-                    ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5) << " err=" << ((should_flags&0x8D5)^(registers[FLAGS]&0x8D5));
-                    if (printthings)
-                        std::cout << ss.str() << std::endl;
+                    registers[AX] = (remainder<<8)|quotient;
                 };
 
                 if (op == 6) //DIV
@@ -2924,66 +2868,8 @@ struct CPU80286
                 }
                 else if (op == 7) //IDIV
                 {
-                    /*int divider = 3; //------------------------------------------------------------------------------------
-                    std::cin >> divider;
-
-                    std::stringstream sstr;
-                    sstr << "idiv" << divider << ".bin";
-
-                    int errors = 0;
-                    FILE* filu = fopen(sstr.str().c_str(),"rb");
-                    for(int ax_value=0x0000; ax_value<0x10000; ++ax_value)
-                    {
-                        //std::cout << "-------------------------------------" << std::endl;
-                        //std::cout << std::setfill('0');
-                        should_flags = 0;
-                        fseek(filu,ax_value*2,SEEK_SET);
-                        fread(&should_flags,2,1,filu);
-                        idivN.operator()<7>(ax_value, divider, false);
-                        const u16 ARITH_FLAG_MASK = 0x8D5;
-                        if ((registers[FLAGS]&ARITH_FLAG_MASK) != (should_flags&ARITH_FLAG_MASK))
-                        {
-                            if ((registers[FLAGS]&ARITH_FLAG_MASK) != (should_flags&ARITH_FLAG_MASK))
-                            {
-                                ++errors;
-                            }
-                            idivN.operator()<7>(ax_value, divider, true);
-                            //std::cout << std::hex << "ax=" << std::setw(4) << std::setfill(' ') << u16(ax_value) << " ";
-                            //std::cout << "ax>>1=" << std::setw(2) << std::setfill(' ') << u16(u8(currax>>1)) << " ";
-                            //std::cout << std::hex << std::setw(3) << std::hex << (registers[FLAGS]&ARITH_FLAG_MASK);
-                            if ((registers[FLAGS]&ARITH_FLAG_MASK) != (should_flags&ARITH_FLAG_MASK))
-                            {
-                                //std::cout << " shouldbe " << std::setw(3) << (should_flags&ARITH_FLAG_MASK);
-                            }
-                            //std::cout << std::endl;
-                        }
-
-                    }
-                    std::cout << std::dec << errors << " errors."<< std::endl;
-                    fclose(filu);
-                    std::abort();*/
-
-                    //std::cout << i16(registers[AX]) << " / " << i16(i8(rm)) << " -> ";
-
+                    cycles_used += (modrm_is_register?17:20); //286
                     idivN286.operator()<7>(registers[AX], rm, false);
-
-                    //std::cout << "%" << (registers[AX]>>8) << " /" << (registers[AX]&0xFF) << std::endl;
-
-                    bool interesting = (registers[AX] == 0x81C1) ||(registers[AX] == 0x8C60) ||(registers[AX] == 0xB0E3) ||(registers[AX] == 0x63B9);
-
-                    /*if (rm == 0)
-                        throw 0;
-                    i8 denominator = i8(rm);
-                    i16 result = i16(registers[AX]) / denominator;
-
-                    if (interesting)
-                        std::cout << i16(registers[AX]) << "/" << i16(denominator) << ", should be " << result << std::endl;
-
-                    if (result < -0x80 || result >= 0x80) //186+ accept -0x80
-                        throw 0;
-                    i8 quotient = result&0xFF;
-                    i8 remainder = i16(registers[AX]) % denominator;
-                    registers[AX] = (remainder<<8)|u8(quotient);*/
                 }
             }
         }
