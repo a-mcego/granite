@@ -2671,192 +2671,80 @@ struct CPU80286
                     if (printthings)
                         std::cout << ss.str() << std::endl;
                 };
-                auto idivN286 = [this]<size_t N>(u16 ax, u8 divisor, bool printthings) -> void
+                auto idivN286 = [this](u16 ax, u8 divisor) -> void
                 {
-                    bool sgn1 = false, sgn2 = false;
-                    registers[AX] = ax;
-                    i8 denominator = divisor;
-                    i16 oldAX = ax;
-
-                    //std::cout << i16(registers[AX]) << "/" << i16(i8(rm)) << " = ";
-                    bool q_overflow = (divisor==0);
-                    if (!q_overflow)
+                    bool negative_divisor=(divisor&0x80);
+                    bool negative_dividend=(ax&0x8000);
+                    u8 original_divisor = divisor;
+                    if (negative_divisor)
                     {
-                        i16 result = oldAX/i16(denominator);
-                        if (result < -0x80 || result >= 0x80) //186+ accept -0x80
-                        {
-                            q_overflow = true;
-                        }
-
+                        divisor = -divisor;
+                    }
+                    if (negative_dividend)
+                    {
+                        ax = ~ax;
                     }
 
-                    if (denominator<0)
-                    {
-                        denominator = -denominator;
-                        sgn1=!sgn1;
-                    }
-                    i16 absax = oldAX;
-                    if (absax<0)
-                    {
-                        absax = ~absax;
-                        sgn2 = true;
-                        sgn1=!sgn1;
-                    }
-
-                    u16 div16 = denominator<<8;
-                    ax = absax;
+                    //main division loop
+                    u16 div16 = (divisor<<8)-1;
+                    bool q_overflow = (ax >= u16(divisor<<7));
 
                     for(int x=0; x<8; ++x)
                     {
                         ax<<=1;
-                        if (ax >= div16)
+                        if (ax > div16)
                         {
                             ax -= div16;
-                            ax += 1;
                         }
-                    }
-
-                    if (sgn1 && (ax&0xFF) == 0x80)
-                    {
-                        q_overflow = false;
-                    }
-
-                    if (q_overflow)
-                    {
-                        u8 quotient = ax;
-                        u8 remainder = ax>>8;
-
-                        u8 cmpl = denominator-1;
-                        u8 cmpr = remainder;
-                        u8 cmplr = cmpl-cmpr;
-
-
-                        //sgn1 = invert quotient, sgn2 = invert remainder
-                        if (sgn1 && sgn2) //invert both
-                        {
-                            cmp_flags<u8>(cmpl,cmpr,cmplr);
-                            set_flag(F_CARRY, cmpr<denominator);
-                            set_flag(F_OVERFLOW, cmpr<denominator);
-                            set_flag(F_PARITY, parity(remainder));
-                            set_flag(F_SIGN, ((-remainder-1)&0x80));
-                            remainder = -remainder;
-                        }
-                        else if (sgn2) //invert remainder
-                        {
-                            cmp_flags<u8>(cmpl,cmpr,cmplr);
-                            set_flag(F_OVERFLOW, cmpl<cmplr);
-                            set_flag(F_PARITY, parity(remainder));
-                            set_flag(F_SIGN, ((-remainder-1)&0x80));
-                            remainder = -remainder;
-                        }
-                        else if (sgn1) //invert quotient
-                        {
-                            cmp_flags<u8>(cmpl,cmpr,cmplr);
-                            set_flag(F_OVERFLOW, cmpl<cmplr);
-                            set_flag(F_SIGN, cmplr != 255);
-                            set_flag(F_PARITY, parity(remainder));
-                            set_flag(F_ZERO, remainder==0);
-                            set_flag(F_SIGN, remainder&0x80);
-                        }
-                        else //no inversions
-                        {
-                            cmpl = ~denominator;
-                            cmpr = ~remainder;
-                            cmplr = cmpl-cmpr;
-
-                            cmp_flags<u8>(cmpl,cmpr,cmplr);
-                            set_flag(F_OVERFLOW, cmpl<cmplr);
-                            set_flag(F_PARITY, parity(remainder));
-                            set_flag(F_SIGN, remainder&0x80);
-                            set_flag(F_ZERO, remainder==0);
-                        }
-
-                        if (sgn2)
-                        {
-                            remainder = -remainder;
-                            remainder += 1;
-                        }
-                        if (remainder == denominator)
-                        {
-                            remainder = 0;
-                            quotient += (sgn1?-1:1);
-                            set_flag(F_PARITY, parity(remainder));
-                            set_flag(F_ZERO, remainder==0);
-                            set_flag(F_SIGN, remainder&0x80);
-                        }
-                        if (sgn2)
-                        {
-                            remainder = -remainder;
-                        }
-                        set_flag(F_AUX_CARRY,true);
-
-                        throw 0;
-                        return;
                     }
 
                     u8 quotient = ax;
                     u8 remainder = ax>>8;
 
-                    u8 cmpl = denominator-1;
-                    u8 cmpr = remainder;
-                    u8 cmplr = cmpl-cmpr;
+                    //set flags
+                    set_flag(F_AUX_CARRY,true);
 
-                    cmp_flags<u8>(cmpl, cmpr, cmplr);
-                    set_flag(F_PARITY, parity(remainder));
+                    u8 rembyte = negative_dividend?~remainder:remainder;
+                    set_flag(F_PARITY, parity(rembyte));
+                    set_flag(F_ZERO, rembyte==0);
+                    set_flag(F_SIGN, rembyte&0x80);
 
-                    if (sgn1 && sgn2)
-                    {
-                        set_flag(F_SIGN, cmplr != 0);
-                        set_flag(F_ZERO, cmplr == 0);
-                        set_flag(F_CARRY, true);
-                        set_flag(F_OVERFLOW, true);
+                    u8 rembyte2 = negative_divisor?~remainder:remainder;
+                    set_flag(F_CARRY, rembyte2 < original_divisor);
+                    set_flag(F_OVERFLOW, rembyte2 < original_divisor);
 
-                        quotient = -quotient;
-                        remainder = -remainder;
-                    }
-                    else if (sgn2)
+                    //fix remainder/quotient after negative_dividend
+                    if (negative_dividend)
                     {
-                        set_flag(F_OVERFLOW, ((cmpl ^ cmpr) & (cmpl ^ cmplr)) >> 7);
-                        set_flag(F_CARRY, cmpl<cmpr);
-
-                        set_flag(F_SIGN, cmpl != cmpr);
-                        set_flag(F_ZERO, cmplr == 0);
-                        remainder = -remainder;
-                    }
-                    else if (sgn1)
-                    {
-                        set_flag(F_SIGN, false);
-                        set_flag(F_CARRY, false);
-                        set_flag(F_ZERO, false);
-                        set_flag(F_OVERFLOW, false);
-                        set_flag(F_ZERO, remainder==0);
-                        set_flag(F_PARITY, parity(remainder));
-                        quotient = -quotient;
-                    }
-                    else
-                    {
-                        set_flag(F_CARRY, true);
-                        set_flag(F_OVERFLOW, true);
-                        set_flag(F_ZERO, remainder==0);
-                    }
-
-                    if (sgn2)
-                    {
-                        remainder = -remainder;
                         remainder += 1;
                     }
-                    if (remainder == denominator)
+                    if (remainder == divisor)
                     {
                         remainder = 0;
-                        quotient += (sgn1?-1:1);
+                        quotient += 1;
+                        set_flag(F_PARITY, parity(remainder)); //true
+                        set_flag(F_ZERO, remainder==0); //true
+                        set_flag(F_SIGN, remainder&0x80); //false
                     }
-                    if (sgn2)
+                    if (negative_dividend)
                     {
                         remainder = -remainder;
-                        set_flag(F_PARITY, parity(remainder));
-                        set_flag(F_ZERO, remainder==0);
                     }
-                    set_flag(F_AUX_CARRY,true);
+                    if (negative_dividend != negative_divisor)
+                    {
+                        quotient = -quotient;
+
+                        //accept -0x80 quotient
+                        if (quotient == 0x80)
+                        {
+                            q_overflow = false;
+                        }
+                    }
+
+                    if (q_overflow)
+                    {
+                        throw 0;
+                    }
 
                     registers[AX] = (remainder<<8)|quotient;
                 };
@@ -2869,7 +2757,7 @@ struct CPU80286
                 else if (op == 7) //IDIV
                 {
                     cycles_used += (modrm_is_register?17:20); //286
-                    idivN286.operator()<7>(registers[AX], rm, false);
+                    idivN286(registers[AX], rm);
                 }
             }
         }
