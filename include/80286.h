@@ -2671,6 +2671,251 @@ struct CPU80286
                     if (printthings)
                         std::cout << ss.str() << std::endl;
                 };
+                auto idivN286 = [this]<size_t N>(u16 ax, u8 divisor, bool printthings) -> void
+                {
+                    bool sgn1 = false, sgn2 = false;
+                    registers[AX] = ax;
+                    i8 denominator = divisor;
+                    i16 oldAX = ax;
+
+                    //std::cout << i16(registers[AX]) << "/" << i16(i8(rm)) << " = ";
+                    bool q_overflow = (divisor==0);
+                    if (!q_overflow)
+                    {
+                        i16 result = oldAX/i16(denominator);
+                        if (result < -0x80 || result >= 0x80) //186+ accept -0x80
+                        {
+                            q_overflow = true;
+                        }
+
+                    }
+
+                    if (denominator<0)
+                    {
+                        denominator = -denominator;
+                        sgn1=!sgn1;
+                    }
+                    i16 absax = oldAX;
+                    if (absax<0)
+                    {
+                        absax = ~absax;
+                        sgn2 = true;
+                        sgn1=!sgn1;
+                    }
+
+
+                    absax <<= 1;
+
+                    u16 div16 = denominator<<8;
+                    //bool q_overflow = (u16(absax) >= div16);
+                    ax = absax;
+
+                    std::stringstream ss;
+                    ss << "ax=" << std::hex << oldAX;
+                    ss << " d=" << std::hex << u16(divisor);
+                    ss << " s=" << sgn1 <<sgn2<< " ";
+
+                    for(int x=0; x<7; ++x)
+                    {
+                        ss  << x << ":" << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
+                        if (ax >= div16)
+                        {
+                            ax -= div16;
+                            ax += 1;
+                        }
+                        ax<<=1;
+                    }
+                    if (ax >= div16)
+                    {
+                        ax -= div16;
+                        ax |= 1;
+                    }
+                    test_subtype = 0;
+                    test_subtype += (sgn1?1:0);
+                    test_subtype += (sgn2?2:0);
+
+                    if (sgn1 && (ax&0xFF) == 0x80)
+                    {
+                        q_overflow = false;
+                    }
+
+                    if (q_overflow)
+                    {
+                        ss << "X:" << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
+                        u8 quotient = ax;
+                        u8 remainder = ax>>8;
+
+                        u8 cmpl = denominator-1;
+                        u8 cmpr = remainder;
+                        u8 cmplr = cmpl-cmpr;
+
+
+                        //sgn1 = invert quotient, sgn2 = invert remainder
+                        if (sgn1 && sgn2) //invert both
+                        {
+                            cmp_flags<u8>(cmpl,cmpr,cmplr);
+                            set_flag(F_CARRY, cmpr<denominator);
+                            set_flag(F_OVERFLOW, cmpr<denominator);
+
+                            set_flag(F_PARITY, parity(remainder));
+                            ss << " pval=" << u16(remainder);
+
+                            cmpl = remainder;
+                            cmpr = denominator-1;
+                            cmplr = cmpl-cmpr;
+                            set_flag(F_SIGN, ((-remainder-1)&0x80));
+                            if (cmplr == 0)
+                                set_flag(F_SIGN, false);
+                            remainder = -remainder;
+                        }
+                        else if (sgn2) //invert remainder
+                        {
+                            cmp_flags<u8>(cmpl,cmpr,cmplr);
+                            set_flag(F_OVERFLOW, cmpl<cmplr);
+                            set_flag(F_PARITY, parity(remainder));
+                            ss << " pval=" << u16(remainder);
+                            set_flag(F_SIGN, ((-remainder-1)&0x80));
+                            if (cmplr == 0)
+                                set_flag(F_SIGN, false);
+                            remainder = -remainder;
+                        }
+                        else if (sgn1) //invert quotient
+                        {
+                            cmp_flags<u8>(cmpl,cmpr,cmplr);
+                            set_flag(F_OVERFLOW, cmpl<cmplr);
+                            set_flag(F_SIGN, cmplr != 255);
+                            //set_flag(F_ZERO, u8(cmplr+1) == 0);
+                            set_flag(F_PARITY, parity(remainder));
+                            ss << " pval=" << u16(remainder);
+                            set_flag(F_ZERO, remainder==0);
+                            set_flag(F_SIGN, remainder&0x80);
+                        }
+                        else //no inversions
+                        {
+                            cmpl = ~denominator;
+                            cmpr = ~remainder;
+                            cmplr = cmpl-cmpr;
+
+                            cmp_flags<u8>(cmpl,cmpr,cmplr);
+                            set_flag(F_OVERFLOW, cmpl<cmplr);
+                            set_flag(F_PARITY, parity(remainder));
+                            set_flag(F_SIGN, remainder&0x80);
+                            set_flag(F_ZERO, remainder==0);
+                            ss << " pval=" << u16(remainder);
+                        }
+
+                        if (sgn2)
+                        {
+                            remainder = -remainder;
+                            remainder += 1;
+                        }
+                            if (remainder == denominator)
+                            {
+                                remainder = 0;
+                                quotient += (sgn1?-1:1);
+                                set_flag(F_PARITY, parity(remainder));
+                                ss << " Spval=" << u16(remainder);
+                                set_flag(F_ZERO, remainder==0);
+                            }
+                        if (sgn2)
+                        {
+                            remainder = -remainder;
+                        }
+                        set_flag(F_AUX_CARRY,true);
+
+                        test_subtype += (divisor==0)?8:4;
+                        if (bool(flag(F_PARITY)) != bool(should_flags&0x04))
+                            printthings = true;
+                        ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5) << " err=" << ((should_flags&0x8D5)^(registers[FLAGS]&0x8D5));
+                        if (printthings)
+                            std::cout << ss.str() << std::endl;
+
+                        throw 0;
+                        return;
+                    }
+                    //cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
+                    //std::cout << std::hex << " s=" << sgn1 <<sgn2 << " ";
+                    //std::cout << " " << std::setw(2) << std::setfill('0') << u16(u8(-remainder));
+                    //std::cout << " " << std::setw(2) << std::setfill('0') << i16(denominator);
+                    //std::cout << " " << std::setw(2) << std::setfill('0') << u16(remainder);
+                    //std::cout << " SF=" << bool(should_flags&0x80);// << " OF=" << bool(should_flags&0x800);
+                    //std::cout << std::setw(0) << std::setfill(' ') << std::endl;
+
+                    u8 quotient = ax;
+                    u8 remainder = ax>>8;
+
+                    //u8 cmpl = denominator-1;
+                    //u8 cmpr = remainder;
+                    u8 cmpl = denominator-1;
+                    u8 cmpr = remainder;
+                    u8 cmplr = cmpl-cmpr;
+
+
+                    cmp_flags<u8>(cmpl, cmpr, cmplr);
+                    set_flag(F_PARITY, parity(remainder));
+
+                    if (sgn1 && sgn2)
+                    {
+                        set_flag(F_SIGN, cmplr != 0);
+                        set_flag(F_ZERO, cmplr == 0);
+                        set_flag(F_CARRY, true);
+                        set_flag(F_OVERFLOW, true);
+
+                        quotient = -quotient;
+                        remainder = -remainder;
+                    }
+                    else if (sgn2)
+                    {
+                        set_flag(F_OVERFLOW, ((cmpl ^ cmpr) & (cmpl ^ cmplr)) >> 7);
+                        set_flag(F_CARRY, cmpl<cmpr);
+
+                        set_flag(F_SIGN, cmpl != cmpr);
+                        set_flag(F_ZERO, cmplr == 0);
+                        remainder = -remainder;
+                    }
+                    else if (sgn1)
+                    {
+                        set_flag(F_SIGN, false);
+                        set_flag(F_CARRY, false);
+                        set_flag(F_ZERO, false);
+                        set_flag(F_OVERFLOW, false);
+                        set_flag(F_ZERO, remainder==0);
+                        set_flag(F_PARITY, parity(remainder));
+                        quotient = -quotient;
+                    }
+                    else
+                    {
+                        //set_flag(F_AUX_CARRY, !((cmpl^cmpr^cmplr) & 0x10));
+                        set_flag(F_CARRY, true);
+                        set_flag(F_OVERFLOW, true);
+                        set_flag(F_ZERO, remainder==0);
+                    }
+
+                    if (sgn2)
+                    {
+                        remainder = -remainder;
+                        remainder += 1;
+                        if (remainder == denominator)
+                        {
+                            remainder = 0;
+                            quotient += (sgn1?-1:1);
+                        }
+                        remainder = -remainder;
+                        set_flag(F_PARITY, parity(remainder));
+                        set_flag(F_ZERO, remainder==0);
+                    }
+                    set_flag(F_AUX_CARRY,true);
+
+                    ax = (remainder<<8)|quotient;
+                    registers[AX] = ax;
+                    ss << std::setw(4) << std::setfill('0') << ax;
+                    ss << " origAX=" << std::setw(4) << std::setfill('0') << oldAX;
+                    ss << " divisor=" << std::setw(2) << u16(divisor) << std::setw(4);
+                    ss << " AX=" << std::setw(4) << std::setfill('0') << ax;
+                    ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5) << " err=" << ((should_flags&0x8D5)^(registers[FLAGS]&0x8D5));
+                    if (printthings)
+                        std::cout << ss.str() << std::endl;
+                };
 
                 if (op == 6) //DIV
                 {
@@ -2720,9 +2965,25 @@ struct CPU80286
 
                     //std::cout << i16(registers[AX]) << " / " << i16(i8(rm)) << " -> ";
 
-                    idivN.operator()<7>(registers[AX], rm, false);
+                    idivN286.operator()<7>(registers[AX], rm, false);
 
                     //std::cout << "%" << (registers[AX]>>8) << " /" << (registers[AX]&0xFF) << std::endl;
+
+                    bool interesting = (registers[AX] == 0x81C1) ||(registers[AX] == 0x8C60) ||(registers[AX] == 0xB0E3) ||(registers[AX] == 0x63B9);
+
+                    /*if (rm == 0)
+                        throw 0;
+                    i8 denominator = i8(rm);
+                    i16 result = i16(registers[AX]) / denominator;
+
+                    if (interesting)
+                        std::cout << i16(registers[AX]) << "/" << i16(denominator) << ", should be " << result << std::endl;
+
+                    if (result < -0x80 || result >= 0x80) //186+ accept -0x80
+                        throw 0;
+                    i8 quotient = result&0xFF;
+                    i8 remainder = i16(registers[AX]) % denominator;
+                    registers[AX] = (remainder<<8)|u8(quotient);*/
                 }
             }
         }
