@@ -401,6 +401,7 @@ struct IOSystem
 #include "808x.h"
 #include "80186.h"
 #include "80286.h"
+#include "80386.h"
 
 struct Machine;
 using CPUCycleFn = void (Machine::*)();
@@ -413,6 +414,7 @@ struct Machine
     CPU8088MC cpu8088mc{p.mem88, p.pic, p.pic2, p};
     CPU80186 cpu80186{p.mem186, p.pic, p.pic2, p};
     CPU80286 cpu80286{p.mem286, p.pic, p.pic2, p};
+    CPU80386 cpu80386{p.mem286, p.pic, p.pic2, p};
 
     u32 current_cpu{};
     u64 cpu_steps{};
@@ -445,6 +447,11 @@ struct Machine
             cycle_fn = &Machine::cycle_80286;
             reset_fn = &Machine::reset_80286;
         }
+        else if (cpu_type == 4)
+        {
+            cycle_fn = &Machine::cycle_80386;
+            reset_fn = &Machine::reset_80386;
+        }
 
         p.pic2.main_pic = &p.pic;
     }
@@ -453,11 +460,13 @@ struct Machine
     void cycle_8088mc() { cpu8088mc.cycle(); ++cpu_steps; }
     void cycle_80186() { cpu80186.cycle(); ++cpu_steps; }
     void cycle_80286() { cpu80286.cycle(); ++cpu_steps; }
+    void cycle_80386() { cpu80386.cycle(); ++cpu_steps; }
 
     void reset_8086() { cpu8086.reset(); }
     void reset_8088mc() { cpu8088mc.reset(); }
     void reset_80186() { cpu80186.reset(); }
     void reset_80286() { cpu80286.reset(); }
+    void reset_80386() { cpu80386.reset(); }
 
     void cycle_cpu()
     {
@@ -1083,6 +1092,8 @@ void configline(std::string line)
             mac.init_cpu(1,4);
         else if (cputype == "80286" || cputype == "286")
             mac.init_cpu(3,-1);
+        else if (cputype == "80386" || cputype == "386")
+            mac.init_cpu(4,-1);
         else
             std::cout << "ERROR unknown cpu: " << cputype << std::endl;
     }

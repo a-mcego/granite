@@ -16,7 +16,7 @@
 					<Add option="-Wall -Wextra -Werror=return-type -Werror=unused-value" />
 					<Add option="-Wshadow -Werror=shadow" />
 					<Add option="-ftemplate-backtrace-limit=0 -fomit-frame-pointer" />
-					<Add option="-Wno-sign-compare -fno-exceptions" />
+					<Add option="-Wno-sign-compare" />
 					<Add option="-Wpessimizing-move -Wredundant-move -Wint-to-pointer-cast" />
 					<Add option="-Wparentheses -Werror=parentheses" />
 					<Add option="-Wno-type-limits -Wno-stringop-overflow -Wno-array-bounds" />
@@ -34,6 +34,7 @@
 		</Compiler>
 		<Unit filename="include/80186.h" />
 		<Unit filename="include/80286.h" />
+		<Unit filename="include/80386.h" />
 		<Unit filename="include/8087.h" />
 		<Unit filename="include/8088mc.h" />
 		<Unit filename="include/808x.h" />

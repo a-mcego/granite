@@ -355,6 +355,7 @@ CONFIGURATION_CONTROL_REGISTER   = 0x3F7  // write-only
                     }
                     if (current_command == 0x03) //specify
                     {
+                        //TODO: handle SRT, HUT, HLT and ND
                         out_buffer.clear();
                         main_status &= ~0x50; //no output bytes
                         current_command = 0;
