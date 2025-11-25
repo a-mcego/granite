@@ -2461,18 +2461,13 @@ struct CPU80286
             {
                 bool sign1 = false, sign2 = false;
 
-                auto divN = [this, &sign1,&sign2]<size_t N>(u16 ax, u8 divisor, bool carry) -> void
+                auto divN = [this](u16 ax, u8 divisor, bool carry) -> void
                 {
                     u16 div16 = divisor<<8;
                     bool q_overflow = (ax >= div16);
 
-                    std::stringstream ss;
-                    ss << "debug: ";
-                    ss << "sgn=" <<sign1 <<sign2<< " ";
-
-                    for(int x=0; x<N; ++x)
+                    for(int x=0; x<8; ++x)
                     {
-                        ss << std::hex << std::setw(4) << std::setfill('0') << ax << " ";
                         cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
                         if (ax >= div16 || carry)
                         {
@@ -2484,20 +2479,7 @@ struct CPU80286
                     }
                     if (q_overflow)
                     {
-                        //cmp_flags<u8>((ax>>8), divisor, (ax>>8)-divisor);
-
-                        u8 al = registers[AX]&0xFF;
                         test_subtype = (divisor==0)?2:1;
-                        //cmp_flags<u8>(al,divisor,al-divisor);
-                        //set_flag(F_AUX_CARRY,true); //only for idiv
-
-                        ss << std::setw(4) << std::setfill('0') << ax;
-                        ss << " origAX=" << std::setw(4) << std::setfill('0') << registers[AX];
-                        ss << " divisor=" << std::setw(2) << u16(divisor) << std::setw(4);
-                        ss << " flags=" << (registers[FLAGS]&0x8D5) << " should=" << (should_flags&0x8D5);
-                        //if (should_flags&0x40)
-                        //    std::cout << ss.str() << std::endl;
-
                         throw 0;
                     }
                     //DIV5 microcode op sets these three flags?
@@ -2752,7 +2734,7 @@ struct CPU80286
                 if (op == 6) //DIV
                 {
                     cycles_used += (modrm_is_register?14:17); //286
-                    divN.operator()<8>(registers[AX], rm, false);
+                    divN(registers[AX], rm, false);
                 }
                 else if (op == 7) //IDIV
                 {
@@ -2821,36 +2803,131 @@ struct CPU80286
             }
             else if (op == 6 || op == 7) //DIV IDIV
             {
-                if (rm == 0)
-                {
-                    throw 0;
-                }
                 if (op == 6)
                 {
-                    //std::cout << "DIVISIO" << std::endl;
-                    u32 numerator = (registers[DX]<<16)|registers[AX];
-                    u16 denominator = rm;
-                    u32 result = numerator / denominator;
-                    if (result >= 0x10000)
+                    auto divN32 = [this](u32 dxax, u16 divisor, bool carry) -> void
                     {
-                        throw 0;
-                    }
-                    registers[AX] = result;
-                    registers[DX] = numerator % denominator;
-                    cycles_used += (modrm_is_register?25:28); //286, TODO: accurate?
+                        u32 div32 = divisor<<16;
+                        bool q_overflow = (dxax >= div32);
+
+                        for(int x=0; x<16; ++x)
+                        {
+                            cmp_flags<u16>((dxax>>16), divisor, (dxax>>16)-divisor);
+                            if (dxax >= div32 || carry)
+                            {
+                                dxax -= div32;
+                                dxax |= 1;
+                            }
+                            carry = dxax&0x80000000;
+                            dxax<<=1;
+                        }
+                        if (q_overflow)
+                        {
+                            test_subtype = (divisor==0)?2:1;
+                            throw 0;
+                        }
+                        //DIV5 microcode op sets these three flags?
+                        //they seem illogical but pass tests.
+                        set_flag(F_CARRY,     u16(dxax>>16)<divisor);
+                        set_flag(F_OVERFLOW,  u16(dxax>>16)<divisor);
+                        set_flag(F_AUX_CARRY, true);
+                        if (dxax >= div32 || carry)
+                        {
+                            dxax -= div32;
+                            dxax |= 1;
+                        }
+                        set_flag(F_PARITY, parity(dxax>>16));
+                        set_flag(F_ZERO, u16(dxax>>16) == 0);
+                        set_flag(F_SIGN, dxax&0x80000000);
+                        registers[DX] = dxax>>16;
+                        registers[AX] = dxax;
+                    };
+                    divN32((u32(registers[DX])<<16U) | u32(registers[AX]), rm, false);
                 }
                 else if (op == 7)
                 {
-                    i32 numerator = i32((registers[DX]<<16)|registers[AX]);
-                    i16 denominator = i16(rm);
-                    i32 result = numerator / denominator;
-                    if (result < -0x8000 || result >= 0x8000) //186+ accept -0x8000
+                    auto idivN286_32 = [this](u32 dxax, u16 divisor) -> void
                     {
-                        throw 0;
-                    }
-                    registers[AX] = numerator / denominator;
-                    registers[DX] = numerator % denominator;
-                    cycles_used += (modrm_is_register?165:171); //TODO: 165-184, 171-190
+                        bool negative_divisor = (divisor & 0x8000);
+                        bool negative_dividend = (dxax & 0x80000000);
+                        u16 original_divisor = divisor;
+
+                        if (negative_divisor)
+                        {
+                            divisor = -divisor;
+                        }
+                        if (negative_dividend)
+                        {
+                            dxax = ~dxax; // note one's complement!
+                        }
+
+                        // main division loop
+                        u32 div32 = (divisor << 16) - 1;
+                        bool q_overflow = (dxax >= u32(divisor << 15));
+
+                        for (int x = 0; x < 16; ++x)
+                        {
+                            dxax <<= 1;
+                            if (dxax > div32)
+                            {
+                                dxax -= div32;
+                            }
+                        }
+
+                        u16 quotient = dxax;
+                        u16 remainder = dxax >> 16;
+
+                        // set flags
+                        set_flag(F_AUX_CARRY, true);
+
+                        u16 remword = negative_dividend ? ~remainder : remainder;
+                        set_flag(F_PARITY, parity(remword & 0xFF));  // Parity only on low byte
+                        set_flag(F_ZERO, remword == 0);
+                        set_flag(F_SIGN, remword & 0x8000);
+
+                        u16 remword2 = negative_divisor ? ~remainder : remainder;
+                        set_flag(F_CARRY, remword2 < original_divisor);
+                        set_flag(F_OVERFLOW, remword2 < original_divisor);
+
+                        // fix remainder after negative_dividend
+                        if (negative_dividend)
+                        {
+                            remainder += 1;
+                        }
+                        if (remainder == divisor)
+                        {
+                            remainder = 0;
+                            quotient += 1;
+                            set_flag(F_PARITY, parity(remainder & 0xFF));
+                            set_flag(F_ZERO, remainder == 0);
+                            set_flag(F_SIGN, remainder & 0x8000);
+                        }
+
+                        if (negative_dividend)
+                        {
+                            remainder = -remainder;
+                        }
+                        if (negative_dividend != negative_divisor)
+                        {
+                            quotient = -quotient;
+
+                            // accept -0x8000
+                            if (quotient == 0x8000)
+                            {
+                                q_overflow = false;
+                            }
+                        }
+
+                        if (q_overflow)
+                        {
+                            throw 0;
+                        }
+
+                        // store in DX:AX
+                        registers[AX] = quotient;
+                        registers[DX] = remainder;
+                    };
+                    idivN286_32((u32(registers[DX])<<16U) | u32(registers[AX]), rm);
                 }
             }
         }
