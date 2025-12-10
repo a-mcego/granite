@@ -19,8 +19,8 @@
 #0018	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0019	A C   G IJKLMN  	a2fc	call J5, unconditional	
 #0020	AB     H JKL N P	c175	+jmp->#0023 cond=0x75	
-#0021	AB DE G I KL  O 	dab2	-jmp->#0017 cond=0x32	
-#0022	AB DE  H JKLMN  	d97c	-jmp->#0021 unconditional	
+#0021	AB DE G I KL  O 	dab2	-jmp->#0011 cond=0x32	
+#0022	AB DE  H JKLMN  	d97c	-jmp->#0009 unconditional	
 #0023	 BC  F HI    N  	6584	?	
 #0024	AB   FGH  KL  O 	c732	+jmp->#0039 cond=0x32	
 #0025	AB    GH J  M  P	c349	+jmp->#0032 cond=0x49	
@@ -31,38 +31,38 @@
 #0030	 BC   G I       	6280	?	
 #0031	AB    G IJKLMN  	c2fc	+jmp->#0037 unconditional	
 #0032	AB     H J     P	c141	+jmp->#0035 cond=0x41	
-#0033	    EFG   K     	0e20	[0xe] -> ?tmpA.mantissa?	
-#0034	AB  E G   KLMN P	ca3d	?	
+#0033	    EFG   K     	0e20	[0xe] -> [0x10]	
+#0034	AB  E G   KLMN P	ca3d	+jmp->#0055 cond=0x3d	
 #0035	ABCD          O 	f002	exception: invalid	
 #0036	   DEFGH   L NO 	1f16	QNaN -> tmpA	
-#0037	AB D FG  J LMN  	d65c	?	
-#0038	AB D  G  JKLMN  	d27c	?	
+#0037	AB D FG  J LMN  	d65c	-jmp->#0018 cond=0x5c	
+#0038	AB D  G  JKLMN  	d27c	-jmp->#0011 unconditional	
 #0039	AB   F HIJ    OP	c5c3	+jmp->#0051 cond=0x43	
 #0040	AB    G IJ  M OP	c2cb	+jmp->#0046 cond=0x4b	
-#0041	AB DE  H   LM   	d918	-jmp->#0040 cond=0x18	
+#0041	AB DE  H   LM   	d918	-jmp->#0028 cond=0x18	
 #0042	AB DEF     LM O 	dc1a	-jmp->#0035 cond=0x1a	
-#0043	AB DE GHIJ LM  P	dbd9	-jmp->#0037 cond=0x59	
-#0044	AB DE GH JKL  O 	db72	-jmp->#0039 cond=0x72	
+#0043	AB DE GHIJ LM  P	dbd9	-jmp->#0035 cond=0x59	
+#0044	AB DE GH JKL  O 	db72	-jmp->#0035 cond=0x72	
 #0045	AB DEF   JKLMN  	dc7c	-jmp->#0038 unconditional	
 #0046	AB     H   LM  P	c119	+jmp->#0049 cond=0x19	
-#0047	AB DE  HIJ  M   	d9c8	-jmp->#0045 cond=0x48	
-#0048	AB D F HIJKLMN  	d5fc	?	
-#0049	AB D F H   LM O 	d51a	?	
-#0050	AB DE  HIJKLMN  	d9fc	-jmp->#0048 unconditional	
+#0047	AB DE  HIJ  M   	d9c8	-jmp->#0035 cond=0x48	
+#0048	AB D F HIJKLMN  	d5fc	-jmp->#0028 unconditional	
+#0049	AB D F H   LM O 	d51a	-jmp->#0028 cond=0x1a	
+#0050	AB DE  HIJKLMN  	d9fc	-jmp->#0038 unconditional	
 #0051	AB     H   LM  P	c119	+jmp->#0054 cond=0x19	
-#0052	AB D FGH J      	d740	?	
-#0053	AB D  GH JKLMN  	d37c	?	
+#0052	AB D FGH J      	d740	-jmp->#0035 cond=0x40	
+#0053	AB D  GH JKLMN  	d37c	-jmp->#0028 unconditional	
 #0054	AB     H   LM OP	c11b	+jmp->#0057 cond=0x1b	
 #0055	     FG    L NO 	0616	zero -> tmpA	
-#0056	AB D  G IJKLMN  	d2fc	?	
+#0056	AB D  G IJKLMN  	d2fc	-jmp->#0030 unconditional	
 #0057	ABC EF          	ec00	?	
 #0058	AB     H JKL NO 	c176	+jmp->#0061 cond=0x76	
 #0059	AB     H JKL  O 	c172	+jmp->#0062 cond=0x72	
-#0060	AB D F  IJKLMN  	d4fc	?	
-#0061	AB D F   JKL  O 	d472	?	
+#0060	AB D F  IJKLMN  	d4fc	-jmp->#0038 unconditional	
+#0061	AB D F   JKL  O 	d472	-jmp->#0038 cond=0x72	
 #0062	 BC     I    N  	6084	?store tmpA sign?	
 #0063	 BC   GHI       	6380	?take stored sign, flip, and store to tmpA?	
-#0064	AB D  G IJKLMN  	d2fc	?	
+#0064	AB D  G IJKLMN  	d2fc	-jmp->#0038 unconditional	
 #0065	A C   G         	a200	call J4, cond=is_memory_operand	-------FLD,FFREE-------
 #0066	AB    GHI     O 	c382	+jmp->#0074 cond=0x02	
 #0067	 BCDE         O 	7802	stack push	
@@ -73,31 +73,31 @@
 #0072	    EFGH     N  	0f04	tmpB -> st(0)	
 #0073	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0074	 BC   GH J    O 	6342	?	
-#0075	AB DEFG I   MN P	de8d	-jmp->#0063 cond=!(pop_at_end)	
+#0075	AB DEFG I   MN P	de8d	-jmp->#0073 cond=!(pop_at_end)	
 #0076	 BC   GH J      	6340	set st(0) empty?	
 #0077	 BCDE           	7800	stack pop	
 #0078	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0079	   DEFGH   LMNO 	1f1e	QNaN -> tmpB	
 #0080	ABCD          O 	f002	exception: invalid	
-#0081	AB DEF HIJ LMN  	dddc	-jmp->#0071 cond=0x5c	
-#0082	AB DE G IJKLMN  	dafc	-jmp->#0078 unconditional	
+#0081	AB DEF HIJ LMN  	dddc	-jmp->#0077 cond=0x5c	
+#0082	AB DE G IJKLMN  	dafc	-jmp->#0072 unconditional	
 #0083	A     GH     NOP	8307	farjump J6, cond=0x07	-------J4-------
 #0084	AB   F      M  P	c409	+jmp->#0093 cond=0x09	
 #0085	  C  F    K M   	2428	?	
 #0086	ABCD F      MNO 	f40e	?	
-#0087	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
+#0087	   D F    K     	1420	[0x14] -> [0x10]	
 #0088	     F     LM O 	041a	[0x4] -> [0xd]	
 #0089	  C EF    KLM   	2c38	?	
 #0090	   DEF     LMN P	1c1d	?	
 #0091	  C EF  I    NOP	2c87	?	
 #0092	AB   F HIJKLMN  	c5fc	+jmp->#0104 unconditional	
 #0093	  C  F      M OP	240b	?	
-#0094	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
+#0094	   D F    K     	1420	[0x14] -> [0x10]	
 #0095	  C  F     LM OP	241b	?	
-#0096	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0096	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0097	  C  F    K M OP	242b	?	
 #0098	ABCD F      MNO 	f40e	?	
-#0099	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0099	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0100	     F     LM O 	041a	[0x4] -> [0xd]	
 #0101	  C EF    KLM OP	2c3b	?	
 #0102	   DEF     LMN P	1c1d	?	
@@ -106,7 +106,7 @@
 #0105	       H   LM   	0118	[0x1] -> [0xc]	
 #0106	ABC       KL    	e030	?	
 #0107	  C EFG        P	2e01	?	
-#0108	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
+#0108	   D F    K     	1420	[0x14] -> [0x10]	
 #0109	AB   F  I KL NO 	c4b6	+jmp->#0119 cond=0x36	
 #0110	AB    G   KLMN P	c23d	+jmp->#0115 cond=0x3d	
 #0111	     FG    LM   	0618	zero -> [0xc]	
@@ -123,32 +123,32 @@
 #0122	     FG   K  NO 	0626	zero -> [0x13]	-------J6-------
 #0123	AB    GH    M   	c308	+jmp->#0130 cond=0x08	
 #0124	AB   F     LMN  	c41c	+jmp->#0133 cond=0x1c	
-#0125	     F    K     	0420	[0x4] -> ?tmpA.mantissa?	
+#0125	     F    K     	0420	[0x4] -> [0x10]	
 #0126	ABCDEFGHIJKLM   	fff8	nop	
 #0127	  C  F     L    	2410	?	
-#0128	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
-#0129	AB  E  HI   M OP	c98b	?	
+#0128	   DEF    K     	1c20	[0x1c] -> [0x10]	
+#0129	AB  E  HI   M OP	c98b	+jmp->#0149 cond=0x0b	
 #0130	  C  F    K     	2420	?	
 #0131	ABCD F      MNO 	f40e	?	
-#0132	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0132	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0133	  C  F    KL    	2430	?	
 #0134	   DEF     LMN  	1c1c	[0x1c] -> [0xe]	
 #0135	 BC     IJ  M   	60c8	?	
-#0136	    EFG   K     	0e20	[0xe] -> ?tmpA.mantissa?	
+#0136	    EFG   K     	0e20	[0xe] -> [0x10]	
 #0137	AB     HIJ L  OP	c1d3	+jmp->#0141 cond=0x53	
 #0138	    EFG     MN  	0e0c	[0xe] -> zero	
 #0139	 B   FG     M O 	460a	?	
 #0140	 BC    HIJ  M   	61c8	?	
-#0141	AB  E   I KLMN  	c8bc	?	
+#0141	AB  E   I KLMN  	c8bc	+jmp->#0159 cond=0x3c	
 #0142	A C E G IJKLMN  	aafc	call J21, unconditional	
 #0143	   D F     LMN  	141c	[0x14] -> [0xe]	
 #0144	         JKLM   	0078	?load constant [0]?	
 #0145	     F H  K MNO 	052e	?constant? -> [0x17]	
 #0146	 B D FGH    M O 	570a	?	
-#0147	   D       LM   	1018	?tmpA.mantissa? -> [0xc]	
+#0147	   D       LM   	1018	[0x10] -> [0xc]	
 #0148	ABC      JKLMN  	e07c	--------------return--------------	
 #0149	  C  F    K     	2420	?	
-#0150	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0150	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0151	  C  F    KL    	2430	?	
 #0152	ABCD F      MNO 	f40e	?	
 #0153	   DEF     LMN  	1c1c	[0x1c] -> [0xe]	
@@ -156,13 +156,13 @@
 #0155	    EF        O 	0c02	[0xc] -> [0x1]	
 #0156	AB    GH    MNO 	c30e	+jmp->#0163 cond=0x0e	
 #0157	A C   GHIJKLMN  	a3fc	call J7, unconditional	
-#0158	AB D FGH  KLMN P	d73d	?	
+#0158	AB D FGH  KLMN P	d73d	-jmp->#0141 cond=0x3d	
 #0159	 BC  F  I       	6480	?	
 #0160	     FG    LMNO 	061e	zero -> tmpB	
 #0161	 BC     I   M   	6088	?	
 #0162	ABC      JKLMN  	e07c	--------------return--------------	
 #0163	ABC       KL    	e030	?	
-#0164	    EFG   K     	0e20	[0xe] -> ?tmpA.mantissa?	
+#0164	    EFG   K     	0e20	[0xe] -> [0x10]	
 #0165	AB    G   KL NO 	c236	+jmp->#0170 cond=0x36	
 #0166	AB     H  KLMN P	c13d	+jmp->#0169 cond=0x3d	
 #0167	 BC    H J  MN  	614c	?	
@@ -176,12 +176,12 @@
 #0175	  CD FGH  KLM   	3738	?	
 #0176	   D F     L N  	1414	[0x14] -> [0xa]	
 #0177	  C E G I KLMN  	2abc	?	
-#0178	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0178	   D F H  K     	1520	[0x15] -> [0x10]	
 #0179	  CD           P	3001	?	
 #0180	   D F      MN  	140c	[0x14] -> zero	
 #0181	  CD          OP	3003	?	
 #0182	 B D F          	5400	?	
-#0183	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#0183	   D        MN  	100c	[0x10] -> zero	
 #0184	  CD FGH  KLMN  	373c	?	
 #0185	   D F     L N  	1414	[0x14] -> [0xa]	
 #0186	  C E G I KLMN  	2abc	?	
@@ -190,13 +190,13 @@
 #0189	   D F      MN  	140c	[0x14] -> zero	
 #0190	  CD          OP	3003	?	
 #0191	 B D F          	5400	?	
-#0192	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#0192	   D        MN  	100c	[0x10] -> zero	
 #0193	  C EFG I KLMN  	2ebc	?	
 #0194	 B D F H        	5500	?	
 #0195	  C EFG      N  	2e04	?	
 #0196	   D F     LMN  	141c	[0x14] -> [0xe]	
-#0197	AB DE GH JKL   P	db71	-jmp->#0192 cond=0x71	
-#0198	   D       LMN  	101c	?tmpA.mantissa? -> [0xe]	
+#0197	AB DE GH JKL   P	db71	-jmp->#0188 cond=0x71	
+#0198	   D       LMN  	101c	[0x10] -> [0xe]	
 #0199	ABC      JKLMN  	e07c	--------------return--------------	
 #0200	      G    L NO 	0216	st(0) -> tmpA	-------FXCH-------
 #0201	ABCDEFGHIJKLM   	fff8	nop	
@@ -218,7 +218,7 @@
 #0217	      G    L NO 	0216	st(0) -> tmpA	-------FNOP,FSTP,FST-------
 #0218	AB    G I    N  	c284	+jmp->#0224 cond=stack_empty	
 #0219	AB   F   J   N  	c444	+jmp->#0228 cond?=tmpa bad?	
-#0220	    E G   K     	0a20	[0xa] -> ?tmpA.mantissa?	
+#0220	    E G   K     	0a20	[0xa] -> [0x10]	
 #0221	A    F  I   MNO 	848e	farjump J9, cond=0x0e	
 #0222	A    F          	8400	farjump J8, cond=is_memory_operand	
 #0223	    E GH     NO 	0b06	tmpA -> st(i)	
@@ -227,18 +227,18 @@
 #0226	 BCDE           	7800	stack pop	
 #0227	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0228	ABCD          O 	f002	exception: invalid	
-#0229	AB DEFG IJ LMN  	dedc	-jmp->#0217 cond=0x5c	
+#0229	AB DEFG IJ LMN  	dedc	-jmp->#0227 cond=0x5c	
 #0230	   DEFGH   L NO 	1f16	QNaN -> tmpA	
-#0231	AB DE G  JKLMN  	da7c	-jmp->#0228 unconditional	
+#0231	AB DE G  JKLMN  	da7c	-jmp->#0220 unconditional	
 #0232	AB     HIJ     P	c1c1	+jmp->#0236 cond=0x41	-------J2-------
 #0233	AB     H J  M  P	c149	+jmp->#0236 cond=0x49	
 #0234	ABC      JKL  OP	e073	?	
-#0235	AB  EF HIJKLMN  	cdfc	?	
+#0235	AB  EF HIJKLMN  	cdfc	+jmp->#0263 unconditional	
 #0236	 BC     I    N  	6084	?store tmpA sign?	
 #0237	    EF      MN  	0c0c	[0xc] -> zero	
 #0238	 B  E       M O 	480a	?	
 #0239	AB    G IJK     	c2e0	+jmp->#0245 cond=0x60	
-#0240	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#0240	   D        MN  	100c	[0x10] -> zero	
 #0241	 B   FG     M O 	460a	?	
 #0242	ABC EF          	ec00	?	
 #0243	AB      IJKL  OP	c0f3	+jmp->#0245 cond=0x73	
@@ -248,17 +248,17 @@
 #0247	A C E G  JKLMN  	aa7c	call J20, unconditional	
 #0248	ABC EF          	ec00	?	
 #0249	     FG    LM   	0618	zero -> [0xc]	
-#0250	AB  E  H JKL  OP	c973	?	
+#0250	AB  E  H JKL  OP	c973	+jmp->#0269 cond=0x73	
 #0251	 B  E G    LM O 	4a1a	?	
 #0252	AB     HIJK     	c1e0	+jmp->#0256 cond=0x60	
 #0253	   D   H    MNO 	110e	[0x11] -> [0x7]	
 #0254	 B   FG    LM O 	461a	?	
 #0255	 BC   GHI    N  	6384	?	
-#0256	AB  E  H  KLMN  	c93c	?	
+#0256	AB  E  H  KLMN  	c93c	+jmp->#0275 cond=0x3c	
 #0257	   D F H   LMN  	151c	[0x15] -> [0xe]	
-#0258	AB  E GHIJ L NO 	cbd6	?	
-#0259	AB  E GH J L  O 	cb52	?	
-#0260	AB  EFG  JKLMN  	ce7c	?	
+#0258	AB  E GHIJ L NO 	cbd6	+jmp->#0282 cond=0x56	
+#0259	AB  E GH J L  O 	cb52	+jmp->#0282 cond=0x52	
+#0260	AB  EFG  JKLMN  	ce7c	+jmp->#0289 unconditional	
 #0261	    E         O 	0802	[0x8] -> [0x1]	
 #0262	AB      IJ L NOP	c0d7	+jmp->#0264 cond=0x57	
 #0263	     FG    L NO 	0616	zero -> tmpA	
@@ -268,15 +268,15 @@
 #0267	 BC    HIJ      	61c0	?	
 #0268	ABC      JKLMN  	e07c	--------------return--------------	
 #0269	 B  E G    L    	4a10	?	
-#0270	AB  E  H JK  N P	c965	?	
+#0270	AB  E  H JK  N P	c965	+jmp->#0289 cond=0x65	
 #0271	  CD  GHIJKL  O 	33f2	?	
 #0272	   D F H  K  NO 	1526	[0x15] -> [0x13]	
 #0273	 BCDEF          	7c00	?	
 #0274	AB   FGH JKLMN  	c77c	+jmp->#0289 unconditional	
 #0275	  CD   H      OP	3103	?	
-#0276	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
-#0277	AB D FGHI KLMN  	d7bc	?	
-#0278	     FG   K     	0620	zero -> ?tmpA.mantissa?	
+#0276	   D F    K     	1420	[0x14] -> [0x10]	
+#0277	AB D FGHI KLMN  	d7bc	-jmp->#0261 cond=0x3c	
+#0278	     FG   K     	0620	zero -> [0x10]	
 #0279	AB   F  IJ L NOP	c4d7	+jmp->#0289 cond=0x57	
 #0280	 BCDEF        O 	7c02	?	
 #0281	   DE GH  K   O 	1b22	[0x1b] -> [0x11]	
@@ -289,13 +289,13 @@
 #0288	           LM   	0018	[0x0] -> [0xc]	
 #0289	 BC   G I       	6280	?	
 #0290	A C  F HI  L   P	a591	call J11, cond=0x11	
-#0291	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0291	   D       L N  	1014	[0x10] -> [0xa]	
 #0292	    EF      MN  	0c0c	[0xc] -> zero	
 #0293	 B  E       M   	4808	?	
 #0294	   DEFG     MN  	1e0c	[0x1e] -> zero	
 #0295	 B D            	5000	?	
-#0296	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#0297	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0296	   D          O 	1002	[0x10] -> [0x1]	
+#0297	   D       L    	1010	[0x10] -> [0x8]	
 #0298	ABC      JKLMN  	e07c	--------------return--------------	
 #0299	AB    GH  KLM  P	c339	+jmp->#0306 cond=0x39	-------J11-------
 #0300	ABC       KLM OP	e03b	?	
@@ -309,13 +309,13 @@
 #0308	ABCDEFGHIJKLM   	fff8	nop	
 #0309	 BC E  H     N  	6904	?	
 #0310	  CD    IJK     	30e0	?	
-#0311	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0311	   D F H  K     	1520	[0x15] -> [0x10]	
 #0312	AB      I KLM OP	c0bb	+jmp->#0314 cond=0x3b	
 #0313	 B D         NO 	5006	?increment tmpA exponent?	
 #0314	  CD     JK     	3060	?	
 #0315	   D F    K  N  	1424	[0x14] -> [0x12]	
 #0316	ABC      JK  N P	e065	?	
-#0317	AB DE   IJKLMN  	d8fc	-jmp->#0317 unconditional	
+#0317	AB DE   IJKLMN  	d8fc	-jmp->#0303 unconditional	
 #0318	ABC      J      	e040	?	-------J16-------
 #0319	ABC  F        O 	e402	?	
 #0320	     FG IJKLM   	06f8	?load constant [13]?	
@@ -325,7 +325,7 @@
 #0324	 B  E           	4800	?	
 #0325	AB      IJKLMN  	c0fc	+jmp->#0327 unconditional	
 #0326	 B  E       M O 	480a	?	
-#0327	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0327	   D       L    	1010	[0x10] -> [0x8]	
 #0328	ABC      JKLMN  	e07c	--------------return--------------	
 #0329	AB   FGH  KLMNO 	c73e	+jmp->#0344 cond=0x3e	
 #0330	    E       MN  	080c	[0x8] -> zero	
@@ -335,7 +335,7 @@
 #0334	A C  F HIJKLMN  	a5fc	call J11, unconditional	
 #0335	AB    G   KLMN  	c23c	+jmp->#0340 cond=0x3c	
 #0336	     FG    L    	0610	zero -> [0x8]	
-#0337	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0337	   D       L N  	1014	[0x10] -> [0xa]	
 #0338	 BC   G  J   N  	6244	?	
 #0339	ABC      JKLMN  	e07c	--------------return--------------	
 #0340	 BC     I    N  	6084	?store tmpA sign?	
@@ -350,9 +350,9 @@
 #0349	ABC      J LM OP	e05b	?	
 #0350	   DE GH    MN  	1b0c	[0x1b] -> zero	
 #0351	 B  E       M O 	480a	?	
-#0352	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0352	   D       L    	1010	[0x10] -> [0x8]	
 #0353	 B   FG     M O 	460a	?	
-#0354	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0354	   D       L N  	1014	[0x10] -> [0xa]	
 #0355	 BC      J   N  	6044	?	
 #0356	ABC      J L  O 	e052	?	
 #0357	    EFG    L N  	0e14	[0xe] -> [0xa]	
@@ -383,7 +383,7 @@
 #0382	   D F    K   O 	1422	[0x14] -> [0x11]	
 #0383	 BCDEF        O 	7c02	?	
 #0384	A C  F HIJKLMN  	a5fc	call J11, unconditional	
-#0385	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0385	   D       L N  	1014	[0x10] -> [0xa]	
 #0386	      G IJKLM   	02f8	?load constant [5]?	
 #0387	    EF      MN  	0c0c	[0xc] -> zero	
 #0388	 B  E           	4800	?	
@@ -391,8 +391,8 @@
 #0390	 B D        M O 	500a	?	
 #0391	   DEFG     MN  	1e0c	[0x1e] -> zero	
 #0392	 B D            	5000	?	
-#0393	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#0394	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0393	   D          O 	1002	[0x10] -> [0x1]	
+#0394	   D       L    	1010	[0x10] -> [0x8]	
 #0395	ABC      JKLMN  	e07c	--------------return--------------	
 #0396	AB     HIJ  M O 	c1ca	+jmp->#0400 cond=0x4a	-------J15-------
 #0397	    EFG   K MN  	0e2c	[0xe] -> [0x16]	
@@ -420,13 +420,13 @@
 #0419	 B D  G  J  M O 	524a	?	
 #0420	 B D  G  J   N  	5244	?	
 #0421	ABC  F          	e400	?	
-#0422	   D FG   K     	1620	[0x16] -> ?tmpA.mantissa?	
+#0422	   D FG   K     	1620	[0x16] -> [0x10]	
 #0423	AB     HIJK  NO 	c1e6	+jmp->#0427 cond=0x66	
 #0424	  CD   H JKL  O 	3172	?	
 #0425	   D F    K   O 	1422	[0x14] -> [0x11]	
 #0426	 BCDEF        O 	7c02	?	
 #0427	A C  F HI  L   P	a591	call J11, cond=0x11	
-#0428	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0428	   D       L N  	1014	[0x10] -> [0xa]	
 #0429	      G IJKLM   	02f8	?load constant [5]?	
 #0430	    EF      MN  	0c0c	[0xc] -> zero	
 #0431	 B  E       M   	4808	?	
@@ -434,8 +434,8 @@
 #0433	 B D            	5000	?	
 #0434	   DEFG     MN  	1e0c	[0x1e] -> zero	
 #0435	 B D            	5000	?	
-#0436	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#0437	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0436	   D          O 	1002	[0x10] -> [0x1]	
+#0437	   D       L    	1010	[0x10] -> [0x8]	
 #0438	ABC      JKLMN  	e07c	--------------return--------------	
 #0439	 BCDEF        O 	7c02	?	-------J8-------
 #0440	A    F H     NOP	8507	farjump J10, cond=0x07	
@@ -443,44 +443,44 @@
 #0442	AB   F  IJ    O 	c4c2	+jmp->#0452 cond=0x42	
 #0443	AB   F H J     P	c541	+jmp->#0454 cond=0x41	
 #0444	AB     H J L    	c150	+jmp->#0447 cond=0x50	
-#0445	     FG   K     	0620	zero -> ?tmpA.mantissa?	
+#0445	     FG   K     	0620	zero -> [0x10]	
 #0446	A    F  IJKLMN  	84fc	farjump J9, unconditional	
 #0447	     FG   K    P	0621	?	
 #0448	A    F  I   M  P	8489	farjump J9, cond=0x09	
 #0449	  CD    I K     	30a0	?	
-#0450	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0450	   D F H  K     	1520	[0x15] -> [0x10]	
 #0451	A    F  IJKLMN  	84fc	farjump J9, unconditional	
-#0452	    E     K     	0820	[0x8] -> ?tmpA.mantissa?	
+#0452	    E     K     	0820	[0x8] -> [0x10]	
 #0453	AB   F  I KLMN P	c4bd	+jmp->#0463 cond=0x3d	
 #0454	    E G   K  NO 	0a26	[0xa] -> [0x13]	
 #0455	A C  F HIJKLMN  	a5fc	call J11, unconditional	
-#0456	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0456	   D       L N  	1014	[0x10] -> [0xa]	
 #0457	   DEFG     MN  	1e0c	[0x1e] -> zero	
 #0458	 B  E           	4800	?	
-#0459	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
+#0459	   D          O 	1002	[0x10] -> [0x1]	
 #0460	       H  K MNO 	012e	[0x1] -> [0x17]	
-#0461	AB  E G IJ L NOP	cad7	?	
-#0462	AB  E G I KL   P	cab1	?	
+#0461	AB  E G IJ L NOP	cad7	+jmp->#0483 cond=0x57	
+#0462	AB  E G I KL   P	cab1	+jmp->#0484 cond=0x31	
 #0463	  C E G        P	2a01	?	
 #0464	   D F     L N  	1414	[0x14] -> [0xa]	
 #0465	AB   F      M  P	c409	+jmp->#0474 cond=0x09	
 #0466	  C E G I K M  P	2aa9	?	
-#0467	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0467	   D F H  K     	1520	[0x15] -> [0x10]	
 #0468	  CD FGH     NOP	3707	?	
 #0469	   D F     L    	1410	[0x14] -> [0x8]	
 #0470	    E  H  K MNO 	092e	[0x9] -> [0x17]	
 #0471	  CD FGH   L    	3710	?	
-#0472	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0472	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0473	A    F  IJKLMN  	84fc	farjump J9, unconditional	
 #0474	  C E G I   MN  	2a8c	?	
-#0475	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0475	   D F H  K     	1520	[0x15] -> [0x10]	
 #0476	  CD FGH     N  	3704	?	
 #0477	   D F     L    	1410	[0x14] -> [0x8]	
 #0478	    E  H  K MNO 	092e	[0x9] -> [0x17]	
 #0479	  CD FGH  KL    	3730	?	
-#0480	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0480	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0481	A    F  IJKLMN  	84fc	farjump J9, unconditional	
-#0482	AB D FG  JKLMN  	d67c	?	
+#0482	AB D FG  JKLMN  	d67c	-jmp->#0463 unconditional	
 #0483	AB   FGHIJKLMN  	c7fc	+jmp->#0499 unconditional	
 #0484	ABC  F        O 	e402	?	
 #0485	AB   FG I KLMNOP	c6bf	+jmp->#0499 cond=0x3f	
@@ -489,39 +489,39 @@
 #0488	   DEFGH   L    	1f10	QNaN -> [0x8]	
 #0489	    E     K MNO 	082e	[0x8] -> [0x17]	
 #0490	     FG    L N  	0614	zero -> [0xa]	
-#0491	AB D  G IJ LM OP	d2db	?	
+#0491	AB D  G IJ LM OP	d2db	-jmp->#0465 cond=0x5b	
 #0492	   DE GH    MN  	1b0c	[0x1b] -> zero	
 #0493	 B  E       M O 	480a	?	
-#0494	   D      K MNO 	102e	?tmpA.mantissa? -> [0x17]	
+#0494	   D      K MNO 	102e	[0x10] -> [0x17]	
 #0495	 B   FG     M O 	460a	?	
-#0496	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
-#0497	AB DE    JKLMN  	d87c	-jmp->#0498 unconditional	
+#0496	   D       L N  	1014	[0x10] -> [0xa]	
+#0497	AB DE    JKLMN  	d87c	-jmp->#0482 unconditional	
 #0498	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0499	       H JKLM   	0178	?load constant [2]?	
-#0500	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#0500	   D        MN  	100c	[0x10] -> zero	
 #0501	     F H  K MNO 	052e	?constant? -> [0x17]	
 #0502	 B D FGH    M O 	570a	?	
 #0503	AB   F  IJ L NOP	c4d7	+jmp->#0513 cond=0x57	
-#0504	AB DEF  IJ LMN  	dcdc	-jmp->#0496 cond=0x5c	
+#0504	AB DEF  IJ LMN  	dcdc	-jmp->#0498 cond=0x5c	
 #0505	A C E G  JKLMN  	aa7c	call J20, unconditional	
 #0506	 B   FG    L    	4610	?	
 #0507	A C  F HIJKLMN  	a5fc	call J11, unconditional	
-#0508	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0508	   D       L N  	1014	[0x10] -> [0xa]	
 #0509	   DE GH  K MNO 	1b2e	[0x1b] -> [0x17]	
-#0510	AB D   HIJK  NO 	d1e6	?	
+#0510	AB D   HIJK  NO 	d1e6	-jmp->#0482 cond=0x66	
 #0511	     FG   K MNO 	062e	zero -> [0x17]	
-#0512	AB D    IJKLMN  	d0fc	?	
+#0512	AB D    IJKLMN  	d0fc	-jmp->#0482 unconditional	
 #0513	AB    G IJK     	c2e0	+jmp->#0519 cond=0x60	
 #0514	ABCD          O 	f002	exception: invalid	
-#0515	AB D FGH J LMN  	d75c	?	
+#0515	AB D FGH J LMN  	d75c	-jmp->#0498 cond=0x5c	
 #0516	   DEFGH   L NO 	1f16	QNaN -> tmpA	
 #0517	    E     K MNO 	082e	[0x8] -> [0x17]	
-#0518	AB DEF  IJKLMN  	dcfc	-jmp->#0510 unconditional	
+#0518	AB DEF  IJKLMN  	dcfc	-jmp->#0512 unconditional	
 #0519	ABC  F        O 	e402	?	
-#0520	AB D FGHIJKLMN  	d7fc	?	
+#0520	AB D FGHIJKLMN  	d7fc	-jmp->#0504 unconditional	
 #0521	ABCDEFGHIJKLM   	fff8	nop	
-#0522	   D          O 	1002	?tmpA.mantissa? -> [0x1]	-------J20-------
-#0523	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#0522	   D          O 	1002	[0x10] -> [0x1]	-------J20-------
+#0523	   D            	1000	[0x10] -> [0x0]	
 #0524	AB     HI KL N  	c1b4	+jmp->#0528 cond=0x34	
 #0525	     FG     MN  	060c	zero -> zero	
 #0526	  C E G         	2a00	?	
@@ -535,17 +535,17 @@
 #0534	AB   FGHIJ    O 	c7c2	+jmp->#0550 cond=0x42	-------J10-------
 #0535	         JKLM   	0078	?load constant [0]?	
 #0536	AB     H J     P	c141	+jmp->#0539 cond=0x41	
-#0537	     FG   K     	0620	zero -> ?tmpA.mantissa?	
+#0537	     FG   K     	0620	zero -> [0x10]	
 #0538	A    F  IJKLMN  	84fc	farjump J9, unconditional	
 #0539	AB   F H J L NOP	c557	+jmp->#0550 cond=0x57	
-#0540	     F H  K     	0520	?constant? -> ?tmpA.mantissa?	
+#0540	     F H  K     	0520	?constant? -> [0x10]	
 #0541	    E       MN  	080c	[0x8] -> zero	
 #0542	 B D        M O 	500a	?	
 #0543	      GH JKLM   	0378	?load constant [6]?	
 #0544	AB    G IJK    P	c2e1	+jmp->#0550 cond=0x61	
 #0545	AB   FGHI KLMN P	c7bd	+jmp->#0561 cond=0x3d	
 #0546	  C E G        P	2a01	?	
-#0547	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
+#0547	   D F    K     	1420	[0x14] -> [0x10]	
 #0548	AB      I KLMN P	c0bd	+jmp->#0550 cond=0x3d	
 #0549	AB     HIJ L    	c1d0	+jmp->#0553 cond=0x50	
 #0550	ABCD          O 	f002	exception: invalid	
@@ -557,48 +557,48 @@
 #0556	  CD    I K     	30a0	?	
 #0557	AB      IJKLMN  	c0fc	+jmp->#0559 unconditional	
 #0558	  CD    I KL    	30b0	?	
-#0559	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0559	   D F H  K     	1520	[0x15] -> [0x10]	
 #0560	A    F  IJKLMN  	84fc	farjump J9, unconditional	
-#0561	     F H  K     	0520	?constant? -> ?tmpA.mantissa?	
+#0561	     F H  K     	0520	?constant? -> [0x10]	
 #0562	 B D        M O 	500a	?	
-#0563	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#0563	   D            	1000	[0x10] -> [0x0]	
 #0564	     F HIJKLM   	05f8	?load constant [11]?	
-#0565	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#0566	     F H  K     	0520	?constant? -> ?tmpA.mantissa?	
+#0565	   D          O 	1002	[0x10] -> [0x1]	
+#0566	     F H  K     	0520	?constant? -> [0x10]	
 #0567	 B D        M O 	500a	?	
 #0568	AB   FG IJK    P	c6e1	+jmp->#0582 cond=0x61	
-#0569	     FG   K     	0620	zero -> ?tmpA.mantissa?	
+#0569	     FG   K     	0620	zero -> [0x10]	
 #0570	  C E G         	2a00	?	
 #0571	AB   FGH JKLMN  	c77c	+jmp->#0586 unconditional	
-#0572	AB D F   JK  NO 	d466	?	
+#0572	AB D F   JK  NO 	d466	-jmp->#0549 cond=0x66	
 #0573	AB    G  JKLMN  	c27c	+jmp->#0578 unconditional	
 #0574	  CD      K    P	3021	?	
 #0575	   D F    K  N  	1424	[0x14] -> [0x12]	
-#0576	AB D  G  JK  N  	d264	?	
-#0577	    E G   K     	0a20	[0xa] -> ?tmpA.mantissa?	
+#0576	AB D  G  JK  N  	d264	-jmp->#0549 cond=0x64	
+#0577	    E G   K     	0a20	[0xa] -> [0x10]	
 #0578	AB     H J L   P	c151	+jmp->#0581 cond=0x51	
-#0579	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#0579	   D        MN  	100c	[0x10] -> zero	
 #0580	 B   FG     M O 	460a	?	
 #0581	A    F  IJKLMN  	84fc	farjump J9, unconditional	
 #0582	  C E G IJK MN  	2aec	?	
-#0583	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0583	   D F H  K     	1520	[0x15] -> [0x10]	
 #0584	  C E G  JK   O 	2a62	?	
 #0585	ABCDEFGHIJKLM   	fff8	nop	
 #0586	 BC E        N  	6804	?	
 #0587	ABCDEFGHIJKLM   	fff8	nop	
-#0588	AB DE G I KLM OP	dabb	-jmp->#0584 cond=0x3b	
+#0588	AB DE G I KLM OP	dabb	-jmp->#0578 cond=0x3b	
 #0589	 B D         NO 	5006	?increment tmpA exponent?	
-#0590	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
-#0591	AB D FGH    M   	d708	?	
-#0592	AB D F HI  LMN P	d59d	?	
+#0590	   D       L N  	1014	[0x10] -> [0xa]	
+#0591	AB D FGH    M   	d708	-jmp->#0574 cond=0x08	
+#0592	AB D F HI  LMN P	d59d	-jmp->#0572 cond=0x1d	
 #0593	  CD      KL   P	3031	?	
-#0594	AB D FG  JKLMN  	d67c	?	
+#0594	AB D FG  JKLMN  	d67c	-jmp->#0575 unconditional	
 #0595	ABCDEFGHIJKLM   	fff8	nop	
 #0596	ABCDEFGHIJKLM   	fff8	nop	
 #0597	     F HIJKLM   	05f8	?load constant [11]?	-------FSTP-------
 #0598	      G    L NO 	0216	st(0) -> tmpA	
 #0599	AB     H J     P	c141	+jmp->#0602 cond=0x41	
-#0600	     FG   K     	0620	zero -> ?tmpA.mantissa?	
+#0600	     FG   K     	0620	zero -> [0x10]	
 #0601	A    F  IJKLMN  	84fc	farjump J9, unconditional	
 #0602	AB   FG IJ   NO 	c6c6	+jmp->#0616 cond=stack overflow	
 #0603	AB   FG  J L NOP	c657	+jmp->#0616 cond=0x57	
@@ -618,9 +618,9 @@
 #0617	   DEFGH   L  O 	1f12	QNaN -> [0x9]	
 #0618	A    F  IJ LMN P	84dd	farjump J9, cond=0x5d	
 #0619	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#0620	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#0620	   D        MN  	100c	[0x10] -> zero	
 #0621	 B   FG     M   	4608	?	
-#0622	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#0622	   D            	1000	[0x10] -> [0x0]	
 #0623	  C E G IJK MN  	2aec	?	
 #0624	     FGHIJK M O 	07ea	?	
 #0625	   D F H   LMN  	151c	[0x15] -> [0xe]	
@@ -640,8 +640,8 @@
 #0639	   D F      MN  	140c	[0x14] -> zero	
 #0640	  CD  G I KLMN P	32bd	?	
 #0641	 B D F H        	5500	?	
-#0642	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
-#0643	     FG   K     	0620	zero -> ?tmpA.mantissa?	
+#0642	   D       L    	1010	[0x10] -> [0x8]	
+#0643	     FG   K     	0620	zero -> [0x10]	
 #0644	  CD         N  	3004	?	
 #0645	   D F     L N  	1414	[0x14] -> [0xa]	
 #0646	  C EFG I     O 	2e82	?	
@@ -652,15 +652,15 @@
 #0651	  CD  G I KLMN P	32bd	?	
 #0652	   D F H    MN  	150c	[0x15] -> zero	
 #0653	 B  E G         	4a00	?	
-#0654	AB DE G IJKL   P	daf1	-jmp->#0650 cond=0x71	
+#0654	AB DE G IJKL   P	daf1	-jmp->#0644 cond=0x71	
 #0655	AB     H    MN P	c10d	+jmp->#0658 cond=!(pop_at_end)	-------J9-------
 #0656	 BC   GH J      	6340	set st(0) empty?	
 #0657	 BCDE           	7800	stack pop	
 #0658	  CD    I  L    	3090	?	
 #0659	   D F H   L N  	1514	[0x15] -> [0xa]	
 #0660	  CD    I K     	30a0	?	
-#0661	A C  F  IJKLMN P	a4fd	call J9, ?never?	
-#0662	   D        M   	1008	?tmpA.mantissa? -> [0x4]	
+#0661	A C  F  IJKLMN P	a4fd	call J9, cond=!(unconditional)=?never?	
+#0662	   D        M   	1008	[0x10] -> [0x4]	
 #0663	AB    GHI  LMN  	c39c	+jmp->#0671 cond=0x1c	
 #0664	    E G     M   	0a08	[0xa] -> [0x4]	
 #0665	AB    G I   M   	c288	+jmp->#0671 cond=0x08	
@@ -675,24 +675,24 @@
 #0674	ABCDEFGHIJKLM   	fff8	nop	
 #0675	      GHIJK M O 	03ea	?	
 #0676	ABCD F      M   	f408	?	
-#0677	     F    K     	0420	[0x4] -> ?tmpA.mantissa?	
+#0677	     F    K     	0420	[0x4] -> [0x10]	
 #0678	      G    L NO 	0216	st(0) -> tmpA	
 #0679	  C  F     L    	2410	?	
-#0680	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0680	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0681	  C  F    K     	2420	?	
-#0682	   DEF    K     	1c20	[0x1c] -> ?tmpA.mantissa?	
+#0682	   DEF    K     	1c20	[0x1c] -> [0x10]	
 #0683	AB    GHIJKL    	c3f0	+jmp->#0691 cond=0x70	
 #0684	  C  F    KL    	2430	?	
 #0685	   DEF     L N  	1c14	[0x1c] -> [0xa]	
 #0686	     F     L  O 	0412	[0x4] -> [0x9]	
 #0687	    E GH     N  	0b04	tmpA -> st(0)	
 #0688	 BCDE           	7800	stack pop	
-#0689	AB DE  HIJKL N P	d9f5	-jmp->#0687 cond=0x75	
+#0689	AB DE  HIJKL N P	d9f5	-jmp->#0677 cond=0x75	
 #0690	ABCDEFG IJKLMNO 	fefe	?	
 #0691	  C  F    KL    	2430	?	
 #0692	ABCD F      MNO 	f40e	?	
 #0693	ABCD        M   	f008	exception: precision	
-#0694	AB DE GH JKLMN  	db7c	-jmp->#0689 unconditional	
+#0694	AB DE GH JKLMN  	db7c	-jmp->#0685 unconditional	
 #0695	      GHIJK M O 	03ea	?	
 #0696	ABCDEFGHIJKLM   	fff8	nop	
 #0697	      G    L NO 	0216	st(0) -> tmpA	
@@ -705,19 +705,19 @@
 #0704	   D F H    M   	1508	[0x15] -> [0x4]	
 #0705	 BCDE           	7800	stack pop	
 #0706	    E  H    M   	0908	[0x9] -> [0x4]	
-#0707	AB DE G IJKL   P	daf1	-jmp->#0703 cond=0x71	
+#0707	AB DE G IJKL   P	daf1	-jmp->#0697 cond=0x71	
 #0708	ABCDEFG IJKLMNO 	fefe	?	
 #0709	ABCDEFGHIJKLM   	fff8	nop	
 #0710	      G    L NO 	0216	st(0) -> tmpA	-------FRNDINT-------
 #0711	AB   F   J   NOP	c447	+jmp->#0720 cond=0x47	
 #0712	A C  FG  J    O 	a642	call J12, cond=0x42	
 #0713	AB    GH J   NOP	c347	+jmp->#0720 cond=0x47	
-#0714	AB  E GH JKL N  	cb74	?	
+#0714	AB  E GH JKL N  	cb74	+jmp->#0737 cond=0x74	
 #0715	AB      IJ    O 	c0c2	+jmp->#0717 cond=0x42	
 #0716	   DEFGH   L NO 	1f16	QNaN -> tmpA	
 #0717	ABCD          O 	f002	exception: invalid	
-#0718	AB  E  H J LMN  	c95c	?	
-#0719	AB  E    JKLMN  	c87c	?	
+#0718	AB  E  H J LMN  	c95c	+jmp->#0737 cond=0x5c	
+#0719	AB  E    JKLMN  	c87c	+jmp->#0736 unconditional	
 #0720	      GH JKLM   	0378	?load constant [6]?	
 #0721	A C E  H J L NOP	a957	call J18, cond=0x57	
 #0722	     F H  K MNO 	052e	?constant? -> [0x17]	
@@ -739,19 +739,19 @@
 #0738	  CD  G  JK MN  	326c	?	
 #0739	   D F    K  N  	1424	[0x14] -> [0x12]	
 #0740	   D F     L N  	1414	[0x14] -> [0xa]	
-#0741	AB DEF H JK  N P	dd65	-jmp->#0732 cond=0x65	
+#0741	AB DEF H JK  N P	dd65	-jmp->#0736 cond=0x65	
 #0742	 B  E        NO 	4806	?	
-#0743	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0743	   D       L    	1010	[0x10] -> [0x8]	
 #0744	     FG    L N P	0615	?	
-#0745	AB DE GH JKLMN  	db7c	-jmp->#0740 unconditional	
+#0745	AB DE GH JKLMN  	db7c	-jmp->#0736 unconditional	
 #0746	     F H   L    	0510	?constant? -> [0x8]	
-#0747	AB DEFG  JKLMN  	de7c	-jmp->#0736 unconditional	
+#0747	AB DEFG  JKLMN  	de7c	-jmp->#0744 unconditional	
 #0748	      G    L NO 	0216	st(0) -> tmpA	-------FSCALE-------
-#0749	AB  EF H J      	cd40	?	
+#0749	AB  EF H J      	cd40	+jmp->#0776 cond=0x40	
 #0750	 BCDE           	7800	stack pop	
 #0751	      G    LMNO 	021e	st(0) -> tmpB	
 #0752	 BCDE         O 	7802	stack push	
-#0753	AB  E GH J  M   	cb48	?	
+#0753	AB  E GH J  M   	cb48	+jmp->#0776 cond=0x48	
 #0754	      GH JKLM   	0378	?load constant [6]?	
 #0755	AB    GHIJ   NOP	c3c7	+jmp->#0763 cond=0x47	
 #0756	A C   G IJKLMN  	a2fc	call J5, unconditional	
@@ -765,20 +765,20 @@
 #0764	    EF H      O 	0d02	[0xd] -> [0x1]	
 #0765	     F H  K MNO 	052e	?constant? -> [0x17]	
 #0766	 B D FGH    M O 	570a	?	
-#0767	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#0767	   D            	1000	[0x10] -> [0x0]	
 #0768	  C EFG IJK MN  	2eec	?	
 #0769	   D F H    MN  	150c	[0x15] -> zero	
 #0770	AB    GH  KLMNO 	c33e	+jmp->#0777 cond=0x3e	
 #0771	 B  E           	4800	?	
-#0772	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#0773	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0772	   D          O 	1002	[0x10] -> [0x1]	
+#0773	   D       L    	1010	[0x10] -> [0x8]	
 #0774	A C E     KL   P	a831	call J16, cond=0x31	
 #0775	    E GH     N  	0b04	tmpA -> st(0)	
 #0776	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0777	 B  E       M O 	480a	?	
-#0778	AB DEF  IJKLMN  	dcfc	-jmp->#0770 unconditional	
-#0779	AB  E  HIJ    O 	c9c2	?	-------J18-------
-#0780	    E G   K     	0a20	[0xa] -> ?tmpA.mantissa?	
+#0778	AB DEF  IJKLMN  	dcfc	-jmp->#0772 unconditional	
+#0779	AB  E  HIJ    O 	c9c2	+jmp->#0799 cond=0x42	-------J18-------
+#0780	    E G   K     	0a20	[0xa] -> [0x10]	
 #0781	AB     HI KLMN P	c1bd	+jmp->#0785 cond=0x3d	
 #0782	     FG    L    	0610	zero -> [0x8]	
 #0783	 BC    H J   N  	6144	?	
@@ -789,12 +789,12 @@
 #0788	 B  E       M   	4808	?	
 #0789	AB    G IJK     	c2e0	+jmp->#0795 cond=0x60	
 #0790	 B D            	5000	?	
-#0791	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#0791	   D            	1000	[0x10] -> [0x0]	
 #0792	  C E G  JK MN  	2a6c	?	
 #0793	   DE GH   L    	1b10	[0x1b] -> [0x8]	
 #0794	AB     H JKLMN  	c17c	+jmp->#0797 unconditional	
 #0795	 B D         NO 	5006	?increment tmpA exponent?	
-#0796	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0796	   D       L    	1010	[0x10] -> [0x8]	
 #0797	   D F     L N  	1414	[0x14] -> [0xa]	
 #0798	ABC      JKLMN  	e07c	--------------return--------------	
 #0799	     FG    L N P	0615	?	
@@ -818,10 +818,10 @@
 #0817	AB    G IJKL N  	c2f4	+jmp->#0823 cond=0x74	
 #0818	AB    G IJ LM   	c2d8	+jmp->#0824 cond=0x58	
 #0819	AB      IJ    OP	c0c3	+jmp->#0821 cond=0x43	
-#0820	AB  E GH J  M O 	cb4a	?	
+#0820	AB  E GH J  M O 	cb4a	+jmp->#0843 cond=0x4a	
 #0821	ABCD          O 	f002	exception: invalid	
-#0822	AB  EF H JKLMN  	cd7c	?	
-#0823	AB  EF  I KL  O 	ccb2	?	
+#0822	AB  EF H JKLMN  	cd7c	+jmp->#0849 unconditional	
+#0823	AB  EF  I KL  O 	ccb2	+jmp->#0849 cond=0x32	
 #0824	A C E  H J L NOP	a957	call J18, cond=0x57	
 #0825	ABC EF          	ec00	?	
 #0826	A C E  H J L NOP	a957	call J18, cond=0x57	
@@ -871,7 +871,7 @@
 #0870	 B  E      LM O 	481a	?	
 #0871	 BC     IJ  M   	60c8	?	
 #0872	AB     HIJK     	c1e0	+jmp->#0876 cond=0x60	
-#0873	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#0873	   D        MN  	100c	[0x10] -> zero	
 #0874	 B   FG     M O 	460a	?	
 #0875	 BC    HIJ  M   	61c8	?	
 #0876	AB   F    KLMN  	c43c	+jmp->#0885 cond=0x3c	
@@ -881,7 +881,7 @@
 #0880	      GH JKLM   	0378	?load constant [6]?	
 #0881	     F H   LM   	0518	?constant? -> [0xc]	
 #0882	 B  EF      M O 	4c0a	?	
-#0883	   D       LM   	1018	?tmpA.mantissa? -> [0xc]	
+#0883	   D       LM   	1018	[0x10] -> [0xc]	
 #0884	ABC      JKLMN  	e07c	--------------return--------------	
 #0885	     FG    LMNO 	061e	zero -> tmpB	
 #0886	ABC      JKLMN  	e07c	--------------return--------------	
@@ -891,7 +891,7 @@
 #0890	   DEFGH     N  	1f04	QNaN -> st(0)	
 #0891	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0892	      G    L NO 	0216	st(0) -> tmpA	-------FCHS,FABS-------
-#0893	AB DEF  IJ   N  	dcc4	-jmp->#0885 cond?=tmpa bad?	
+#0893	AB DEF  IJ   N  	dcc4	-jmp->#0887 cond?=tmpa bad?	
 #0894	 BC     I    N  	6084	?store tmpA sign?	
 #0895	 BC     IJ      	60c0	?clear tmpA sign?	
 #0896	AB      I  L N  	c094	+jmp->#0898 cond=MODRM&1	
@@ -900,13 +900,13 @@
 #0899	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0900	      G    L NO 	0216	st(0) -> tmpA	-------F2XM1-------
 #0901	      GHIJKLM   	03f8	?load constant [7]?	
-#0902	AB  E G  J      	ca40	?	
+#0902	AB  E G  J      	ca40	+jmp->#0923 cond=0x40	
 #0903	     F H    MN  	050c	?constant? -> zero	
 #0904	 B  E       M O 	480a	?	
 #0905	ABCD         N  	f004	exception: overflow	
 #0906	    E G   K MNO 	0a2e	[0xa] -> [0x17]	
 #0907	AB    G  JK    P	c261	+jmp->#0912 cond=0x61	
-#0908	   D      K M O 	102a	?tmpA.mantissa? -> [0x15]	
+#0908	   D      K M O 	102a	[0x10] -> [0x15]	
 #0909	AB   FGH  KLMN P	c73d	+jmp->#0924 cond=0x3d	
 #0910	ABCD        M   	f008	exception: precision	
 #0911	AB   FG  JKLMN  	c67c	+jmp->#0924 unconditional	
@@ -914,9 +914,9 @@
 #0913	    E       MN  	080c	[0x8] -> zero	
 #0914	     F H   LM O 	051a	?constant? -> [0xd]	
 #0915	 B  EF      M O 	4c0a	?	
-#0916	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#0917	   D            	1000	?tmpA.mantissa? -> [0x0]	
-#0918	AB  EFGHI KL N  	cfb4	?	
+#0916	   D          O 	1002	[0x10] -> [0x1]	
+#0917	   D            	1000	[0x10] -> [0x0]	
+#0918	AB  EFGHI KL N  	cfb4	+jmp->#0950 cond=0x34	
 #0919	   DE G    LMN  	1a1c	[0x1a] -> [0xe]	
 #0920	A C    HIJKLMN  	a1fc	call J3, unconditional	
 #0921	A C E     KL   P	a831	call J16, cond=0x31	
@@ -958,7 +958,7 @@
 #0957	ABCD F      M O 	f40a	?	
 #0958	A C  FGHIJKLMN  	a7fc	call J15, unconditional	
 #0959	  CD    I     O 	3082	?	
-#0960	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#0960	   D F H  K     	1520	[0x15] -> [0x10]	
 #0961	  CD    IJK MN  	30ec	?	
 #0962	   D F H    MNO 	150e	[0x15] -> [0x7]	
 #0963	 B D FGH   LM O 	571a	?	
@@ -981,7 +981,7 @@
 #0980	  CD  GHI      P	3381	?	
 #0981	AB     H JK M   	c168	+jmp->#0984 cond=0x68	
 #0982	   D F H  K   O 	1522	[0x15] -> [0x11]	
-#0983	AB DE GHIJKL   P	dbf1	-jmp->#0977 cond=0x71	
+#0983	AB DE GHIJKL   P	dbf1	-jmp->#0975 cond=0x71	
 #0984	AB     HIJK  NO 	c1e6	+jmp->#0988 cond=0x66	
 #0985	  CD   H       P	3101	?	
 #0986	   D F    K   O 	1422	[0x14] -> [0x11]	
@@ -993,25 +993,25 @@
 #0992	  CD  GHI      P	3381	?	
 #0993	   D F H  K   O 	1522	[0x15] -> [0x11]	
 #0994	 BCDEF        O 	7c02	?	
-#0995	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#0995	   D       L N  	1014	[0x10] -> [0xa]	
 #0996	   DEFG     MN  	1e0c	[0x1e] -> zero	
 #0997	 B  E       M O 	480a	?	
 #0998	 B D         NO 	5006	?increment tmpA exponent?	
-#0999	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#0999	   D       L    	1010	[0x10] -> [0x8]	
 #1000	    E GH     N  	0b04	tmpA -> st(0)	
 #1001	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1002	ABCDEFGHIJKLM   	fff8	nop	
 #1003	      G IJKLM   	02f8	?load constant [5]?	-------FLD1,FLDL2T,FLD2E,FLDPI-------
-#1004	     F H  K     	0520	?constant? -> ?tmpA.mantissa?	
+#1004	     F H  K     	0520	?constant? -> [0x10]	
 #1005	AB      I  L N P	c095	+jmp->#1007 cond=!(MODRM&1)	
 #1006	 B D         NO 	5006	?increment tmpA exponent?	
 #1007	AB    G IJKLMN  	c2fc	+jmp->#1013 unconditional	
 #1008	     F HIJKLM   	05f8	?load constant [11]?	-------FLDLG2,FLDLN2-------
 #1009	     FG     MN  	060c	zero -> zero	
-#1010	     F H  K     	0520	?constant? -> ?tmpA.mantissa?	
+#1010	     F H  K     	0520	?constant? -> [0x10]	
 #1011	AB      I  L N  	c094	+jmp->#1013 cond=MODRM&1	
 #1012	 B D        M   	5008	?decrement tmpA exponent?	
-#1013	   D       L  O 	1012	?tmpA.mantissa? -> [0x9]	
+#1013	   D       L  O 	1012	[0x10] -> [0x9]	
 #1014	   DE G    L N  	1a14	[0x1a] -> [0xa]	
 #1015	 BCDE         O 	7802	stack push	
 #1016	 BC         M O 	600a	set st(0) valid?	
@@ -1019,7 +1019,7 @@
 #1018	    E GH     N  	0b04	tmpA -> st(0)	
 #1019	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1020	     FG    L NO 	0616	zero -> tmpA	-------FLDZ-------
-#1021	AB DEF  IJKLMN  	dcfc	-jmp->#1013 unconditional	
+#1021	AB DEF  IJKLMN  	dcfc	-jmp->#1015 unconditional	
 #1022	ABCD          O 	f002	exception: invalid	
 #1023	AB     H J LMN  	c15c	+jmp->#1026 cond=0x5c	
 #1024	   DEFGH     N  	1f04	QNaN -> st(0)	
@@ -1029,7 +1029,7 @@
 #1028	      G    L NO 	0216	st(0) -> tmpA	-------FEXTRACT-------
 #1029	 BCDE         O 	7802	stack push	
 #1030	 BC         M O 	600a	set st(0) valid?	
-#1031	AB DE GH J   NO 	db46	-jmp->#1026 cond=stack overflow	
+#1031	AB DE GH J   NO 	db46	-jmp->#1022 cond=stack overflow	
 #1032	    E GH   LMNO 	0b1e	tmpA -> tmpB	
 #1033	A C E  HIJ     P	a9c1	call J19, cond=0x41	
 #1034	    E GH     N  	0b04	tmpA -> st(0)	
@@ -1040,7 +1040,7 @@
 #1039	      G    L NO 	0216	st(0) -> tmpA	-------FPTAN-------
 #1040	 BCDE         O 	7802	stack push	
 #1041	 BC         M O 	600a	set st(0) valid?	
-#1042	AB D F HIJ   NO 	d5c6	?	
+#1042	AB D F HIJ   NO 	d5c6	-jmp->#1022 cond=stack overflow	
 #1043	AB      IJ      	c0c0	+jmp->#1045 cond=0x40	
 #1044	ABCD         N  	f004	exception: overflow	
 #1045	      GHIJKLM   	03f8	?load constant [7]?	
@@ -1052,15 +1052,15 @@
 #1051	    E       MN  	080c	[0x8] -> zero	
 #1052	     F H   LMN  	051c	?constant? -> [0xe]	
 #1053	 B  EFG     M O 	4e0a	?	
-#1054	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#1055	   D            	1000	?tmpA.mantissa? -> [0x0]	
-#1056	AB  EF  I KL N  	ccb4	?	
+#1054	   D          O 	1002	[0x10] -> [0x1]	
+#1055	   D            	1000	[0x10] -> [0x0]	
+#1056	AB  EF  I KL N  	ccb4	+jmp->#1082 cond=0x34	
 #1057	     FG    LMN P	061d	?	
 #1058	     F H   LM O 	051a	?constant? -> [0xd]	
 #1059	    EFGH     N  	0f04	tmpB -> st(0)	
 #1060	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1061	       HIJKLM   	01f8	?load constant [3]?	
-#1062	   D      K M O 	102a	?tmpA.mantissa? -> [0x15]	
+#1062	   D      K M O 	102a	[0x10] -> [0x15]	
 #1063	    E G   K MNO 	0a2e	[0xa] -> [0x17]	
 #1064	   DE       MNO 	180e	[0x18] -> [0x7]	
 #1065	 B D FGH   LM O 	571a	?	
@@ -1068,7 +1068,7 @@
 #1067	AB   F HIJK    P	c5e1	+jmp->#1079 cond=0x61	
 #1068	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1069	 B  E        NO 	4806	?	
-#1070	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1070	   D       L    	1010	[0x10] -> [0x8]	
 #1071	AB    GHIJKLMN  	c3fc	+jmp->#1079 unconditional	
 #1072	  CD FGH       P	3701	?	
 #1073	   D F    K MNO 	142e	[0x14] -> [0x17]	
@@ -1084,12 +1084,12 @@
 #1083	    E G     MN  	0a0c	[0xa] -> zero	
 #1084	A C  FGHIJKLMN  	a7fc	call J15, unconditional	
 #1085	  CD    IJK MN  	30ec	?	
-#1086	   D F H  K     	1520	[0x15] -> ?tmpA.mantissa?	
+#1086	   D F H  K     	1520	[0x15] -> [0x10]	
 #1087	  CD    IJK MN  	30ec	?	
 #1088	   D F H    MN  	150c	[0x15] -> zero	
 #1089	   DEFGH   LMN  	1f1c	QNaN -> [0xe]	
 #1090	 B  EFG     M   	4e08	?	
-#1091	   D       LMN  	101c	?tmpA.mantissa? -> [0xe]	
+#1091	   D       LMN  	101c	[0x10] -> [0xe]	
 #1092	  C E G I      P	2a81	?	
 #1093	   D F H    MNO 	150e	[0x15] -> [0x7]	
 #1094	 B  E G    L    	4a10	?	
@@ -1097,7 +1097,7 @@
 #1096	      GHIJKLM   	03f8	?load constant [7]?	
 #1097	     F H    MN  	050c	?constant? -> zero	
 #1098	 B  E       M O 	480a	?	
-#1099	AB  E  H JK    P	c961	?	
+#1099	AB  E  H JK    P	c961	+jmp->#1118 cond=0x61	
 #1100	  CD FGHI      P	3781	?	
 #1101	     FGHIJK M O 	07ea	?	
 #1102	   D F H  K MNO 	152e	[0x15] -> [0x17]	
@@ -1115,9 +1115,9 @@
 #1114	  CD FGHI      P	3781	?	
 #1115	AB     H JK M   	c168	+jmp->#1118 cond=0x68	
 #1116	   D F H  K MNO 	152e	[0x15] -> [0x17]	
-#1117	AB DE   IJKL   P	d8f1	-jmp->#1117 cond=0x71	
+#1117	AB DE   IJKL   P	d8f1	-jmp->#1103 cond=0x71	
 #1118	      G IJKLM   	02f8	?load constant [5]?	
-#1119	    EFG   K     	0e20	[0xe] -> ?tmpA.mantissa?	
+#1119	    EFG   K     	0e20	[0xe] -> [0x10]	
 #1120	AB     HIJK  NO 	c1e6	+jmp->#1124 cond=0x66	
 #1121	     F HIJKLM   	05f8	?load constant [11]?	
 #1122	  CD           P	3001	?	
@@ -1129,7 +1129,7 @@
 #1128	  CD FGHI      P	3781	?	
 #1129	   D F H   L N  	1514	[0x15] -> [0xa]	
 #1130	 B  E        NO 	4806	?	
-#1131	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1131	   D       L    	1010	[0x10] -> [0x8]	
 #1132	    EFGH     N  	0f04	tmpB -> st(0)	
 #1133	 BCDE           	7800	stack pop	
 #1134	    E GH     N  	0b04	tmpA -> st(0)	
@@ -1145,9 +1145,9 @@
 #1144	    E       MN  	080c	[0x8] -> zero	
 #1145	 B  EF      M O 	4c0a	?	
 #1146	     F H JKLM   	0578	?load constant [10]?	
-#1147	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#1148	   D        MN  	100c	?tmpA.mantissa? -> zero	
-#1149	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#1147	   D          O 	1002	[0x10] -> [0x1]	
+#1148	   D        MN  	100c	[0x10] -> zero	
+#1149	   D            	1000	[0x10] -> [0x0]	
 #1150	     F H  K MNO 	052e	?constant? -> [0x17]	
 #1151	 B D FGH    M O 	570a	?	
 #1152	AB   F   JK     	c460	+jmp->#1161 cond=0x60	
@@ -1159,7 +1159,7 @@
 #1158	A C E     KL   P	a831	call J16, cond=0x31	
 #1159	    E GH     N  	0b04	tmpA -> st(0)	
 #1160	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1161	   D      K M O 	102a	?tmpA.mantissa? -> [0x15]	
+#1161	   D      K M O 	102a	[0x10] -> [0x15]	
 #1162	    E G   K MNO 	0a2e	[0xa] -> [0x17]	
 #1163	AB      I KLMN P	c0bd	+jmp->#1165 cond=0x3d	
 #1164	 BC   GH J  MN  	634c	?	
@@ -1167,10 +1167,10 @@
 #1166	 B D FGH   LM O 	571a	?	
 #1167	ABC E         O 	e802	?	
 #1168	AB   F   JK     	c460	+jmp->#1177 cond=0x60	
-#1169	AB  E  HIJ  MN  	c9cc	?	
+#1169	AB  E  HIJ  MN  	c9cc	+jmp->#1189 cond=0x4c	
 #1170	 BCDEF          	7c00	?	
-#1171	AB  E   IJKLMN  	c8fc	?	
-#1172	AB  E GHIJKLMN  	cbfc	?	
+#1171	AB  E   IJKLMN  	c8fc	+jmp->#1189 unconditional	
+#1172	AB  E GHIJKLMN  	cbfc	+jmp->#1196 unconditional	
 #1173	    EFG     MNO 	0e0e	[0xe] -> [0x7]	
 #1174	 B D FGH   LM O 	571a	?	
 #1175	ABC E         O 	e802	?	
@@ -1182,14 +1182,14 @@
 #1181	    EFG     MN  	0e0c	[0xe] -> zero	
 #1182	 BC EF   J  M O 	6c4a	?	
 #1183	 B D F H   L    	5510	?	
-#1184	   D       LMN  	101c	?tmpA.mantissa? -> [0xe]	
+#1184	   D       LMN  	101c	[0x10] -> [0xe]	
 #1185	AB     HIJK  N P	c1e5	+jmp->#1189 cond=0x65	
 #1186	  CD  G I      P	3281	?	
 #1187	   D F H   LMN  	151c	[0x15] -> [0xe]	
 #1188	AB     H JKLMN  	c17c	+jmp->#1191 unconditional	
 #1189	  CD FGH       P	3701	?	
 #1190	   D F    K MNO 	142e	[0x14] -> [0x17]	
-#1191	AB D FG IJKL   P	d6f1	?	
+#1191	AB D FG IJKL   P	d6f1	-jmp->#1173 cond=0x71	
 #1192	  CD FGHI      P	3781	?	
 #1193	   D F H  K MNO 	152e	[0x15] -> [0x17]	
 #1194	           L N  	0014	[0x0] -> [0xa]	
@@ -1198,11 +1198,11 @@
 #1197	    E G     MN  	0a0c	[0xa] -> zero	
 #1198	     F H   L N  	0514	?constant? -> [0xa]	
 #1199	 B  E G     M O 	4a0a	?	
-#1200	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1200	   D       L    	1010	[0x10] -> [0x8]	
 #1201	    EFG     MNO 	0e0e	[0xe] -> [0x7]	
 #1202	   D FGH  K   O 	1722	[0x17] -> [0x11]	
 #1203	A C  FGH JKLMN  	a77c	call J14, unconditional	
-#1204	   D       LMN  	101c	?tmpA.mantissa? -> [0xe]	
+#1204	   D       LMN  	101c	[0x10] -> [0xe]	
 #1205	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1206	  CD   HI      P	3181	?	
 #1207	   D   H    MNO 	110e	[0x11] -> [0x7]	
@@ -1230,7 +1230,7 @@
 #1229	  CD FGHI      P	3781	?	
 #1230	AB     H JK M   	c168	+jmp->#1233 cond=0x68	
 #1231	   D F H  K MNO 	152e	[0x15] -> [0x17]	
-#1232	AB DE GHIJKL   P	dbf1	-jmp->#1226 cond=0x71	
+#1232	AB DE GHIJKL   P	dbf1	-jmp->#1224 cond=0x71	
 #1233	   D FGH  K  NO 	1726	[0x17] -> [0x13]	
 #1234	AB     HIJK  N P	c1e5	+jmp->#1238 cond=0x65	
 #1235	  CD  G I      P	3281	?	
@@ -1238,7 +1238,7 @@
 #1237	 BCDEF        O 	7c02	?	
 #1238	AB     HIJK  NO 	c1e6	+jmp->#1242 cond=0x66	
 #1239	  CD   H       P	3101	?	
-#1240	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
+#1240	   D F    K     	1420	[0x14] -> [0x10]	
 #1241	 BCDEF          	7c00	?	
 #1242	 BC EF   J  M O 	6c4a	?	
 #1243	     FG     MN  	060c	zero -> zero	
@@ -1248,20 +1248,20 @@
 #1247	   D F H  K  N  	1524	[0x15] -> [0x12]	
 #1248	 BCDEF        O 	7c02	?	
 #1249	   DEFG     MN  	1e0c	[0x1e] -> zero	
-#1250	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#1250	   D       L N  	1014	[0x10] -> [0xa]	
 #1251	 B  E       M O 	480a	?	
-#1252	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1252	   D       L    	1010	[0x10] -> [0x8]	
 #1253	    E GH     N  	0b04	tmpA -> st(0)	
 #1254	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1255	ABCDEFGHIJKLM   	fff8	nop	
 #1256	ABCDEFGHIJKLM   	fff8	nop	
 #1257	      G    L NO 	0216	st(0) -> tmpA	-------FYL2X,FYL2XP1-------
 #1258	   DE GH      O 	1b02	[0x1b] -> [0x1]	
-#1259	AB  EF  I  L NO 	cc96	?	
+#1259	AB  EF  I  L NO 	cc96	+jmp->#1285 cond=0x16	
 #1260	   DE G     MNO 	1a0e	[0x1a] -> [0x7]	
 #1261	 B  E G     M O 	4a0a	?	
 #1262	AB   F   JK    P	c461	+jmp->#1271 cond=0x61	
-#1263	AB  E G   KLMN P	ca3d	?	
+#1263	AB  E G   KLMN P	ca3d	+jmp->#1284 cond=0x3d	
 #1264	A C E  HIJKLMN  	a9fc	call J19, unconditional	
 #1265	     F HIJKLM   	05f8	?load constant [11]?	
 #1266	     FG    L N P	0615	?	
@@ -1278,11 +1278,11 @@
 #1277	A C E G IJKLMN  	aafc	call J21, unconditional	
 #1278	    E G     MNO 	0a0e	[0xa] -> [0x7]	
 #1279	 B           NO 	4006	?	
-#1280	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#1280	   D       L N  	1014	[0x10] -> [0xa]	
 #1281	   D F    K  NO 	1426	[0x14] -> [0x13]	
 #1282	A C  FGH JKLMN  	a77c	call J14, unconditional	
-#1283	AB  EF H JKLMN  	cd7c	?	
-#1284	AB  EFG  JKLMN  	ce7c	?	
+#1283	AB  EF H JKLMN  	cd7c	+jmp->#1310 unconditional	
+#1284	AB  EFG  JKLMN  	ce7c	+jmp->#1313 unconditional	
 #1285	      G IJKLM   	02f8	?load constant [5]?	
 #1286	    E       MN  	080c	[0x8] -> zero	
 #1287	A    FG IJ      	86c0	farjump J13, cond=0x40	
@@ -1291,7 +1291,7 @@
 #1290	A C E G  JKLMN  	aa7c	call J20, unconditional	
 #1291	     FG      N  	0604	zero -> st(0)	
 #1292	    E G   K MNO 	0a2e	[0xa] -> [0x17]	
-#1293	AB  E   IJ L    	c8d0	?	
+#1293	AB  E   IJ L    	c8d0	+jmp->#1311 cond=0x50	
 #1294	 B   FG    L   P	4611	?	
 #1295	   D   H    MNO 	110e	[0x11] -> [0x7]	
 #1296	    E G   K   O 	0a22	[0xa] -> [0x11]	
@@ -1303,16 +1303,16 @@
 #1302	   D F    K MNO 	142e	[0x14] -> [0x17]	
 #1303	   DE GH    MN  	1b0c	[0x1b] -> zero	
 #1304	 B              	4000	?	
-#1305	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#1305	   D            	1000	[0x10] -> [0x0]	
 #1306	AB      I KL N P	c0b5	+jmp->#1308 cond=0x35	
-#1307	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#1308	    E     K     	0820	[0x8] -> ?tmpA.mantissa?	
-#1309	AB  EF H JKLMN  	cd7c	?	
+#1307	   D          O 	1002	[0x10] -> [0x1]	
+#1308	    E     K     	0820	[0x8] -> [0x10]	
+#1309	AB  EF H JKLMN  	cd7c	+jmp->#1336 unconditional	
 #1310	AB   F H JKLMN  	c57c	+jmp->#1321 unconditional	
 #1311	     FG     MNO 	060e	zero -> [0x7]	
-#1312	AB DEF HIJKLMN  	ddfc	-jmp->#1302 unconditional	
+#1312	AB DEF HIJKLMN  	ddfc	-jmp->#1308 unconditional	
 #1313	 B  E        NO 	4806	?	
-#1314	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1314	   D       L    	1010	[0x10] -> [0x8]	
 #1315	  C E G I      P	2a81	?	
 #1316	   D F H    MNO 	150e	[0x15] -> [0x7]	
 #1317	     FG    LMN P	061d	?	
@@ -1330,25 +1330,25 @@
 #1329	AB     HIJKLMN  	c1fc	+jmp->#1333 unconditional	
 #1330	A C E G IJKLMN  	aafc	call J21, unconditional	
 #1331	 B  E G         	4a00	?	
-#1332	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#1332	   D            	1000	[0x10] -> [0x0]	
 #1333	   D F    K MNO 	142e	[0x14] -> [0x17]	
 #1334	 B  E       M O 	480a	?	
 #1335	    E G     MN  	0a0c	[0xa] -> zero	
 #1336	      GHIJKLM   	03f8	?load constant [7]?	
 #1337	 B D        M O 	500a	?	
-#1338	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1338	   D       L    	1010	[0x10] -> [0x8]	
 #1339	     F H    MN  	050c	?constant? -> zero	
 #1340	 B  E       M O 	480a	?	
 #1341	AB     HIJK     	c1e0	+jmp->#1345 cond=0x60	
 #1342	 B  E        NO 	4806	?	
-#1343	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
-#1344	AB  EF  IJKLMN  	ccfc	?	
-#1345	   D      K M O 	102a	?tmpA.mantissa? -> [0x15]	
+#1343	   D       L    	1010	[0x10] -> [0x8]	
+#1344	AB  EF  IJKLMN  	ccfc	+jmp->#1370 unconditional	
+#1345	   D      K M O 	102a	[0x10] -> [0x15]	
 #1346	     F HIJKLM   	05f8	?load constant [11]?	
 #1347	    E       MN  	080c	[0x8] -> zero	
 #1348	     F H   LMN  	051c	?constant? -> [0xe]	
 #1349	 B  EFG     M O 	4e0a	?	
-#1350	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#1350	   D            	1000	[0x10] -> [0x0]	
 #1351	       HIJKLM   	01f8	?load constant [3]?	
 #1352	  CD FGHIJK MN  	37ec	?	
 #1353	   D FGH    MNO 	170e	[0x17] -> [0x7]	
@@ -1366,14 +1366,14 @@
 #1365	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1366	  CD FGH       P	3701	?	
 #1367	   D F    K MNO 	142e	[0x14] -> [0x17]	
-#1368	AB DE GH JKL   P	db71	-jmp->#1363 cond=0x71	
+#1368	AB DE GH JKL   P	db71	-jmp->#1359 cond=0x71	
 #1369	     F H        	0500	?constant? -> [0x0]	
 #1370	ABCD        M O 	f00a	exception: underflow	
 #1371	ABCD         N  	f004	exception: overflow	
 #1372	AB     HI KL N  	c1b4	+jmp->#1376 cond=0x34	
 #1373	   D FGH  K  NO 	1726	[0x17] -> [0x13]	
 #1374	   DEFGH    MNO 	1f0e	QNaN -> [0x7]	
-#1375	AB  E  HIJKLMN  	c9fc	?	
+#1375	AB  E  HIJKLMN  	c9fc	+jmp->#1395 unconditional	
 #1376	   D FGH   LMN  	171c	[0x17] -> [0xe]	
 #1377	   D FGH    MNO 	170e	[0x17] -> [0x7]	
 #1378	A C  FGHIJKLMN  	a7fc	call J15, unconditional	
@@ -1418,13 +1418,13 @@
 #1417	   DEFG     MN  	1e0c	[0x1e] -> zero	
 #1418	 B D        M O 	500a	?	
 #1419	 B D         NO 	5006	?increment tmpA exponent?	
-#1420	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1420	   D       L    	1010	[0x10] -> [0x8]	
 #1421	      G    LMNO 	021e	st(0) -> tmpB	
-#1422	AB  E GHIJ  M   	cbc8	?	
+#1422	AB  E GHIJ  M   	cbc8	+jmp->#1446 cond=0x48	
 #1423	    E       MN  	080c	[0x8] -> zero	
 #1424	 B  EF      M O 	4c0a	?	
-#1425	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#1426	   D            	1000	?tmpA.mantissa? -> [0x0]	
+#1425	   D          O 	1002	[0x10] -> [0x1]	
+#1426	   D            	1000	[0x10] -> [0x0]	
 #1427	AB     HI KL N  	c1b4	+jmp->#1431 cond=0x34	
 #1428	     FG     MN  	060c	zero -> zero	
 #1429	  CD FGH        	3700	?	
@@ -1440,7 +1440,7 @@
 #1439	 B  EFG    LM O 	4e1a	?	
 #1440	A C E G IJKLMN  	aafc	call J21, unconditional	
 #1441	 B  EF      M O 	4c0a	?	
-#1442	   D       LM   	1018	?tmpA.mantissa? -> [0xc]	
+#1442	   D       LM   	1018	[0x10] -> [0xc]	
 #1443	   D F    K   O 	1422	[0x14] -> [0x11]	
 #1444	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1445	    EF H   L  O 	0d12	[0xd] -> [0x9]	
@@ -1474,13 +1474,13 @@
 #1473	AB      IJ L NOP	c0d7	+jmp->#1475 cond=0x57	
 #1474	 BC     IJ  MNO 	60ce	?	
 #1475	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1476	    E     K     	0820	[0x8] -> ?tmpA.mantissa?	
+#1476	    E     K     	0820	[0x8] -> [0x10]	
 #1477	AB     H  KLMN P	c13d	+jmp->#1480 cond=0x3d	
 #1478	 BC    H J  M   	6148	?	
-#1479	AB DEF H JKLMN  	dd7c	-jmp->#1470 unconditional	
+#1479	AB DEF H JKLMN  	dd7c	-jmp->#1474 unconditional	
 #1480	  C E G        P	2a01	?	
-#1481	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
-#1482	AB DE GHI KLMN  	dbbc	-jmp->#1476 cond=0x3c	
+#1481	   D F    K     	1420	[0x14] -> [0x10]	
+#1482	AB DE GHI KLMN  	dbbc	-jmp->#1474 cond=0x3c	
 #1483	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1484	A C  FG  J    O 	a642	call J12, cond=0x42	-------J5-------
 #1485	ABC EF          	ec00	?	
@@ -1491,8 +1491,8 @@
 #1490	   DE GH      O 	1b02	[0x1b] -> [0x1]	
 #1491	AB    G IJ  MNOP	c2cf	+jmp->#1497 cond=!(has_error)	
 #1492	ABCD          O 	f002	exception: invalid	
-#1493	AB  EFGHI  LMNO 	cf9e	?	
-#1494	AB  E    J LMN  	c85c	?	
+#1493	AB  EFGHI  LMNO 	cf9e	+jmp->#1525 cond=0x1e	
+#1494	AB  E    J LMN  	c85c	+jmp->#1511 cond=0x5c	
 #1495	   DEFGH   L NO 	1f16	QNaN -> tmpA	
 #1496	ABC      JKLMN  	e07c	--------------return--------------	
 #1497	AB    G  J    O 	c242	+jmp->#1502 cond=0x42	
@@ -1522,7 +1522,7 @@
 #1521	    EFGH   L NO 	0f16	tmpB -> tmpA	
 #1522	ABCD          O 	f002	exception: invalid	
 #1523	AB      I  LMNO 	c09e	+jmp->#1525 cond=0x1e	
-#1524	AB DE  H J LMN  	d95c	-jmp->#1523 cond=0x5c	
+#1524	AB DE  H J LMN  	d95c	-jmp->#1511 cond=0x5c	
 #1525	ABCD        M   	f008	exception: precision	
 #1526	ABC      JKLMN  	e07c	--------------return--------------	
 #1527	      G    L NO 	0216	st(0) -> tmpA	-------FSQRT-------
@@ -1536,12 +1536,12 @@
 #1535	AB     HIJ LM   	c1d8	+jmp->#1539 cond=0x58	
 #1536	   DEFGH   L NO 	1f16	QNaN -> tmpA	
 #1537	ABCD          O 	f002	exception: invalid	
-#1538	AB DE   IJ LMN  	d8dc	-jmp->#1538 cond=0x5c	
-#1539	AB  EFGH JKLMN  	cf7c	?	
-#1540	AB DEF HIJ L    	ddd0	-jmp->#1530 cond=0x50	
-#1541	AB DEF H J L NOP	dd57	-jmp->#1532 cond=0x57	
+#1538	AB DE   IJ LMN  	d8dc	-jmp->#1524 cond=0x5c	
+#1539	AB  EFGH JKLMN  	cf7c	+jmp->#1570 unconditional	
+#1540	AB DEF HIJ L    	ddd0	-jmp->#1536 cond=0x50	
+#1541	AB DEF H J L NOP	dd57	-jmp->#1536 cond=0x57	
 #1542	    E         O 	0802	[0x8] -> [0x1]	
-#1543	       H  K     	0120	[0x1] -> ?tmpA.mantissa?	
+#1543	       H  K     	0120	[0x1] -> [0x10]	
 #1544	  CD    I      P	3081	?	
 #1545	   D F H   L    	1510	[0x15] -> [0x8]	
 #1546	AB     H  KL  OP	c133	+jmp->#1549 cond=0x33	
@@ -1562,26 +1562,26 @@
 #1561	ABC  F          	e400	?	
 #1562	 B   FG         	4600	?	
 #1563	A C  F HIJKLMN  	a5fc	call J11, unconditional	
-#1564	   D       L N  	1014	?tmpA.mantissa? -> [0xa]	
+#1564	   D       L N  	1014	[0x10] -> [0xa]	
 #1565	   DE GH    MN  	1b0c	[0x1b] -> zero	
 #1566	 B  E       M O 	480a	?	
 #1567	   DEFG     MN  	1e0c	[0x1e] -> zero	
 #1568	 B D            	5000	?	
-#1569	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1569	   D       L    	1010	[0x10] -> [0x8]	
 #1570	    E GH     N  	0b04	tmpA -> st(0)	
 #1571	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1572	    E     K     	0820	[0x8] -> ?tmpA.mantissa?	-------J12-------
+#1572	    E     K     	0820	[0x8] -> [0x10]	-------J12-------
 #1573	AB    GHI KLMN P	c3bd	+jmp->#1581 cond=0x3d	
 #1574	ABCD            	f000	exception: denorm	
 #1575	AB      I  LMNO 	c09e	+jmp->#1577 cond=0x1e	
-#1576	AB DEF H J LMNO 	dd5e	-jmp->#1567 cond=0x5e	
+#1576	AB DEF H J LMNO 	dd5e	-jmp->#1571 cond=0x5e	
 #1577	 BC      J   N  	6044	?	
 #1578	   DE GH   L    	1b10	[0x1b] -> [0x8]	
 #1579	ABCD F      M   	f408	?	
 #1580	ABC      JKLMN  	e07c	--------------return--------------	
 #1581	  C E G        P	2a01	?	
-#1582	   D F    K     	1420	[0x14] -> ?tmpA.mantissa?	
-#1583	AB DEF HI KLMN P	ddbd	-jmp->#1573 cond=0x3d	
+#1582	   D F    K     	1420	[0x14] -> [0x10]	
+#1583	AB DEF HI KLMN P	ddbd	-jmp->#1579 cond=0x3d	
 #1584	ABCD        M   	f008	exception: precision	
 #1585	ABC      JKLMN  	e07c	--------------return--------------	
 #1586	 BC    HIJ  MNO 	61ce	?	-------FPREM-------
@@ -1596,32 +1596,32 @@
 #1595	AB    G IJ    OP	c2c3	+jmp->#1601 cond=0x43	
 #1596	ABCD          O 	f002	exception: invalid	
 #1597	   DEFGH   L NO 	1f16	QNaN -> tmpA	
-#1598	AB D  G  J LMN  	d25c	?	
+#1598	AB D  G  J LMN  	d25c	-jmp->#1571 cond=0x5c	
 #1599	   DE GH      O 	1b02	[0x1b] -> [0x1]	
 #1600	AB    G  JKLMN  	c27c	+jmp->#1605 unconditional	
 #1601	 BC E GH J  M   	6b48	?	
-#1602	    E G   K     	0a20	[0xa] -> ?tmpA.mantissa?	
+#1602	    E G   K     	0a20	[0xa] -> [0x10]	
 #1603	ABCD F      MN  	f40c	?	
-#1604	AB  EF HIJKLMN  	cdfc	?	
-#1605	AB  EFGH  KL  O 	cf32	?	
+#1604	AB  EF HIJKLMN  	cdfc	+jmp->#1632 unconditional	
+#1605	AB  EFGH  KL  O 	cf32	+jmp->#1636 cond=0x32	
 #1606	    EF      MNO 	0c0e	[0xc] -> [0x7]	
 #1607	 B  E      LM O 	481a	?	
-#1608	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#1609	AB DE GHIJK    P	dbe1	-jmp->#1603 cond=0x61	
+#1608	   D          O 	1002	[0x10] -> [0x1]	
+#1609	AB DE GHIJK    P	dbe1	-jmp->#1601 cond=0x61	
 #1610	ABCD F      M   	f408	?	
 #1611	AB      I KLMN P	c0bd	+jmp->#1613 cond=0x3d	
 #1612	ABCD        M   	f008	exception: precision	
-#1613	   D        MN  	100c	?tmpA.mantissa? -> zero	
+#1613	   D        MN  	100c	[0x10] -> zero	
 #1614	AB     HI KL N  	c1b4	+jmp->#1618 cond=0x34	
 #1615	   DEFGH        	1f00	QNaN -> [0x0]	
 #1616	 BC     IJ  MNO 	60ce	?	
 #1617	            MN  	000c	[0x0] -> zero	
 #1618	 B  E       M O 	480a	?	
-#1619	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1619	   D       L    	1010	[0x10] -> [0x8]	
 #1620	 B   FG         	4600	?	
 #1621	   DE GH    MN  	1b0c	[0x1b] -> zero	
 #1622	 B D        M O 	500a	?	
-#1623	   D      K M O 	102a	?tmpA.mantissa? -> [0x15]	
+#1623	   D      K M O 	102a	[0x10] -> [0x15]	
 #1624	    E G   K  NO 	0a26	[0xa] -> [0x13]	
 #1625	    EFG     MNO 	0e0e	[0xe] -> [0x7]	
 #1626	 BC E GH J  M   	6b48	?	
@@ -1638,8 +1638,8 @@
 #1637	A C E G IJKLMN  	aafc	call J21, unconditional	
 #1638	   D F     L N  	1414	[0x14] -> [0xa]	
 #1639	 B  E       M O 	480a	?	
-#1640	   D          O 	1002	?tmpA.mantissa? -> [0x1]	
-#1641	   D       L    	1010	?tmpA.mantissa? -> [0x8]	
+#1640	   D          O 	1002	[0x10] -> [0x1]	
+#1641	   D       L    	1010	[0x10] -> [0x8]	
 #1642	A C E     KL   P	a831	call J16, cond=0x31	
 #1643	  CD FG I     OP	3683	?	
 #1644	   D F H  K   O 	1522	[0x15] -> [0x11]	

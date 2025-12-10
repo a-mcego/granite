@@ -112,17 +112,21 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     {
         std::cout << "nop";
     }
-    else if ((op&0xF800) == 0xC000 || (op&0xF800) == 0xD800 /*|| (op&0xF800) == 0xC800|| (op&0xF800) == 0xD000*/) //+ -local jump ABCDE, FGHI, JKLMNOP
+    else if ((op&0xE000) == 0xC000) //+ -local jump ABC, DEFGHI, JKLMNOP
     {
         std::string cond = make_cond_string(op&0x7F);
 
-        if ((op&0xF800) == 0xD800)
+        int offset = ((op>>7)&0x3F);
+        if (offset >= 32)
+            offset -= 64;
+
+        if ((op&0xF000) == 0xD000)
         {
-            std::cout << "-jmp->#" << std::setw(4) << lineNum+1-((op>>7)&0xF) << " " << cond;
+            std::cout << "-jmp->#" << std::setw(4) << lineNum+1+offset << " " << cond;
         }
-        else if ((op&0xF800) == 0xC000)
+        else if ((op&0xF000) == 0xC000)
         {
-            std::cout << "+jmp->#" << std::setw(4) << lineNum+1+((op>>7)&0xF) << " " << cond;
+            std::cout << "+jmp->#" << std::setw(4) << lineNum+1+offset << " " << cond;
         }
         //these are a bit shit
         /*else if ((op&0xf800) == 0xC800)
