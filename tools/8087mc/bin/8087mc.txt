@@ -1,0 +1,1648 @@
+ABCDEFGHIJKLMNO  |
+A C   G          | FDIV,FSUB,FSUBR,FMUL,FADD,FDIVR
+AB      I        |
+      GH   LMNO  |
+AB   FG IJ LMNO  |
+      G    L NO  |
+AB      I  L NOP |
+ABC EF           |
+AB   F H J   NO  |
+A C      JKLMN   |
+A C E     KL   P |
+AB     H      O  |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+    E GH     NO  |
+AB     H    MN P |
+ BC   GH J       |
+ BCDE            |
+ABCDEFGHIJKLMNO  |
+A C   G IJKLMN   |
+AB     H JKL N P |
+AB DE G I KL  O  |
+AB DE  H JKLMN   |
+ BC  F HI    N   |
+AB   FGH  KL  O  |
+AB    GH J  M  P |
+AB   F   J       |
+ABCD         NO  |
+   DEFGH   L NO  |
+     FG    L N P |
+ BC   G I        |
+AB    G IJKLMN   |
+AB     H J     P |
+    EFG   K      |
+AB  E G   KLMN P |
+ABCD          O  |
+   DEFGH   L NO  |
+AB D FG  J LMN   |
+AB D  G  JKLMN   |
+AB   F HIJ    OP |
+AB    G IJ  M OP |
+AB DE  H   LM    |
+AB DEF     LM O  |
+AB DE GHIJ LM  P |
+AB DE GH JKL  O  |
+AB DEF   JKLMN   |
+AB     H   LM  P |
+AB DE  HIJ  M    |
+AB D F HIJKLMN   |
+AB D F H   LM O  |
+AB DE  HIJKLMN   |
+AB     H   LM  P |
+AB D FGH J       |
+AB D  GH JKLMN   |
+AB     H   LM OP |
+     FG    L NO  |
+AB D  G IJKLMN   |
+ABC EF           |
+AB     H JKL NO  |
+AB     H JKL  O  |
+AB D F  IJKLMN   |
+AB D F   JKL  O  |
+ BC     I    N   |
+ BC   GHI        |
+AB D  G IJKLMN   |
+A C   G          | FLD,FFREE
+AB    GHI     O  |
+ BCDE         O  |
+ BC         M O  |
+AB      I        |
+      GH   LMNO  |
+AB    GHIJ  MNO  |
+    EFGH     N   |
+ABCDEFGHIJKLMNO  |
+ BC   GH J    O  |
+AB DEFG I   MN P |
+ BC   GH J       |
+ BCDE            |
+ABCDEFGHIJKLMNO  |
+   DEFGH   LMNO  |
+ABCD          O  |
+AB DEF HIJ LMN   |
+AB DE G IJKLMN   |
+A     GH     NOP | J4
+AB   F      M  P |
+  C  F    K M    |
+ABCD F      MNO  |
+   D F    K      |
+     F     LM O  |
+  C EF    KLM    |
+   DEF     LMN P |
+  C EF  I    NOP |
+AB   F HIJKLMN   |
+  C  F      M OP |
+   D F    K      |
+  C  F     LM OP |
+   DEF    K      |
+  C  F    K M OP |
+ABCD F      MNO  |
+   DEF    K      |
+     F     LM O  |
+  C EF    KLM OP |
+   DEF     LMN P |
+  C EF  I    N   |
+   D F H      O  |
+       H   LM    |
+ABC       KL     |
+  C EFG        P |
+   D F    K      |
+AB   F  I KL NO  |
+AB    G   KLMN P |
+     FG    LM    |
+     FG    LMN   |
+ BC    H J  MN   |
+ABC      JKLMN   |
+ABCD             |
+  CD    I      P |
+   D F H   LMN   |
+ABC      JKLMN   |
+ BC   G  J  MN   |
+   DEFGH   LM    |
+ABC      JKLMN   |
+     FG   K  NO  | J6
+AB    GH    M    |
+AB   F     LMN   |
+     F    K      |
+ABCDEFGHIJKLM    |
+  C  F     L     |
+   DEF    K      |
+AB  E  HI   M OP |
+  C  F    K      |
+ABCD F      MNO  |
+   DEF    K      |
+  C  F    KL     |
+   DEF     LMN   |
+ BC     IJ  M    |
+    EFG   K      |
+AB     HIJ L  OP |
+    EFG     MN   |
+ B   FG     M O  |
+ BC    HIJ  M    |
+AB  E   I KLMN   |
+A C E G IJKLMN   |
+   D F     LMN   |
+         JKLM    |
+     F H  K MNO  |
+ B D FGH    M O  |
+   D       LM    |
+ABC      JKLMN   |
+  C  F    K      |
+   DEF    K      |
+  C  F    KL     |
+ABCD F      MNO  |
+   DEF     LMN   |
+     F     LM O  |
+    EF        O  |
+AB    GH    MNO  |
+A C   GHIJKLMN   |
+AB D FGH  KLMN P |
+ BC  F  I        |
+     FG    LMNO  |
+ BC     I   M    |
+ABC      JKLMN   |
+ABC       KL     |
+    EFG   K      |
+AB    G   KL NO  |
+AB     H  KLMN P |
+ BC    H J  MN   |
+ABC      JKLMN   |
+ABCD             |
+ BC   G  J  MN   |
+ABC      JKLMN   |
+ABCDEFGHIJKLM    |
+     FGHIJK M O  | J7
+    EF    K MNO  |
+  CD FGH  KLM    |
+   D F     L N   |
+  C E G I KLMN   |
+   D F H  K      |
+  CD           P |
+   D F      MN   |
+  CD          OP |
+ B D F           |
+   D        MN   |
+  CD FGH  KLMN   |
+   D F     L N   |
+  C E G I KLMN   |
+ B D F H         |
+  CD           P |
+   D F      MN   |
+  CD          OP |
+ B D F           |
+   D        MN   |
+  C EFG I KLMN   |
+ B D F H         |
+  C EFG      N   |
+   D F     LMN   |
+AB DE GH JKL   P |
+   D       LMN   |
+ABC      JKLMN   |
+      G    L NO  | FXCH
+ABCDEFGHIJKLM    |
+      GH   LMNO  |
+AB    GH J  MNOP |
+ABCD          O  |
+AB    GHIJ LMN   |
+AB      IJ   N P |
+   DEFGH   L NO  |
+AB      IJ  MN P |
+   DEFGH   LMNO  |
+    EFGH     N   |
+ABCDEFGHIJKLM    |
+    E GH     NO  |
+ABCDEFGHIJKLMNO  |
+ABCDEFGHIJKLM    |
+ABCDEFGHIJKLM    |
+ABCDEFGHIJKLM    |
+      G    L NO  | FNOP,FSTP,FST
+AB    G I    N   |
+AB   F   J   N   |
+    E G   K      |
+A    F  I   MNO  |
+A    F           |
+    E GH     NO  |
+AB     H    MN P |
+ BC   GH J       |
+ BCDE            |
+ABCDEFGHIJKLMNO  |
+ABCD          O  |
+AB DEFG IJ LMN   |
+   DEFGH   L NO  |
+AB DE G  JKLMN   |
+AB     HIJ     P | J2
+AB     H J  M  P |
+ABC      JKL  OP |
+AB  EF HIJKLMN   |
+ BC     I    N   |
+    EF      MN   |
+ B  E       M O  |
+AB    G IJK      |
+   D        MN   |
+ B   FG     M O  |
+ABC EF           |
+AB      IJKL  OP |
+ BC   GHI    N   |
+ABC EF           |
+  C  FG I        |
+A C E G  JKLMN   |
+ABC EF           |
+     FG    LM    |
+AB  E  H JKL  OP |
+ B  E G    LM O  |
+AB     HIJK      |
+   D   H    MNO  |
+ B   FG    LM O  |
+ BC   GHI    N   |
+AB  E  H  KLMN   |
+   D F H   LMN   |
+AB  E GHIJ L NO  |
+AB  E GH J L  O  |
+AB  EFG  JKLMN   |
+    E         O  |
+AB      IJ L NOP |
+     FG    L NO  |
+ BC     IJ       |
+     FG    L N   |
+ABC      J LM OP |
+ BC    HIJ       |
+ABC      JKLMN   |
+ B  E G    L     |
+AB  E  H JK  N P |
+  CD  GHIJKL  O  |
+   D F H  K  NO  |
+ BCDEF           |
+AB   FGH JKLMN   |
+  CD   H      OP |
+   D F    K      |
+AB D FGHI KLMN   |
+     FG   K      |
+AB   F  IJ L NOP |
+ BCDEF        O  |
+   DE GH  K   O  |
+ BC EFG I        |
+  CD   H JK M O  |
+   D F    K   O  |
+ BC EF HI        |
+  CD   H JK  NO  |
+   D F    K   O  |
+           LM    |
+ BC   G I        |
+A C  F HI  L   P |
+   D       L N   |
+    EF      MN   |
+ B  E       M    |
+   DEFG     MN   |
+ B D             |
+   D          O  |
+   D       L     |
+ABC      JKLMN   |
+AB    GH  KLM  P | J11
+ABC       KLM OP |
+ B D         NO  |
+ABC      JK  N P |
+     FG   K  N P |
+ BCDEF           |
+ABC      JKLMN   |
+ BC E   I        |
+  CD   H JK MNO  |
+ABCDEFGHIJKLM    |
+ BC E  H     N   |
+  CD    IJK      |
+   D F H  K      |
+AB      I KLM OP |
+ B D         NO  |
+  CD     JK      |
+   D F    K  N   |
+ABC      JK  N P |
+AB DE   IJKLMN   |
+ABC      J       | J16
+ABC  F        O  |
+     FG IJKLM    |
+AB    GHIJ LMN P |
+     F H    MN   |
+AB     H  KLMNO  |
+ B  E            |
+AB      IJKLMN   |
+ B  E       M O  |
+   D       L     |
+ABC      JKLMN   |
+AB   FGH  KLMNO  |
+    E       MN   |
+ B DE GH    M O  |
+A C E G  JKLMN   |
+ B   FG    L     |
+A C  F HIJKLMN   |
+AB    G   KLMN   |
+     FG    L     |
+   D       L N   |
+ BC   G  J   N   |
+ABC      JKLMN   |
+ BC     I    N   |
+     FG    L NO  |
+ BC   G I        |
+ABC      JKLMN   |
+   DEFGH   L     |
+    E G    LMN   |
+ABCD         N   |
+     FG    L N P |
+ BC   G  J   N   |
+ABC      J LM OP |
+   DE GH    MN   |
+ B  E       M O  |
+   D       L     |
+ B   FG     M O  |
+   D       L N   |
+ BC      J   N   |
+ABC      J L  O  |
+    EFG    L N   |
+ABC      JKLMN   |
+ BC  F HI        | J1
+ABC      J       |
+ BC     I   M    |
+AB     H J  M  P |
+    EFGH   L NO  |
+ABC      JKLMN   |
+AB    G IJ L N   |
+ABC EF           |
+AB     HIJ L N   |
+    E G   K MN   |
+    EFGHIJK M O  |
+AB     HIJKLMN   |
+  C E G I K M    |
+   D F H  K MN   |
+     F HIJK M O  |
+    EFG     MNO  |
+ BC E  H J  M    |
+     FG   K  NO  |
+ B D  G IJ       |
+ABCD F      MN   |
+ B D  G  J  MN   |
+AB     HIJK  NO  | J17
+  CD   H JKL  O  |
+   D F    K   O  |
+ BCDEF        O  |
+A C  F HIJKLMN   |
+   D       L N   |
+      G IJKLM    |
+    EF      MN   |
+ B  E            |
+     F H    MN   |
+ B D        M O  |
+   DEFG     MN   |
+ B D             |
+   D          O  |
+   D       L     |
+ABC      JKLMN   |
+AB     HIJ  M O  | J15
+    EFG   K MN   |
+    EFGHIJK M O  |
+AB     HIJKLMN   |
+  C EFG I  LMNO  |
+   D F H  K MN   |
+    E    JK M O  |
+ BC EF H J  M    |
+     FG   K  NO  |
+ B D  GHIJ       |
+ABCD F      MN   |
+ B D  GH J  MN   |
+ABC      JKLMN   |
+ABCDEFGHIJKLM    |
+ BC  F HI        | J3
+ABC      J       |
+    E G   K  NO  |
+    EFG     MN   |
+ BC E G  J  M    |
+   DEFGHIJK M O  |
+ B D  G IJ       |
+ B D  G  J  M  P |
+ABCD F      MN   |
+ B D  G  J  M O  |
+ B D  G  J   N   |
+ABC  F           |
+   D FG   K      |
+AB     HIJK  NO  |
+  CD   H JKL  O  |
+   D F    K   O  |
+ BCDEF        O  |
+A C  F HI  L   P |
+   D       L N   |
+      G IJKLM    |
+    EF      MN   |
+ B  E       M    |
+     F H    MN   |
+ B D             |
+   DEFG     MN   |
+ B D             |
+   D          O  |
+   D       L     |
+ABC      JKLMN   |
+ BCDEF        O  | J8
+A    F H     NOP |
+    E     K MNO  |
+AB   F  IJ    O  |
+AB   F H J     P |
+AB     H J L     |
+     FG   K      |
+A    F  IJKLMN   |
+     FG   K    P |
+A    F  I   M  P |
+  CD    I K      |
+   D F H  K      |
+A    F  IJKLMN   |
+    E     K      |
+AB   F  I KLMN P |
+    E G   K  NO  |
+A C  F HIJKLMN   |
+   D       L N   |
+   DEFG     MN   |
+ B  E            |
+   D          O  |
+       H  K MNO  |
+AB  E G IJ L NOP |
+AB  E G I KL   P |
+  C E G        P |
+   D F     L N   |
+AB   F      M  P |
+  C E G I K M  P |
+   D F H  K      |
+  CD FGH     NOP |
+   D F     L     |
+    E  H  K MNO  |
+  CD FGH   L     |
+   DEF    K      |
+A    F  IJKLMN   |
+  C E G I   MN   |
+   D F H  K      |
+  CD FGH     N   |
+   D F     L     |
+    E  H  K MNO  |
+  CD FGH  KL     |
+   DEF    K      |
+A    F  IJKLMN   |
+AB D FG  JKLMN   |
+AB   FGHIJKLMN   |
+ABC  F        O  |
+AB   FG I KLMNOP |
+AB   F HIJ LMN   |
+ABCD         N   |
+   DEFGH   L     |
+    E     K MNO  |
+     FG    L N   |
+AB D  G IJ LM OP |
+   DE GH    MN   |
+ B  E       M O  |
+   D      K MNO  |
+ B   FG     M O  |
+   D       L N   |
+AB DE    JKLMN   |
+ABCDEFGHIJKLMNO  |
+       H JKLM    |
+   D        MN   |
+     F H  K MNO  |
+ B D FGH    M O  |
+AB   F  IJ L NOP |
+AB DEF  IJ LMN   |
+A C E G  JKLMN   |
+ B   FG    L     |
+A C  F HIJKLMN   |
+   D       L N   |
+   DE GH  K MNO  |
+AB D   HIJK  NO  |
+     FG   K MNO  |
+AB D    IJKLMN   |
+AB    G IJK      |
+ABCD          O  |
+AB D FGH J LMN   |
+   DEFGH   L NO  |
+    E     K MNO  |
+AB DEF  IJKLMN   |
+ABC  F        O  |
+AB D FGHIJKLMN   |
+ABCDEFGHIJKLM    |
+   D          O  | J20
+   D             |
+AB     HI KL N   |
+     FG     MN   |
+  C E G          |
+AB    G  JKLMN   |
+  C E G IJK MN   |
+   D F H    MN   |
+  C E G  JK      |
+ABCDEFGHIJKLM    |
+ BC E       M O  |
+ABC      JKLMN   |
+AB   FGHIJ    O  | J10
+         JKLM    |
+AB     H J     P |
+     FG   K      |
+A    F  IJKLMN   |
+AB   F H J L NOP |
+     F H  K      |
+    E       MN   |
+ B D        M O  |
+      GH JKLM    |
+AB    G IJK    P |
+AB   FGHI KLMN P |
+  C E G        P |
+   D F    K      |
+AB      I KLMN P |
+AB     HIJ L     |
+ABCD          O  |
+AB      IJ LMN P |
+ABCDEFGHIJKLMNO  |
+     FG   K    P |
+AB     HI  LMN   |
+A    F  I   M  P |
+  CD    I K      |
+AB      IJKLMN   |
+  CD    I KL     |
+   D F H  K      |
+A    F  IJKLMN   |
+     F H  K      |
+ B D        M O  |
+   D             |
+     F HIJKLM    |
+   D          O  |
+     F H  K      |
+ B D        M O  |
+AB   FG IJK    P |
+     FG   K      |
+  C E G          |
+AB   FGH JKLMN   |
+AB D F   JK  NO  |
+AB    G  JKLMN   |
+  CD      K    P |
+   D F    K  N   |
+AB D  G  JK  N   |
+    E G   K      |
+AB     H J L   P |
+   D        MN   |
+ B   FG     M O  |
+A    F  IJKLMN   |
+  C E G IJK MN   |
+   D F H  K      |
+  C E G  JK   O  |
+ABCDEFGHIJKLM    |
+ BC E        N   |
+ABCDEFGHIJKLM    |
+AB DE G I KLM OP |
+ B D         NO  |
+   D       L N   |
+AB D FGH    M    |
+AB D F HI  LMN P |
+  CD      KL   P |
+AB D FG  JKLMN   |
+ABCDEFGHIJKLM    |
+ABCDEFGHIJKLM    |
+     F HIJKLM    | FSTP
+      G    L NO  |
+AB     H J     P |
+     FG   K      |
+A    F  IJKLMN   |
+AB   FG IJ   NO  |
+AB   FG  J L NOP |
+     FG    LMN P |
+     F H   LM O  |
+ BC     I   M    |
+A C    H JKLMN   |
+      G  JKLM    |
+   DE G    LMN   |
+     F H   LM O  |
+A C    HIJKLMN   |
+      G IJKLM    |
+     F H    MN   |
+ B  E       M O  |
+AB    G  JK    P |
+ABCD          O  |
+   DEFGH   L  O  |
+A    F  IJ LMN P |
+ABCDEFGHIJKLMNO  |
+   D        MN   |
+ B   FG     M    |
+   D             |
+  C E G IJK MN   |
+     FGHIJK M O  |
+   D F H   LMN   |
+  C EFG I     O  |
+   D F H    MNO  |
+ B  EFG    L     |
+  CD  G I KLMN P |
+   D F H   L N   |
+  CD   H      OP |
+   D F     LMN   |
+  C EFG I     O  |
+   D F H    MNO  |
+ B  EFG          |
+  CD   H      OP |
+   D F     LMN   |
+  C E G      N   |
+   D F      MN   |
+  CD  G I KLMN P |
+ B D F H         |
+   D       L     |
+     FG   K      |
+  CD         N   |
+   D F     L N   |
+  C EFG I     O  |
+   D F H    MN   |
+ B  EFG          |
+  CD          OP |
+   D F     LMN   |
+  CD  G I KLMN P |
+   D F H    MN   |
+ B  E G          |
+AB DE G IJKL   P |
+AB     H    MN P | J9
+ BC   GH J       |
+ BCDE            |
+  CD    I  L     |
+   D F H   L N   |
+  CD    I K      |
+A C  F  IJKLMN P |
+   D        M    |
+AB    GHI  LMN   |
+    E G     M    |
+AB    G I   M    |
+   D F H    M    |
+  CD    I KL     |
+   D F H    M    |
+AB      I   M O  |
+    E  H    M    |
+ABCDEFGHIJKLMNO  |
+ABCDEFGHIJKLM    |
+ABCDEFGHIJKLM    |
+ABCDEFGHIJKLM    |
+      GHIJK M O  |
+ABCD F      M    |
+     F    K      |
+      G    L NO  |
+  C  F     L     |
+   DEF    K      |
+  C  F    K      |
+   DEF    K      |
+AB    GHIJKL     |
+  C  F    KL     |
+   DEF     L N   |
+     F     L  O  |
+    E GH     N   |
+ BCDE            |
+AB DE  HIJKL N P |
+ABCDEFG IJKLMNO  |
+  C  F    KL     |
+ABCD F      MNO  |
+ABCD        M    |
+AB DE GH JKLMN   |
+      GHIJK M O  |
+ABCDEFGHIJKLM    |
+      G    L NO  |
+    E G     M    |
+  C E G I  L     |
+   D F H    M    |
+  C E G I K      |
+   D F H    M    |
+  C E G I KL     |
+   D F H    M    |
+ BCDE            |
+    E  H    M    |
+AB DE G IJKL   P |
+ABCDEFG IJKLMNO  |
+ABCDEFGHIJKLM    |
+      G    L NO  | FRNDINT
+AB   F   J   NOP |
+A C  FG  J    O  |
+AB    GH J   NOP |
+AB  E GH JKL N   |
+AB      IJ    O  |
+   DEFGH   L NO  |
+ABCD          O  |
+AB  E  H J LMN   |
+AB  E    JKLMN   |
+      GH JKLM    |
+A C E  H J L NOP |
+     F H  K MNO  |
+    E       MN   |
+ B D FGH    M O  |
+AB   F H JK    P |
+A C E G  JKLMN   |
+ B   FG    L     |
+ BC     I    N   |
+AB      I KLM OP |
+ B D         NO  |
+AB    GH  KL N   |
+      G IJKLM    |
+AB   FG   KLMN P |
+     FG    L NO  |
+ BC   G I        |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+  CD  G  JK MN   |
+   D F    K  N   |
+   D F     L N   |
+AB DEF H JK  N P |
+ B  E        NO  |
+   D       L     |
+     FG    L N P |
+AB DE GH JKLMN   |
+     F H   L     |
+AB DEFG  JKLMN   |
+      G    L NO  | FSCALE
+AB  EF H J       |
+ BCDE            |
+      G    LMNO  |
+ BCDE         O  |
+AB  E GH J  M    |
+      GH JKLM    |
+AB    GHIJ   NOP |
+A C   G IJKLMN   |
+AB    G  JKL N   |
+AB     H J  M OP |
+ABCD          O  |
+   DEFGH   L NO  |
+AB   FGH J LMN   |
+AB   FG   KL  O  |
+    EF      MN   |
+    EF H      O  |
+     F H  K MNO  |
+ B D FGH    M O  |
+   D             |
+  C EFG IJK MN   |
+   D F H    MN   |
+AB    GH  KLMNO  |
+ B  E            |
+   D          O  |
+   D       L     |
+A C E     KL   P |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+ B  E       M O  |
+AB DEF  IJKLMN   |
+AB  E  HIJ    O  | J18
+    E G   K      |
+AB     HI KLMN P |
+     FG    L     |
+ BC    H J   N   |
+ABC      JKLMN   |
+AB      I  LMNOP |
+ABCD             |
+A C E G IJKLMN   |
+ B  E       M    |
+AB    G IJK      |
+ B D             |
+   D             |
+  C E G  JK MN   |
+   DE GH   L     |
+AB     H JKLMN   |
+ B D         NO  |
+   D       L     |
+   D F     L N   |
+ABC      JKLMN   |
+     FG    L N P |
+ABC      JKLMN   |
+ BC EFG I        | J21
+  CD   H JK M    |
+   D F    K   O  |
+ BC EF HI        |
+  CD   H JK  N   |
+            MN   |
+ABC      JKLMN   |
+A C   G          | FCOM,FCOMP,FCOMPP
+AB     HI        |
+      GH   LMNO  |
+AB      IJKLMN   |
+     FG    LMNO  | FTST
+      G    L NO  |
+ BC    HIJ  MNO  |
+AB   F   J   NOP |
+A C   G IJKLMN   |
+AB    G IJKL N   |
+AB    G IJ LM    |
+AB      IJ    OP |
+AB  E GH J  M O  |
+ABCD          O  |
+AB  EF H JKLMN   |
+AB  EF  I KL  O  |
+A C E  H J L NOP |
+ABC EF           |
+A C E  H J L NOP |
+ABC EF           |
+AB      IJ     P |
+AB   FG IJ  M    |
+AB     H JKL NOP |
+AB   FGHIJ L   P |
+AB   FG  JKLMN   |
+AB      IJ L   P |
+ABC EF           |
+    EF      MN   |
+ B  E       M O  |
+AB    GHIJK    P |
+AB   F    KLMN P |
+    EFG     MN   |
+ B  E G     M O  |
+AB     HIJK    P |
+AB    G   KLMN P |
+ BC    H J  M    |
+AB    GH JKLMN   |
+ BC   G  J  M    |
+AB    G  JKLMN   |
+ BC      J  M    |
+AB     H JKLMN   |
+ BC   GH J  M    |
+ BC     IJ  MNO  |
+AB    GH J LMN   |
+AB     H    MN P |
+ BC   GH J       |
+ BCDE            |
+AB     H   L NOP |
+ BC   GH J       |
+ BCDE            |
+ABCDEFGHIJKLMNO  |
+ BC EFGH J  M    | J14
+   DEFGHIJK M O  |
+ B D  GHIJ       |
+ B D  G  J  M  P |
+ B D  G  J  M O  |
+ABCD F      MN   |
+ B D  G  J  M    |
+   D FG   K  N   |
+ABC      JKLMN   |
+      G IJKLM    | J19
+     F H    MNO  |
+ B  E      LM O  |
+ BC     IJ  M    |
+AB     HIJK      |
+   D        MN   |
+ B   FG     M O  |
+ BC    HIJ  M    |
+AB   F    KLMN   |
+A C E G IJKLMN   |
+   D F     LMN   |
+     F H   L     |
+      GH JKLM    |
+     F H   LM    |
+ B  EF      M O  |
+   D       LM    |
+ABC      JKLMN   |
+     FG    LMNO  |
+ABC      JKLMN   |
+ABCD          O  |
+AB     H J LMN   |
+AB      IJ  MNOP |
+   DEFGH     N   |
+ABCDEFGHIJKLMNO  |
+      G    L NO  | FCHS,FABS
+AB DEF  IJ   N   |
+ BC     I    N   |
+ BC     IJ       |
+AB      I  L N   |
+ BC   GHI        |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+      G    L NO  | F2XM1
+      GHIJKLM    |
+AB  E G  J       |
+     F H    MN   |
+ B  E       M O  |
+ABCD         N   |
+    E G   K MNO  |
+AB    G  JK    P |
+   D      K M O  |
+AB   FGH  KLMN P |
+ABCD        M    |
+AB   FG  JKLMN   |
+      G IJKLM    |
+    E       MN   |
+     F H   LM O  |
+ B  EF      M O  |
+   D          O  |
+   D             |
+AB  EFGHI KL N   |
+   DE G    LMN   |
+A C    HIJKLMN   |
+A C E     KL   P |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+     F HIJKLM    |
+    E       MN   |
+     F H   LMN   |
+ B  EFG     M O  |
+AB    G   KLMN P |
+AB       JKL   P |
+  C E G        P |
+ BCDEF           |
+   D F    K MNO  |
+     F H JKLM    |
+   DE  H    MNO  |
+ B D FGH   LM O  |
+ABC E         O  |
+AB   F  IJK      |
+AB   F  IJKL N   |
+ BCDEF           |
+AB    GHIJKLMN   |
+  CD FGH       P |
+   D F    K MNO  |
+   DE  H    MNO  |
+ B D FGH   LM O  |
+ABC E         O  |
+AB      IJK    P |
+   D   H  K MNO  |
+AB DEF   JKL   P |
+     F H         |
+   D FGH   LMN   |
+   D FGH    MNO  |
+ BC   G  J  MN   |
+ABCD        M O  |
+A C  FGHIJKLMN   |
+   DE G    LMN   |
+   D   H    MNO  |
+ABCD F      M O  |
+A C  FGHIJKLMN   |
+  CD    I     O  |
+   D F H  K      |
+  CD    IJK MN   |
+   D F H    MNO  |
+ B D FGH   LM O  |
+  CD    IJK MN   |
+   D F H  K   O  |
+  CD   HI      P |
+   D F H    MNO  |
+   DE G   K   O  |
+ BC EFG  J   N   |
+ B D   H   LM O  |
+   D   H    MNO  |
+   D FGH  K   O  |
+A C  FGH JKLMN   |
+          K M O  |
+AB     HIJK M OP |
+  CD  GHIJ L     |
+   D F H    MNOP |
+ B D  GH   L     |
+ABC E            |
+  CD  GHI      P |
+AB     H JK M    |
+   D F H  K   O  |
+AB DE GHIJKL   P |
+AB     HIJK  NO  |
+  CD   H       P |
+   D F    K   O  |
+ BCDEF           |
+     FG     MNO  |
+ BC EF   J  M O  |
+ B D  GH   L     |
+AB     HIJK  N P |
+  CD  GHI      P |
+   D F H  K   O  |
+ BCDEF        O  |
+   D       L N   |
+   DEFG     MN   |
+ B  E       M O  |
+ B D         NO  |
+   D       L     |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+ABCDEFGHIJKLM    |
+      G IJKLM    | FLD1,FLDL2T,FLD2E,FLDPI
+     F H  K      |
+AB      I  L N P |
+ B D         NO  |
+AB    G IJKLMN   |
+     F HIJKLM    | FLDLG2,FLDLN2
+     FG     MN   |
+     F H  K      |
+AB      I  L N   |
+ B D        M    |
+   D       L  O  |
+   DE G    L N   |
+ BCDE         O  |
+ BC         M O  |
+AB    G  J   NO  |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+     FG    L NO  | FLDZ
+AB DEF  IJKLMN   |
+ABCD          O  |
+AB     H J LMN   |
+   DEFGH     N   |
+ABCDEFGHIJKLMNO  |
+ BCDE            |
+ABCDEFGHIJKLMNO  |
+      G    L NO  | FEXTRACT
+ BCDE         O  |
+ BC         M O  |
+AB DE GH J   NO  |
+    E GH   LMNO  |
+A C E  HIJ     P |
+    E GH     N   |
+ BCDE            |
+    EFGH     N   |
+ BCDE         O  |
+ABCDEFGHIJKLMNO  |
+      G    L NO  | FPTAN
+ BCDE         O  |
+ BC         M O  |
+AB D F HIJ   NO  |
+AB      IJ       |
+ABCD         N   |
+      GHIJKLM    |
+ B  E        NO  |
+     F H    MN   |
+ B D        M O  |
+AB   F HIJK      |
+      G IJKLM    |
+    E       MN   |
+     F H   LMN   |
+ B  EFG     M O  |
+   D          O  |
+   D             |
+AB  EF  I KL N   |
+     FG    LMN P |
+     F H   LM O  |
+    EFGH     N   |
+ABCDEFGHIJKLMNO  |
+       HIJKLM    |
+   D      K M O  |
+    E G   K MNO  |
+   DE       MNO  |
+ B D FGH   LM O  |
+ABC E         O  |
+AB   F HIJK    P |
+   D   H  K MNO  |
+ B  E        NO  |
+   D       L     |
+AB    GHIJKLMN   |
+  CD FGH       P |
+   D F    K MNO  |
+   DE       MNO  |
+ B D FGH   LM O  |
+ABC E         O  |
+AB      IJK    P |
+   D   H  K MNO  |
+AB DEF   JKL   P |
+   D FGH   L N   |
+     F H         |
+    E G    LMN   |
+    E G     MN   |
+A C  FGHIJKLMN   |
+  CD    IJK MN   |
+   D F H  K      |
+  CD    IJK MN   |
+   D F H    MN   |
+   DEFGH   LMN   |
+ B  EFG     M    |
+   D       LMN   |
+  C E G I      P |
+   D F H    MNO  |
+ B  E G    L     |
+   D  GH  K MNO  |
+      GHIJKLM    |
+     F H    MN   |
+ B  E       M O  |
+AB  E  H JK    P |
+  CD FGHI      P |
+     FGHIJK M O  |
+   D F H  K MNO  |
+AB   F  IJK M OP |
+  CD FGHIJ L     |
+   D FGH    MNO  |
+ B  EFG    L     |
+   D  GH  K MNO  |
+   D F H  K   O  |
+  CD   HIJ L     |
+   D F H    MNO  |
+ B  EFG    LM O  |
+   D   H   LMN   |
+ABC E            |
+  CD FGHI      P |
+AB     H JK M    |
+   D F H  K MNO  |
+AB DE   IJKL   P |
+      G IJKLM    |
+    EFG   K      |
+AB     HIJK  NO  |
+     F HIJKLM    |
+  CD           P |
+   D F     LMN   |
+     F H   LM O  |
+   D FGH   L N   |
+   D FGH  K  N   |
+AB    G  JK  N P |
+  CD FGHI      P |
+   D F H   L N   |
+ B  E        NO  |
+   D       L     |
+    EFGH     N   |
+ BCDE            |
+    E GH     N   |
+ BCDE         O  |
+ABCDEFGHIJKLMNO  |
+ABCDEFGHIJKLM    |
+      G    LMNO  | FPATAN
+ BC   GH J       |
+ BCDE            |
+      G    L NO  |
+AB      IJ       |
+ABCD         N   |
+    E       MN   |
+ B  EF      M O  |
+     F H JKLM    |
+   D          O  |
+   D        MN   |
+   D             |
+     F H  K MNO  |
+ B D FGH    M O  |
+AB   F   JK      |
+AB     HI KL N P |
+    E G   K MNO  |
+           L N   |
+AB   FGHIJKLMN   |
+A C    HIJKLMN   |
+A C E     KL   P |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+   D      K M O  |
+    E G   K MNO  |
+AB      I KLMN P |
+ BC   GH J  MN   |
+    EFG     MNO  |
+ B D FGH   LM O  |
+ABC E         O  |
+AB   F   JK      |
+AB  E  HIJ  MN   |
+ BCDEF           |
+AB  E   IJKLMN   |
+AB  E GHIJKLMN   |
+    EFG     MNO  |
+ B D FGH   LM O  |
+ABC E         O  |
+AB   FG  JK    P |
+  CD FGHIJ L     |
+   D   H  K MNO  |
+   D F H   L N   |
+  C E G IJ L     |
+    EFG     MN   |
+ BC EF   J  M O  |
+ B D F H   L     |
+   D       LMN   |
+AB     HIJK  N P |
+  CD  G I      P |
+   D F H   LMN   |
+AB     H JKLMN   |
+  CD FGH       P |
+   D F    K MNO  |
+AB D FG IJKL   P |
+  CD FGHI      P |
+   D F H  K MNO  |
+           L N   |
+     F H         |
+      G IJKLM    |
+    E G     MN   |
+     F H   L N   |
+ B  E G     M O  |
+   D       L     |
+    EFG     MNO  |
+   D FGH  K   O  |
+A C  FGH JKLMN   |
+   D       LMN   |
+   D   H  K MNO  |
+  CD   HI      P |
+   D   H    MNO  |
+ B D F H   L     |
+   D FGH    MNO  |
+   D  GH  K MNO  |
+ BC   G  J  MN   |
+A C  FGHIJKLMN   |
+  CD    IJK MN   |
+   D F H   LMN   |
+  C EFG IJK MN   |
+   DEFGH    MNO  |
+ B D F H   L     |
+   D   H    MNO  |
+   D FGH  K  NO  |
+A C  FGH JKLMN   |
+  CD   H       P |
+   D F    K MNO  |
+          K M O  |
+AB     HIJK M OP |
+   DE       MNO  |
+ B D FGH   L     |
+   D  GH  K MNO  |
+ABC E            |
+  CD FGHI      P |
+AB     H JK M    |
+   D F H  K MNO  |
+AB DE GHIJKL   P |
+   D FGH  K  NO  |
+AB     HIJK  N P |
+  CD  G I      P |
+   D F H  K  NO  |
+ BCDEF        O  |
+AB     HIJK  NO  |
+  CD   H       P |
+   D F    K      |
+ BCDEF           |
+ BC EF   J  M O  |
+     FG     MN   |
+ B D   H   L     |
+AB     HIJK  N P |
+  CD  G I      P |
+   D F H  K  N   |
+ BCDEF        O  |
+   DEFG     MN   |
+   D       L N   |
+ B  E       M O  |
+   D       L     |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+ABCDEFGHIJKLM    |
+ABCDEFGHIJKLM    |
+      G    L NO  | FYL2X,FYL2XP1
+   DE GH      O  |
+AB  EF  I  L NO  |
+   DE G     MNO  |
+ B  E G     M O  |
+AB   F   JK    P |
+AB  E G   KLMN P |
+A C E  HIJKLMN   |
+     F HIJKLM    |
+     FG    L N P |
+     F H   L  O  |
+A C    H JKLMN   |
+    E G   K MNO  |
+A    FG IJKLMN   |
+  C E G        P |
+   D F    K   O  |
+AB     HI KLMN P |
+A C E  HIJKLMN   |
+ABC EF           |
+AB DEF   JKLMN   |
+A C E G IJKLMN   |
+    E G     MNO  |
+ B           NO  |
+   D       L N   |
+   D F    K  NO  |
+A C  FGH JKLMN   |
+AB  EF H JKLMN   |
+AB  EFG  JKLMN   |
+      G IJKLM    |
+    E       MN   |
+A    FG IJ       |
+     F H   LM    |
+ B  EF      M O  |
+A C E G  JKLMN   |
+     FG      N   |
+    E G   K MNO  |
+AB  E   IJ L     |
+ B   FG    L   P |
+   D   H    MNO  |
+    E G   K   O  |
+A C  FGH JKLMN   |
+   D   H  K MNO  |
+     FG     MN   |
+AB    GHIJK  NO  |
+  CD   H       P |
+   D F    K MNO  |
+   DE GH    MN   |
+ B               |
+   D             |
+AB      I KL N P |
+   D          O  |
+    E     K      |
+AB  EF H JKLMN   |
+AB   F H JKLMN   |
+     FG     MNO  |
+AB DEF HIJKLMN   |
+ B  E        NO  |
+   D       L     |
+  C E G I      P |
+   D F H    MNO  |
+     FG    LMN P |
+ B  EFG    LM O  |
+ BC    HIJ       |
+     FG    L N   |
+   D   H  K MNO  |
+A C E  HIJKLMN   |
+    EFGH     N   |
+   D FGH  K   O  |
+AB    G   KLMN P |
+   DEFGH         |
+  CD FGH  KLMNOP |
+            MNO  |
+AB     HIJKLMN   |
+A C E G IJKLMN   |
+ B  E G          |
+   D             |
+   D F    K MNO  |
+ B  E       M O  |
+    E G     MN   |
+      GHIJKLM    |
+ B D        M O  |
+   D       L     |
+     F H    MN   |
+ B  E       M O  |
+AB     HIJK      |
+ B  E        NO  |
+   D       L     |
+AB  EF  IJKLMN   |
+   D      K M O  |
+     F HIJKLM    |
+    E       MN   |
+     F H   LMN   |
+ B  EFG     M O  |
+   D             |
+       HIJKLM    |
+  CD FGHIJK MN   |
+   D FGH    MNO  |
+ B D F H   L     |
+ABC E        NO  |
+AB     H JK  N P |
+   D   H  K MNO  |
+ BCDEF        O  |
+AB       JKLMN   |
+  CD FGHIJ L     |
+   D F H    MNOP |
+ B D FGH   L     |
+ABC E        NO  |
+AB      IJK  N P |
+   D   H  K MNO  |
+  CD FGH       P |
+   D F    K MNO  |
+AB DE GH JKL   P |
+     F H         |
+ABCD        M O  |
+ABCD         N   |
+AB     HI KL N   |
+   D FGH  K  NO  |
+   DEFGH    MNO  |
+AB  E  HIJKLMN   |
+   D FGH   LMN   |
+   D FGH    MNO  |
+A C  FGHIJKLMN   |
+  CD   HIJK MN   |
+   D F H    MNO  |
+ B D FGH   LM O  |
+  CD FGHIJK MN   |
+   D   H  K MNO  |
+   DEFGH   L N   |
+   D F H    MNO  |
+ B  E G    LM O  |
+  CD   H       P |
+   D F    K  NO  |
+  CD FGHIJK MN   |
+   D F H    MNO  |
+ B D  GH   LM O  |
+  CD  GHI      P |
+   D F H    MNO  |
+   D FGH  K  NO  |
+A C  FGH JKLMN   |
+   D   H    MNO  |
+   DE G    LMN   |
+A C  FGHIJKLMN   |
+  CD   H       P |
+   D F    K   O  |
+     FGHIJK M O  |
+AB     H JK M OP |
+   DE  H    MNO  |
+ B D   H   L     |
+ABC E            |
+  CD  GHI      P |
+AB     H JK M    |
+   D F H  K  NO  |
+AB DEF   JKL   P |
+AB     HIJK  N P |
+  CD  GHI      P |
+   D F H  K   O  |
+ BCDEF        O  |
+A C E G IJKLMN   |
+   D F    K MNO  |
+ B  E       M O  |
+   DEFG     MN   |
+ B D        M O  |
+ B D         NO  |
+   D       L     |
+      G    LMNO  |
+AB  E GHIJ  M    |
+    E       MN   |
+ B  EF      M O  |
+   D          O  |
+   D             |
+AB     HI KL N   |
+     FG     MN   |
+  CD FGH         |
+AB    G  JKLMN   |
+  CD FGHIJK MN   |
+   D F H    MN   |
+  CD FGH JK      |
+ABCDEFGHIJKLM    |
+ BC E       M O  |
+AB     H JKL  O  |
+ B  EFG    L     |
+AB    G IJKLMN   |
+ B  EFG    LM O  |
+A C E G IJKLMN   |
+ B  EF      M O  |
+   D       LM    |
+   D F    K   O  |
+   D   H  K MNO  |
+    EF H   L  O  |
+ BC   GH J       | J13
+ BCDE            |
+      G    LMNO  |
+ BC  F HI        |
+AB     HIJ  M  P |
+ BC     I   M    |
+    EFGH     N   |
+ABCDEFGHIJKLMNO  |
+AB    G  J       |
+   D FGH    MNO  |
+A C  FGHIJKLMN   |
+A C E   IJKLMN   |
+A C E     KL   P |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+ABCDEFGHIJKLM    |
+ABCDEFGHIJKLM    |
+AB     H   L N   | FDECSTP,FINCSTP
+ BCDE         O  |
+ABCDEFGHIJKLMNO  |
+ BCDE            |
+ABCDEFGHIJKLMNO  |
+      G    L NO  | FXAM
+ BC         M    |
+ BC E GH      O  |
+ BC    HIJ  MNO  |
+AB     HIJ    O  |
+AB      IJ L NOP |
+ BC     IJ  MNO  |
+ABCDEFGHIJKLMNO  |
+    E     K      |
+AB     H  KLMN P |
+ BC    H J  M    |
+AB DEF H JKLMN   |
+  C E G        P |
+   D F    K      |
+AB DE GHI KLMN   |
+ABCDEFGHIJKLMNO  |
+A C  FG  J    O  | J5
+ABC EF           |
+A C  FG  J    O  |
+ABC EF           |
+ABCD        M    |
+AB   F H J   NOP |
+   DE GH      O  |
+AB    G IJ  MNOP |
+ABCD          O  |
+AB  EFGHI  LMNO  |
+AB  E    J LMN   |
+   DEFGH   L NO  |
+ABC      JKLMN   |
+AB    G  J    O  |
+AB    GH J  M O  |
+ABCD F      M    |
+     FG       O  |
+ABC      JKLMN   |
+A C  FG  JKLMN   |
+AB   F   JKL N P |
+AB    G  J  M OP |
+ABC EF           |
+A C  FG  JKLMN   |
+ABC EF           |
+AB   FG  JKL N P |
+ABCD F      M    |
+ABC      JKLMN   |
+ABCDEFGHIJKLMNO  |
+AB   F  IJ  M OP |
+ABC EF           |
+A C  FG  JKLMN   |
+ABC EF           |
+AB    G IJKL N   |
+ABCD          O  |
+    EFG     MN   |
+ B  E G     M O  |
+AB      IJK      |
+    EFGH   L NO  |
+ABCD          O  |
+AB      I  LMNO  |
+AB DE  H J LMN   |
+ABCD        M    |
+ABC      JKLMN   |
+      G    L NO  | FSQRT
+AB   F H J       |
+AB   F H J   NOP |
+A C  FG  J    O  |
+AB   F   J   NOP |
+AB     HIJ    OP |
+AB     HIJKL N P |
+AB      IJ L     |
+AB     HIJ LM    |
+   DEFGH   L NO  |
+ABCD          O  |
+AB DE   IJ LMN   |
+AB  EFGH JKLMN   |
+AB DEF HIJ L     |
+AB DEF H J L NOP |
+    E         O  |
+       H  K      |
+  CD    I      P |
+   D F H   L     |
+AB     H  KL  OP |
+    E G   K MN   |
+AB     HIJKLMN   |
+ BCDEF        O  |
+  C E G        P |
+   D F    K MN   |
+     FG   K  NO  |
+     FG     MNO  |
+ BC EF   J  M    |
+   DEFGHIJK M O  |
+ B D  G IJ       |
+ABCD F      MN   |
+ B D  G  J  M  P |
+AB      IJK      |
+ B D  G       O  |
+ABC  F           |
+ B   FG          |
+A C  F HIJKLMN   |
+   D       L N   |
+   DE GH    MN   |
+ B  E       M O  |
+   DEFG     MN   |
+ B D             |
+   D       L     |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
+    E     K      | J12
+AB    GHI KLMN P |
+ABCD             |
+AB      I  LMNO  |
+AB DEF H J LMNO  |
+ BC      J   N   |
+   DE GH   L     |
+ABCD F      M    |
+ABC      JKLMN   |
+  C E G        P |
+   D F    K      |
+AB DEF HI KLMN P |
+ABCD        M    |
+ABC      JKLMN   |
+ BC    HIJ  MNO  | FPREM
+      G    L NO  |
+ BCDE            |
+      G    LMNO  |
+ BCDE         O  |
+AB   FGH J   NOP |
+A C   G IJKLMN   |
+AB   F HIJKL N   |
+AB      I KL  OP |
+AB    G IJ    OP |
+ABCD          O  |
+   DEFGH   L NO  |
+AB D  G  J LMN   |
+   DE GH      O  |
+AB    G  JKLMN   |
+ BC E GH J  M    |
+    E G   K      |
+ABCD F      MN   |
+AB  EF HIJKLMN   |
+AB  EFGH  KL  O  |
+    EF      MNO  |
+ B  E      LM O  |
+   D          O  |
+AB DE GHIJK    P |
+ABCD F      M    |
+AB      I KLMN P |
+ABCD        M    |
+   D        MN   |
+AB     HI KL N   |
+   DEFGH         |
+ BC     IJ  MNO  |
+            MN   |
+ B  E       M O  |
+   D       L     |
+ B   FG          |
+   DE GH    MN   |
+ B D        M O  |
+   D      K M O  |
+    E G   K  NO  |
+    EFG     MNO  |
+ BC E GH J  M    |
+AB      IJKL N   |
+ B D  G IJ       |
+ABCD F      MN   |
+ B D  G  J  M OP |
+ B D  G  J   N   |
+AB    G   KLMN P |
+ BC     I    N   |
+     FG    L NO  |
+ BC   G I        |
+AB    GH JKLMN   |
+A C E G IJKLMN   |
+   D F     L N   |
+ B  E       M O  |
+   D          O  |
+   D       L     |
+A C E     KL   P |
+  CD FG I     OP |
+   D F H  K   O  |
+ BC E G      NO  |
+    E GH     N   |
+ABCDEFGHIJKLMNO  |
