@@ -69,16 +69,19 @@ std::string make_cond_string(int cond_int)
     std::string cond = ss.str();
     if (false);
     else if (cond_int == 0x00) cond = "cond=is_memory_operand";
+    else if (cond_int == 0x02) cond = "cond=(opcode&0x7C0) == 0x4C0";
     else if (cond_int == 0x04) cond = "cond=stack_empty";
     else if (cond_int == 0x0d) cond = "cond=!(pop_at_end)";
-    else if (cond_int == 0x14) cond = "cond=MODRM&1";
-    else if (cond_int == 0x15) cond = "cond=!(MODRM&1)";
+    else if (cond_int == 0x14) cond = "cond=opcode&1";
+    else if (cond_int == 0x15) cond = "cond=!(opcode&1)";
     else if (cond_int == 0x17) cond = "cond=!(double_pop_at_end)";
-    else if (cond_int == 0x44) cond = "cond?=tmpa bad?";
+    else if (cond_int == 0x40) cond = "cond=tmpA zero";
+    else if (cond_int == 0x41) cond = "cond=!(tmpA zero)";
+    else if (cond_int == 0x44) cond = "cond?=tmpA bad?";
     else if (cond_int == 0x46) cond = "cond=stack overflow";
     else if (cond_int == 0x4e) cond = "cond=has_error";
     else if (cond_int == 0x4f) cond = "cond=!(has_error)";
-    else if (cond_int == 0x7c) cond = "unconditional";
+    else if (cond_int == 0x7c) cond = "cond=unconditional";
     else if (cond_int == 0x7d) cond = "cond=!(unconditional)=?never?";
     else
     {
@@ -140,20 +143,20 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     }
     else if ((op&0xF07F) == 0x0078)
     {
-        std::cout << "?load constant [" << ((op>>7)&0x01F) << "]?";
+        std::cout << "?load constant [0x" << std::hex << ((op>>7)&0x01F) << std::dec << "]?";
     }
     else if ((op&0xE0C1) == 0)
     {
         const char*const regs[] =
         {
-            "[0x0]", "[0x1]", "st(0)", "st(i)",
-            "[0x4]", "?constant?", "zero", "[0x7]",
-            "[0x8]", "[0x9]", "[0xa]", "tmpA",
-            "[0xc]", "[0xd]", "[0xe]", "tmpB",
+            "[0x0]", "[0x1]", "[0x2]st(0)", "[0x3]st(i)",
+            "[0x4]", "[0x5]?constant?", "[0x6]zero", "[0x7]",
+            "[0x8]", "[0x9]", "[0xa]", "[0xb]tmpA",
+            "[0xc]", "[0xd]", "[0xe]", "[0xf]tmpB",
             "[0x10]", "[0x11]", "[0x12]", "[0x13]",
             "[0x14]", "[0x15]", "[0x16]", "[0x17]",
             "[0x18]", "[0x19]", "[0x1a]", "[0x1b]",
-            "[0x1c]", "[0x1d]", "[0x1e]", "QNaN",
+            "[0x1c]", "[0x1d]", "[0x1e]", "[0x1f]NaN?",
         };
         std::cout << regs[(op>>8)&0x1F] << " -> " << regs[(op>>1)&0x1F];
     }
@@ -186,6 +189,10 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     else if (op == 0x6340)
     {
         std::cout << "set st(0) empty?";
+    }
+    else if (op == 0x6342)
+    {
+        std::cout << "set st(i) empty?";
     }
     else if (op == 0x600a)
     {
