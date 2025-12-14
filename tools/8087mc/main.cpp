@@ -64,30 +64,33 @@ std::string opStringNoSpace(u16 op)
 
 std::string make_cond_string(int cond_int)
 {
+    int cond_code = (cond_int>>1);
     std::stringstream ss;
-    ss << "0x" << std::hex << std::setfill('0') << std::setw(2) << cond_int;
+    ss << "0x" << std::hex << std::setfill('0') << std::setw(2) << cond_code;
     std::string cond = ss.str();
     if (false);
-    else if (cond_int == 0x00) cond = "cond=is_memory_operand";
-    else if (cond_int == 0x02) cond = "cond=(opcode&0x7C0) == 0x4C0";
-    else if (cond_int == 0x04) cond = "cond=stack_empty";
-    else if (cond_int == 0x0d) cond = "cond=!(pop_at_end)";
-    else if (cond_int == 0x14) cond = "cond=opcode&1";
-    else if (cond_int == 0x15) cond = "cond=!(opcode&1)";
-    else if (cond_int == 0x17) cond = "cond=!(double_pop_at_end)";
-    else if (cond_int == 0x40) cond = "cond=tmpA zero";
-    else if (cond_int == 0x41) cond = "cond=!(tmpA zero)";
-    else if (cond_int == 0x44) cond = "cond?=tmpA bad?";
-    else if (cond_int == 0x46) cond = "cond=stack overflow";
-    else if (cond_int == 0x4e) cond = "cond=has_error";
-    else if (cond_int == 0x4f) cond = "cond=!(has_error)";
-    else if (cond_int == 0x7c) cond = "cond=unconditional";
-    else if (cond_int == 0x7d) cond = "cond=!(unconditional)=?never?";
-    else
+    else if (cond_code == 0x00) cond += " is_memory_operand";
+    else if (cond_code == 0x01) cond += " (opcode&0x7C0) == 0x4C0";
+    else if (cond_code == 0x02) cond += " stack_empty";
+    else if (cond_code == 0x06) cond += " pop_at_end";
+    else if (cond_code == 0x0a) cond += " opcode&1";
+    else if (cond_code == 0x0b) cond += " double_pop_at_end";
+    else if (cond_code == 0x20) cond += " tmpA zero";
+    else if (cond_code == 0x22) cond += " tmpA bad?";
+    else if (cond_code == 0x23) cond += " stack overflow";
+    else if (cond_code == 0x24) cond += " tmpB zero";
+    else if (cond_code == 0x26) cond += " tmpB bad?";
+    else if (cond_code == 0x27) cond += " st(i) doesn't exist (A)";
+    else if (cond_code == 0x2f) cond += " st(i) doesn't exist (B)";
+    else if (cond_code == 0x38) cond += " accumulator!=0";
+    else if (cond_code == 0x3e) cond += " unconditional";
+
+    if (cond_int&1)
     {
-        cond = "cond="+cond;
+        cond = "!(" + cond + ")";
     }
-    return cond;
+
+    return "cond=" + cond;
 }
 
 void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
@@ -123,23 +126,14 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
         if (offset >= 32)
             offset -= 64;
 
-        if ((op&0xF000) == 0xD000)
+        if (op&0x1000)
         {
             std::cout << "-jmp->#" << std::setw(4) << lineNum+1+offset << " " << cond;
         }
-        else if ((op&0xF000) == 0xC000)
+        else
         {
             std::cout << "+jmp->#" << std::setw(4) << lineNum+1+offset << " " << cond;
         }
-        //these are a bit shit
-        /*else if ((op&0xf800) == 0xC800)
-        {
-            std::cout << "jmpA?->#" << std::setw(4) << lineNum+1+((op>>7)&0xF) << " or #" << std::setw(4) << lineNum+1-((op>>7)&0xF) << " " << cond;
-        }
-        else
-        {
-            std::cout << "jmpB?->#" << std::setw(4) << lineNum+1+((op>>7)&0xF) << " or #" << std::setw(4) << lineNum+1-((op>>7)&0xF) << " " << cond;
-        }*/
     }
     else if ((op&0xF07F) == 0x0078)
     {
@@ -155,7 +149,7 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
             "[0xc]", "[0xd]", "[0xe]", "[0xf]tmpB",
             "[0x10]", "[0x11]", "[0x12]", "[0x13]",
             "[0x14]", "[0x15]", "[0x16]", "[0x17]",
-            "[0x18]", "[0x19]", "[0x1a]", "[0x1b]",
+            "[0x18]", "[0x19]", "[0x1a] st0 something?", "[0x1b] sti something?",
             "[0x1c]", "[0x1d]", "[0x1e]", "[0x1f]NaN?",
         };
         std::cout << regs[(op>>8)&0x1F] << " -> " << regs[(op>>1)&0x1F];
@@ -174,42 +168,54 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
         //cond JKLMNOP
         std::cout << "farjump J" << ((op>>7)&0x1F) << ", " << cond;
     }
-    else if (op == 0xe07c)
+    else if ((op&0xFF80) == 0xe000)
     {
-        std::cout << "--------------return--------------";
+        std::string cond = make_cond_string(op&0x7F);
+        std::cout << "----return, " << cond;
     }
     else if (op == 0x7800)
     {
-        std::cout << "stack pop";
+        std::cout << "stack pop (++stack ptr)";
     }
     else if (op == 0x7802)
     {
-        std::cout << "stack push";
+        std::cout << "stack push (--stack ptr)";
     }
-    else if (op == 0x6340)
-    {
-        std::cout << "set st(0) empty?";
-    }
-    else if (op == 0x6342)
-    {
-        std::cout << "set st(i) empty?";
-    }
+    else if (op == 0x6340) //.BC...GH.J......
+        std::cout << "set st(0) empty";
+    else if (op == 0x6342) //.BC...GH.J....O.
+        std::cout << "set st(i) empty";
+
+    else if (op == 0xe800) std::cout << "?increment something A?";
+    else if (op == 0xe802) std::cout << "?decrement something A?";
+
+    else if (op == 0x7c00) std::cout << "?increment something B?";
+    else if (op == 0x7c02) std::cout << "?decrement something B ?";
+
+
     else if (op == 0x600a)
     {
         std::cout << "set st(0) valid?";
     }
+
     else if (op == 0x6084)
-    {
-        std::cout << "?store tmpA sign?";
-    }
+        std::cout << "?sgn store tmpA sign?"; //.BC.....I....N..
+    else if (op == 0x6044)
+        std::cout << "?sgn store tmpB sign?"; //.BC......J...N..
+    else if (op == 0x6584)
+        std::cout << "?store? flag? something?" ; //.BC..F.HI....N..
     else if (op == 0x60c0)
-    {
-        std::cout << "?clear tmpA sign?";
-    }
+        std::cout << "?sgn clear tmpA sign?"; //.BC.....IJ......
+    else if (op == 0x61c0)
+        std::cout << "?sgn set tmpA sign?"; //.BC....HIJ......
+    else if (op == 0x6280)
+        std::cout << "?sgn take stored sign, and store to tmpA?"; //.BC...G.I.......
     else if (op == 0x6380)
-    {
-        std::cout << "?take stored sign, flip, and store to tmpA?";
-    }
+        std::cout << "?sgn take stored sign, flip, and store to tmpA?"; //.BC...GHI.......
+
+    else if (op == 0xec00) std::cout << "?swap tmpA and tmpB?"; // ABC.EF..........
+
+
     else if (op == 0x5006)
     {
         std::cout << "?increment tmpA exponent?";
