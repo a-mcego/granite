@@ -147,7 +147,7 @@ A C E G IJKLMN   |
  B D FGH    M O  |
    D       LM    |
 ABC      JKLMN   |
-  C  F    K      |
+  C  F    K      | -load f80
    DEF    K      |
   C  F    KL     |
 ABCD F      MNO  |
@@ -171,7 +171,7 @@ ABCD             |
  BC   G  J  MN   |
 ABC      JKLMN   |
 ABCDEFGHIJKLM    |
-     FGHIJK M O  | J7
+     FGHIJK M O  | J7-load b80
     EF    K MNO  |
   CD FGH  KLM    |
    D F     L N   |
@@ -673,7 +673,7 @@ ABCDEFGHIJKLMNO  |
 ABCDEFGHIJKLM    |
 ABCDEFGHIJKLM    |
 ABCDEFGHIJKLM    |
-      GHIJK M O  |
+      GHIJK M O  | FLD80_FRESTOR
 ABCD F      M    |
      F    K      |
       G    L NO  |
@@ -693,7 +693,7 @@ ABCDEFG IJKLMNO  |
 ABCD F      MNO  |
 ABCD        M    |
 AB DE GH JKLMN   |
-      GHIJK M O  |
+      GHIJK M O  | FST80_FNSAVE
 ABCDEFGHIJKLM    |
       G    L NO  |
     E G     M    |

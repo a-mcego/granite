@@ -72,17 +72,20 @@ std::string make_cond_string(int cond_int)
     else if (cond_code == 0x00) cond += " is_memory_operand";
     else if (cond_code == 0x01) cond += " (opcode&0x7C0) == 0x4C0";
     else if (cond_code == 0x02) cond += " stack_empty";
+    else if (cond_code == 0x03) cond += " fld not fild";
+    else if (cond_code == 0x04) cond += " f32 not f64";
     else if (cond_code == 0x06) cond += " pop_at_end";
     else if (cond_code == 0x0a) cond += " opcode&1";
     else if (cond_code == 0x0b) cond += " double_pop_at_end";
-    else if (cond_code == 0x20) cond += " tmpA zero";
+    else if (cond_code == 0x20) cond += " tmpA==0";
     else if (cond_code == 0x22) cond += " tmpA bad?";
     else if (cond_code == 0x23) cond += " stack overflow";
-    else if (cond_code == 0x24) cond += " tmpB zero";
+    else if (cond_code == 0x24) cond += " tmpB==0";
     else if (cond_code == 0x26) cond += " tmpB bad?";
     else if (cond_code == 0x27) cond += " st(i) doesn't exist (A)?";
     else if (cond_code == 0x2f) cond += " st(i) doesn't exist (B)?";
     else if (cond_code == 0x38) cond += " accumulator!=0";
+    else if (cond_code == 0x3b) cond += " Asign != Bsign";
     else if (cond_code == 0x3e) cond += " unconditional";
 
     if (cond_int&1)
@@ -103,14 +106,14 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     // ABCD EFGH IJKL MNOP
         const char*const regs[] =
         {
-            "[0x0]", "[0x1]", "[0x2]st(0)", "[0x3]st(i)",
-            "[0x4]", "[0x5 sum?]", "[0x6]sum input", "[0x7]",
-            "[0x8]expA", "[0x9]", "[0xa]mantA", "[0xb]tmpA",
-            "[0xc]expB", "[0xd]", "[0xe]mantB", "[0xf]tmpB",
-            "[0x10]", "[0x11]", "[0x12]", "[0x13]",
-            "[0x14]", "[0x15]", "[0x16]", "[0x17]",
-            "[0x18]", "[0x19]", "[0x1a]tmpA.X", "[0x1b]tmpA.Y",
-            "[0x1c]", "[0x1d]", "[0x1e]", "[0x1f]NaN?",
+            "[0x0]", "[0x1]sign", "[0x2]st(0)", "[0x3]st(i)",
+            "[0x4]BIU", "[0x5 sum?]", "[0x6]sum input", "[0x7]",
+            "[0x8]expA", "[0x9]expA raw", "[0xa]mantA", "[0xb]tmpA",
+            "[0xc]expB", "[0xd]expB raw", "[0xe]mantB", "[0xf]tmpB",
+            "[0x10]Cop_in", "[0x11]", "[0x12]", "[0x13]",
+            "[0x14]SHL_out1", "[0x15]SHR_out", "[0x16]", "[0x17]tmpC?",
+            "[0x18]", "[0x19]", "[0x1a]tmpA 2?", "[0x1b]tmpA 3?",
+            "[0x1c]SHL_out2", "[0x1d]", "[0x1e]", "[0x1f]NaN?",
         };
 
 
@@ -124,6 +127,10 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     else if (op == 0xFFFE) //RNI
     {
         std::cout << "---------------RNI----------------";
+    }
+    else if (op == 0xFEFE) //RNI2
+    {
+        std::cout << "---------------RNI2---------------";
     }
     else if (op == 0xFFF8) //NOP
     {
@@ -154,13 +161,9 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     {
         std::cout << regs[(op>>8)&0x1F] << " -> " << regs[(op>>1)&0x1F] << ((op&1)?" with P":"");
     }
-    else if ((op&0xE0C0) == 0x00C0)
+    else if ((op&0xE040) == 0x0040)
     {
-        std::cout << "IJ mov /0x" << std::hex << ((op>>8)&0x1F) << std::dec << "/ -> " << regs[(op>>1)&0x1F] << ((op&1)?" with P":"");
-    }
-    else if ((op&0xE0C0) == 0x0040)
-    {
-        std::cout << "-J mov /0x" << std::hex << ((op>>8)&0x1F) << std::dec << "/ -> " << regs[(op>>1)&0x1F] << ((op&1)?" with P":"");
+        std::cout << "J mov /0x" << std::hex << ((op>>7)&0x3F) << std::dec << "/ -> " << regs[(op>>1)&0x1F] << ((op&1)?" with P":"");
     }
     else if ((op&0xF000) == 0xA000) //A.C.
     {
@@ -237,9 +240,20 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     else if (op == 0xec00) std::cout << "?negate something?"; // ABC.EF..........
 
 
-    else if ((op&0xE001)==0x4000)
+    else if ((op&0xE000)==0x4000)
     {
-        std::cout << "Bop! param=" << regs[(op>>8)&0x1F] << " operation=" << ((op>>1)&0x7F);
+        std::cout << "Bop! param=" << regs[(op>>8)&0x1F] << " operation=" << ((op>>1)&0x7F) << ((op&1)?" with P":"");
+    }
+    else if ((op&0xE000)==0x2000) //check ABC
+    {
+        if ((op&0x40) == 0) //J==0
+        {
+            std::cout << "Cop shift! " << regs[(op>>8)&0x1F] << ((op&0x80)?">>":"<<") << (op&0x3F) << " -> " << ((op&0x80)?regs[0x15]:regs[0x1C]);
+        }
+        else
+        {
+            std::cout << "Cop! param=" << regs[(op>>8)&0x1F] << " IJ=" << ((op&0x80)?1:0) << ((op&0x40)?1:0) << " KLM=" << ((op>>3)&0x7) << " NOP=" << ((op>>0)&0x7);
+        }
     }
 
     /*else if (op == 0x5006)

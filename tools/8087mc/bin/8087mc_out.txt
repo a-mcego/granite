@@ -23,15 +23,15 @@
 #0022	AB DE  H JKLMN  	d97c	-jmp->#0009 cond=0x3e unconditional	
 #0023	 BC  F HI    N  	6584	?store? flag? something?	
 #0024	AB   FGH  KL  O 	c732	+jmp->#0039 cond=0x19	
-#0025	AB    GH J  M  P	c349	+jmp->#0032 cond=!(0x24 tmpB zero)	
-#0026	AB   F   J      	c440	+jmp->#0035 cond=0x20 tmpA zero	
+#0025	AB    GH J  M  P	c349	+jmp->#0032 cond=!(0x24 tmpB==0)	
+#0026	AB   F   J      	c440	+jmp->#0035 cond=0x20 tmpA==0	
 #0027	ABCD         NO 	f006	exception: division by zero	
 #0028	   DEFGH   L NO 	1f16	[0x1f]NaN? -> [0xb]tmpA	
 #0029	     FG    L N P	0615	[0x6]sum input -> [0xa]mantA with P	
 #0030	 BC   G I       	6280	?sgn take stored sign, and store to tmpA?	
 #0031	AB    G IJKLMN  	c2fc	+jmp->#0037 cond=0x3e unconditional	
-#0032	AB     H J     P	c141	+jmp->#0035 cond=!(0x20 tmpA zero)	
-#0033	    EFG   K     	0e20	[0xe]mantB -> [0x10]	
+#0032	AB     H J     P	c141	+jmp->#0035 cond=!(0x20 tmpA==0)	
+#0033	    EFG   K     	0e20	[0xe]mantB -> [0x10]Cop_in	
 #0034	AB  E G   KLMN P	ca3d	+jmp->#0055 cond=!(0x1e)	
 #0035	ABCD          O 	f002	exception: invalid	
 #0036	   DEFGH   L NO 	1f16	[0x1f]NaN? -> [0xb]tmpA	
@@ -45,18 +45,18 @@
 #0044	AB DE GH JKL  O 	db72	-jmp->#0035 cond=0x39	
 #0045	AB DEF   JKLMN  	dc7c	-jmp->#0038 cond=0x3e unconditional	
 #0046	AB     H   LM  P	c119	+jmp->#0049 cond=!(0x0c)	
-#0047	AB DE  HIJ  M   	d9c8	-jmp->#0035 cond=0x24 tmpB zero	
+#0047	AB DE  HIJ  M   	d9c8	-jmp->#0035 cond=0x24 tmpB==0	
 #0048	AB D F HIJKLMN  	d5fc	-jmp->#0028 cond=0x3e unconditional	
 #0049	AB D F H   LM O 	d51a	-jmp->#0028 cond=0x0d	
 #0050	AB DE  HIJKLMN  	d9fc	-jmp->#0038 cond=0x3e unconditional	
 #0051	AB     H   LM  P	c119	+jmp->#0054 cond=!(0x0c)	
-#0052	AB D FGH J      	d740	-jmp->#0035 cond=0x20 tmpA zero	
+#0052	AB D FGH J      	d740	-jmp->#0035 cond=0x20 tmpA==0	
 #0053	AB D  GH JKLMN  	d37c	-jmp->#0028 cond=0x3e unconditional	
 #0054	AB     H   LM OP	c11b	+jmp->#0057 cond=!(0x0d)	
 #0055	     FG    L NO 	0616	[0x6]sum input -> [0xb]tmpA	
 #0056	AB D  G IJKLMN  	d2fc	-jmp->#0030 cond=0x3e unconditional	
 #0057	ABC EF          	ec00	?negate something?	
-#0058	AB     H JKL NO 	c176	+jmp->#0061 cond=0x3b	
+#0058	AB     H JKL NO 	c176	+jmp->#0061 cond=0x3b Asign != Bsign	
 #0059	AB     H JKL  O 	c172	+jmp->#0062 cond=0x39	
 #0060	AB D F  IJKLMN  	d4fc	-jmp->#0038 cond=0x3e unconditional	
 #0061	AB D F   JKL  O 	d472	-jmp->#0038 cond=0x39	
@@ -81,32 +81,32 @@
 #0080	ABCD          O 	f002	exception: invalid	
 #0081	AB DEF HIJ LMN  	dddc	-jmp->#0077 cond=0x2e	
 #0082	AB DE G IJKLMN  	dafc	-jmp->#0072 cond=0x3e unconditional	
-#0083	A     GH     NOP	8307	farjump J6, cond=!(0x03)	-------J4-------
-#0084	AB   F      M  P	c409	+jmp->#0093 cond=!(0x04)	
-#0085	  C  F    K M   	2428	?	
+#0083	A     GH     NOP	8307	farjump J6, cond=!(0x03 fld not fild)	-------J4-------
+#0084	AB   F      M  P	c409	+jmp->#0093 cond=!(0x04 f32 not f64)	
+#0085	  C  F    K M   	2428	Cop shift! [0x4]BIU<<40 -> [0x1c]SHL_out2	
 #0086	ABCD F      MNO 	f40e	?	
-#0087	   D F    K     	1420	[0x14] -> [0x10]	
-#0088	     F     LM O 	041a	[0x4] -> [0xd]	
-#0089	  C EF    KLM   	2c38	?	
-#0090	   DEF     LMN P	1c1d	[0x1c] -> [0xe]mantB with P	
-#0091	  C EF  I    NOP	2c87	?	
+#0087	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
+#0088	     F     LM O 	041a	[0x4]BIU -> [0xd]expB raw	
+#0089	  C EF    KLM   	2c38	Cop shift! [0xc]expB<<56 -> [0x1c]SHL_out2	
+#0090	   DEF     LMN P	1c1d	[0x1c]SHL_out2 -> [0xe]mantB with P	
+#0091	  C EF  I    NOP	2c87	Cop shift! [0xc]expB>>7 -> [0x15]SHR_out	
 #0092	AB   F HIJKLMN  	c5fc	+jmp->#0104 cond=0x3e unconditional	
-#0093	  C  F      M OP	240b	?	
-#0094	   D F    K     	1420	[0x14] -> [0x10]	
-#0095	  C  F     LM OP	241b	?	
-#0096	   DEF    K     	1c20	[0x1c] -> [0x10]	
-#0097	  C  F    K M OP	242b	?	
+#0093	  C  F      M OP	240b	Cop shift! [0x4]BIU<<11 -> [0x1c]SHL_out2	
+#0094	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
+#0095	  C  F     LM OP	241b	Cop shift! [0x4]BIU<<27 -> [0x1c]SHL_out2	
+#0096	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
+#0097	  C  F    K M OP	242b	Cop shift! [0x4]BIU<<43 -> [0x1c]SHL_out2	
 #0098	ABCD F      MNO 	f40e	?	
-#0099	   DEF    K     	1c20	[0x1c] -> [0x10]	
-#0100	     F     LM O 	041a	[0x4] -> [0xd]	
-#0101	  C EF    KLM OP	2c3b	?	
-#0102	   DEF     LMN P	1c1d	[0x1c] -> [0xe]mantB with P	
-#0103	  C EF  I    N  	2c84	?	
-#0104	   D F H      O 	1502	[0x15] -> [0x1]	
-#0105	       H   LM   	0118	[0x1] -> [0xc]expB	
+#0099	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
+#0100	     F     LM O 	041a	[0x4]BIU -> [0xd]expB raw	
+#0101	  C EF    KLM OP	2c3b	Cop shift! [0xc]expB<<59 -> [0x1c]SHL_out2	
+#0102	   DEF     LMN P	1c1d	[0x1c]SHL_out2 -> [0xe]mantB with P	
+#0103	  C EF  I    N  	2c84	Cop shift! [0xc]expB>>4 -> [0x15]SHR_out	
+#0104	   D F H      O 	1502	[0x15]SHR_out -> [0x1]sign	
+#0105	       H   LM   	0118	[0x1]sign -> [0xc]expB	
 #0106	ABC       KL    	e030	----return, cond=0x18	
-#0107	  C EFG        P	2e01	?	
-#0108	   D F    K     	1420	[0x14] -> [0x10]	
+#0107	  C EFG        P	2e01	Cop shift! [0xe]mantB<<1 -> [0x1c]SHL_out2	
+#0108	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
 #0109	AB   F  I KL NO 	c4b6	+jmp->#0119 cond=0x1b	
 #0110	AB    G   KLMN P	c23d	+jmp->#0115 cond=!(0x1e)	
 #0111	     FG    LM   	0618	[0x6]sum input -> [0xc]expB	
@@ -114,46 +114,46 @@
 #0113	 BC    H J  MN  	614c	set C0=0, C2=0, C3=1, NO=2	
 #0114	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0115	ABCD            	f000	exception: denorm	
-#0116	  CD    I      P	3081	?	
-#0117	   D F H   LMN  	151c	[0x15] -> [0xe]mantB	
+#0116	  CD    I      P	3081	Cop shift! [0x10]Cop_in>>1 -> [0x15]SHR_out	
+#0117	   D F H   LMN  	151c	[0x15]SHR_out -> [0xe]mantB	
 #0118	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0119	 BC   G  J  MN  	624c	set C0=1, C2=0, C3=0, NO=2	
 #0120	   DEFGH   LM   	1f18	[0x1f]NaN? -> [0xc]expB	
 #0121	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0122	     FG   K  NO 	0626	[0x6]sum input -> [0x13]	-------J6-------
-#0123	AB    GH    M   	c308	+jmp->#0130 cond=0x04	
+#0123	AB    GH    M   	c308	+jmp->#0130 cond=0x04 f32 not f64	
 #0124	AB   F     LMN  	c41c	+jmp->#0133 cond=0x0e	
-#0125	     F    K     	0420	[0x4] -> [0x10]	
+#0125	     F    K     	0420	[0x4]BIU -> [0x10]Cop_in	
 #0126	ABCDEFGHIJKLM   	fff8	nop	
-#0127	  C  F     L    	2410	?	
-#0128	   DEF    K     	1c20	[0x1c] -> [0x10]	
+#0127	  C  F     L    	2410	Cop shift! [0x4]BIU<<16 -> [0x1c]SHL_out2	
+#0128	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
 #0129	AB  E  HI   M OP	c98b	+jmp->#0149 cond=!(0x05)	
-#0130	  C  F    K     	2420	?	
+#0130	  C  F    K     	2420	Cop shift! [0x4]BIU<<32 -> [0x1c]SHL_out2	
 #0131	ABCD F      MNO 	f40e	?	
-#0132	   DEF    K     	1c20	[0x1c] -> [0x10]	
-#0133	  C  F    KL    	2430	?	
-#0134	   DEF     LMN  	1c1c	[0x1c] -> [0xe]mantB	
+#0132	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
+#0133	  C  F    KL    	2430	Cop shift! [0x4]BIU<<48 -> [0x1c]SHL_out2	
+#0134	   DEF     LMN  	1c1c	[0x1c]SHL_out2 -> [0xe]mantB	
 #0135	 BC     IJ  M   	60c8	set C0=0, C2=1, C3=0, NO=0	
-#0136	    EFG   K     	0e20	[0xe]mantB -> [0x10]	
+#0136	    EFG   K     	0e20	[0xe]mantB -> [0x10]Cop_in	
 #0137	AB     HIJ L  OP	c1d3	+jmp->#0141 cond=!(0x29)	
 #0138	    EFG     MN  	0e0c	[0xe]mantB -> [0x6]sum input	
 #0139	 B   FG     M O 	460a	Bop! param=[0x6]sum input operation=5	
 #0140	 BC    HIJ  M   	61c8	set C0=0, C2=1, C3=1, NO=0	
 #0141	AB  E   I KLMN  	c8bc	+jmp->#0159 cond=0x1e	
 #0142	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
-#0143	   D F     LMN  	141c	[0x14] -> [0xe]mantB	
-#0144	         JKLM   	0078	-J mov /0x0/ -> [0x1c]	
+#0143	   D F     LMN  	141c	[0x14]SHL_out1 -> [0xe]mantB	
+#0144	         JKLM   	0078	J mov /0x0/ -> [0x1c]SHL_out2	
 #0145	     F H  K MNO 	052e	[0x5 sum?] -> [0x17]	
 #0146	 B D FGH    M O 	570a	Bop! param=[0x17] operation=5	
-#0147	   D       LM   	1018	[0x10] -> [0xc]expB	
+#0147	   D       LM   	1018	[0x10]Cop_in -> [0xc]expB	
 #0148	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
-#0149	  C  F    K     	2420	?	
-#0150	   DEF    K     	1c20	[0x1c] -> [0x10]	
-#0151	  C  F    KL    	2430	?	
+#0149	  C  F    K     	2420	Cop shift! [0x4]BIU<<32 -> [0x1c]SHL_out2	
+#0150	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
+#0151	  C  F    KL    	2430	Cop shift! [0x4]BIU<<48 -> [0x1c]SHL_out2	
 #0152	ABCD F      MNO 	f40e	?	
-#0153	   DEF     LMN  	1c1c	[0x1c] -> [0xe]mantB	
-#0154	     F     LM O 	041a	[0x4] -> [0xd]	
-#0155	    EF        O 	0c02	[0xc]expB -> [0x1]	
+#0153	   DEF     LMN  	1c1c	[0x1c]SHL_out2 -> [0xe]mantB	
+#0154	     F     LM O 	041a	[0x4]BIU -> [0xd]expB raw	
+#0155	    EF        O 	0c02	[0xc]expB -> [0x1]sign	
 #0156	AB    GH    MNO 	c30e	+jmp->#0163 cond=0x07	
 #0157	A C   GHIJKLMN  	a3fc	call J7, cond=0x3e unconditional	
 #0158	AB D FGH  KLMN P	d73d	-jmp->#0141 cond=!(0x1e)	
@@ -162,7 +162,7 @@
 #0161	 BC     I   M   	6088	?	
 #0162	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0163	ABC       KL    	e030	----return, cond=0x18	
-#0164	    EFG   K     	0e20	[0xe]mantB -> [0x10]	
+#0164	    EFG   K     	0e20	[0xe]mantB -> [0x10]Cop_in	
 #0165	AB    G   KL NO 	c236	+jmp->#0170 cond=0x1b	
 #0166	AB     H  KLMN P	c13d	+jmp->#0169 cond=!(0x1e)	
 #0167	 BC    H J  MN  	614c	set C0=0, C2=0, C3=1, NO=2	
@@ -171,32 +171,32 @@
 #0170	 BC   G  J  MN  	624c	set C0=1, C2=0, C3=0, NO=2	
 #0171	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0172	ABCDEFGHIJKLM   	fff8	nop	
-#0173	     FGHIJK M O 	07ea	IJ mov /0x7/ -> [0x15]	-------J7-------
+#0173	     FGHIJK M O 	07ea	J mov /0xf/ -> [0x15]SHR_out	-------J7-------
 #0174	    EF    K MNO 	0c2e	[0xc]expB -> [0x17]	
-#0175	  CD FGH  KLM   	3738	?	
-#0176	   D F     L N  	1414	[0x14] -> [0xa]mantA	
-#0177	  C E G I KLMN  	2abc	?	
-#0178	   D F H  K     	1520	[0x15] -> [0x10]	
-#0179	  CD           P	3001	?	
-#0180	   D F      MN  	140c	[0x14] -> [0x6]sum input	
-#0181	  CD          OP	3003	?	
-#0182	 B D F          	5400	Bop! param=[0x14] operation=0	
-#0183	   D        MN  	100c	[0x10] -> [0x6]sum input	
-#0184	  CD FGH  KLMN  	373c	?	
-#0185	   D F     L N  	1414	[0x14] -> [0xa]mantA	
-#0186	  C E G I KLMN  	2abc	?	
-#0187	 B D F H        	5500	Bop! param=[0x15] operation=0	
-#0188	  CD           P	3001	?	
-#0189	   D F      MN  	140c	[0x14] -> [0x6]sum input	
-#0190	  CD          OP	3003	?	
-#0191	 B D F          	5400	Bop! param=[0x14] operation=0	
-#0192	   D        MN  	100c	[0x10] -> [0x6]sum input	
-#0193	  C EFG I KLMN  	2ebc	?	
-#0194	 B D F H        	5500	Bop! param=[0x15] operation=0	
-#0195	  C EFG      N  	2e04	?	
-#0196	   D F     LMN  	141c	[0x14] -> [0xe]mantB	
+#0175	  CD FGH  KLM   	3738	Cop shift! [0x17]<<56 -> [0x1c]SHL_out2	
+#0176	   D F     L N  	1414	[0x14]SHL_out1 -> [0xa]mantA	
+#0177	  C E G I KLMN  	2abc	Cop shift! [0xa]mantA>>60 -> [0x15]SHR_out	
+#0178	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
+#0179	  CD           P	3001	Cop shift! [0x10]Cop_in<<1 -> [0x1c]SHL_out2	
+#0180	   D F      MN  	140c	[0x14]SHL_out1 -> [0x6]sum input	
+#0181	  CD          OP	3003	Cop shift! [0x10]Cop_in<<3 -> [0x1c]SHL_out2	
+#0182	 B D F          	5400	Bop! param=[0x14]SHL_out1 operation=0	
+#0183	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
+#0184	  CD FGH  KLMN  	373c	Cop shift! [0x17]<<60 -> [0x1c]SHL_out2	
+#0185	   D F     L N  	1414	[0x14]SHL_out1 -> [0xa]mantA	
+#0186	  C E G I KLMN  	2abc	Cop shift! [0xa]mantA>>60 -> [0x15]SHR_out	
+#0187	 B D F H        	5500	Bop! param=[0x15]SHR_out operation=0	
+#0188	  CD           P	3001	Cop shift! [0x10]Cop_in<<1 -> [0x1c]SHL_out2	
+#0189	   D F      MN  	140c	[0x14]SHL_out1 -> [0x6]sum input	
+#0190	  CD          OP	3003	Cop shift! [0x10]Cop_in<<3 -> [0x1c]SHL_out2	
+#0191	 B D F          	5400	Bop! param=[0x14]SHL_out1 operation=0	
+#0192	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
+#0193	  C EFG I KLMN  	2ebc	Cop shift! [0xe]mantB>>60 -> [0x15]SHR_out	
+#0194	 B D F H        	5500	Bop! param=[0x15]SHR_out operation=0	
+#0195	  C EFG      N  	2e04	Cop shift! [0xe]mantB<<4 -> [0x1c]SHL_out2	
+#0196	   D F     LMN  	141c	[0x14]SHL_out1 -> [0xe]mantB	
 #0197	AB DE GH JKL   P	db71	-jmp->#0188 cond=!(0x38 accumulator!=0)	
-#0198	   D       LMN  	101c	[0x10] -> [0xe]mantB	
+#0198	   D       LMN  	101c	[0x10]Cop_in -> [0xe]mantB	
 #0199	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0200	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	-------FXCH-------
 #0201	ABCDEFGHIJKLM   	fff8	nop	
@@ -218,7 +218,7 @@
 #0217	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	-------FNOP,FSTP,FST-------
 #0218	AB    G I    N  	c284	+jmp->#0224 cond=0x02 stack_empty	
 #0219	AB   F   J   N  	c444	+jmp->#0228 cond=0x22 tmpA bad?	
-#0220	    E G   K     	0a20	[0xa]mantA -> [0x10]	
+#0220	    E G   K     	0a20	[0xa]mantA -> [0x10]Cop_in	
 #0221	A    F  I   MNO 	848e	farjump J9, cond=0x07	
 #0222	A    F          	8400	farjump J8, cond=0x00 is_memory_operand	
 #0223	    E GH     NO 	0b06	[0xb]tmpA -> [0x3]st(i)	
@@ -230,21 +230,21 @@
 #0229	AB DEFG IJ LMN  	dedc	-jmp->#0227 cond=0x2e	
 #0230	   DEFGH   L NO 	1f16	[0x1f]NaN? -> [0xb]tmpA	
 #0231	AB DE G  JKLMN  	da7c	-jmp->#0220 cond=0x3e unconditional	
-#0232	AB     HIJ     P	c1c1	+jmp->#0236 cond=!(0x20 tmpA zero)	-------J2-------
-#0233	AB     H J  M  P	c149	+jmp->#0236 cond=!(0x24 tmpB zero)	
+#0232	AB     HIJ     P	c1c1	+jmp->#0236 cond=!(0x20 tmpA==0)	-------J2-------
+#0233	AB     H J  M  P	c149	+jmp->#0236 cond=!(0x24 tmpB==0)	
 #0234	ABC      JKL  OP	e073	----return, cond=!(0x39)	
 #0235	AB  EF HIJKLMN  	cdfc	+jmp->#0263 cond=0x3e unconditional	
 #0236	 BC     I    N  	6084	?sgn store tmpA sign?	
 #0237	    EF      MN  	0c0c	[0xc]expB -> [0x6]sum input	
 #0238	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #0239	AB    G IJK     	c2e0	+jmp->#0245 cond=0x30	
-#0240	   D        MN  	100c	[0x10] -> [0x6]sum input	
+#0240	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
 #0241	 B   FG     M O 	460a	Bop! param=[0x6]sum input operation=5	
 #0242	ABC EF          	ec00	?negate something?	
 #0243	AB      IJKL  OP	c0f3	+jmp->#0245 cond=!(0x39)	
 #0244	 BC   GHI    N  	6384	?	
 #0245	ABC EF          	ec00	?negate something?	
-#0246	  C  FG I       	2680	?	
+#0246	  C  FG I       	2680	Cop shift! [0x6]sum input>>0 -> [0x15]SHR_out	
 #0247	A C E G  JKLMN  	aa7c	call J20, cond=0x3e unconditional	
 #0248	ABC EF          	ec00	?negate something?	
 #0249	     FG    LM   	0618	[0x6]sum input -> [0xc]expB	
@@ -255,11 +255,11 @@
 #0254	 B   FG    LM O 	461a	Bop! param=[0x6]sum input operation=13	
 #0255	 BC   GHI    N  	6384	?	
 #0256	AB  E  H  KLMN  	c93c	+jmp->#0275 cond=0x1e	
-#0257	   D F H   LMN  	151c	[0x15] -> [0xe]mantB	
+#0257	   D F H   LMN  	151c	[0x15]SHR_out -> [0xe]mantB	
 #0258	AB  E GHIJ L NO 	cbd6	+jmp->#0282 cond=0x2b	
 #0259	AB  E GH J L  O 	cb52	+jmp->#0282 cond=0x29	
 #0260	AB  EFG  JKLMN  	ce7c	+jmp->#0289 cond=0x3e unconditional	
-#0261	    E         O 	0802	[0x8]expA -> [0x1]	
+#0261	    E         O 	0802	[0x8]expA -> [0x1]sign	
 #0262	AB      IJ L NOP	c0d7	+jmp->#0264 cond=!(0x2b)	
 #0263	     FG    L NO 	0616	[0x6]sum input -> [0xb]tmpA	
 #0264	 BC     IJ      	60c0	?sgn clear tmpA sign?	
@@ -269,73 +269,73 @@
 #0268	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0269	 B  E G    L    	4a10	Bop! param=[0xa]mantA operation=8	
 #0270	AB  E  H JK  N P	c965	+jmp->#0289 cond=!(0x32)	
-#0271	  CD  GHIJKL  O 	33f2	?	
-#0272	   D F H  K  NO 	1526	[0x15] -> [0x13]	
+#0271	  CD  GHIJKL  O 	33f2	Cop! param=[0x13] IJ=11 KLM=6 NOP=2	
+#0272	   D F H  K  NO 	1526	[0x15]SHR_out -> [0x13]	
 #0273	 BCDEF          	7c00	?increment something B?	
 #0274	AB   FGH JKLMN  	c77c	+jmp->#0289 cond=0x3e unconditional	
-#0275	  CD   H      OP	3103	?	
-#0276	   D F    K     	1420	[0x14] -> [0x10]	
+#0275	  CD   H      OP	3103	Cop shift! [0x11]<<3 -> [0x1c]SHL_out2	
+#0276	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
 #0277	AB D FGHI KLMN  	d7bc	-jmp->#0261 cond=0x1e	
-#0278	     FG   K     	0620	[0x6]sum input -> [0x10]	
+#0278	     FG   K     	0620	[0x6]sum input -> [0x10]Cop_in	
 #0279	AB   F  IJ L NOP	c4d7	+jmp->#0289 cond=!(0x2b)	
 #0280	 BCDEF        O 	7c02	?decrement something B?	
-#0281	   DE GH  K   O 	1b22	[0x1b]tmpA.Y -> [0x11]	
+#0281	   DE GH  K   O 	1b22	[0x1b]tmpA 3? -> [0x11]	
 #0282	 BC EFG I       	6e80	?	
-#0283	  CD   H JK M O 	316a	?	
-#0284	   D F    K   O 	1422	[0x14] -> [0x11]	
+#0283	  CD   H JK M O 	316a	Cop! param=[0x11] IJ=01 KLM=5 NOP=2	
+#0284	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #0285	 BC EF HI       	6d80	?	
-#0286	  CD   H JK  NO 	3166	?	
-#0287	   D F    K   O 	1422	[0x14] -> [0x11]	
+#0286	  CD   H JK  NO 	3166	Cop! param=[0x11] IJ=01 KLM=4 NOP=6	
+#0287	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #0288	           LM   	0018	[0x0] -> [0xc]expB	
 #0289	 BC   G I       	6280	?sgn take stored sign, and store to tmpA?	
 #0290	A C  F HI  L   P	a591	call J11, cond=!(0x08)	
-#0291	   D       L N  	1014	[0x10] -> [0xa]mantA	
+#0291	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
 #0292	    EF      MN  	0c0c	[0xc]expB -> [0x6]sum input	
 #0293	 B  E       M   	4808	Bop! param=[0x8]expA operation=4	
 #0294	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
-#0295	 B D            	5000	Bop! param=[0x10] operation=0	
-#0296	   D          O 	1002	[0x10] -> [0x1]	
-#0297	   D       L    	1010	[0x10] -> [0x8]expA	
+#0295	 B D            	5000	Bop! param=[0x10]Cop_in operation=0	
+#0296	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#0297	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #0298	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0299	AB    GH  KLM  P	c339	+jmp->#0306 cond=!(0x1c)	-------J11-------
 #0300	ABC       KLM OP	e03b	----return, cond=!(0x1d)	
-#0301	 B D         NO 	5006	Bop! param=[0x10] operation=3	
+#0301	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
 #0302	ABC      JK  N P	e065	----return, cond=!(0x32)	
 #0303	     FG   K  N P	0625	[0x6]sum input -> [0x12] with P	
 #0304	 BCDEF          	7c00	?increment something B?	
 #0305	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0306	 BC E   I       	6880	?	
-#0307	  CD   H JK MNO 	316e	?	
+#0307	  CD   H JK MNO 	316e	Cop! param=[0x11] IJ=01 KLM=5 NOP=6	
 #0308	ABCDEFGHIJKLM   	fff8	nop	
 #0309	 BC E  H     N  	6904	?	
-#0310	  CD    IJK     	30e0	?	
-#0311	   D F H  K     	1520	[0x15] -> [0x10]	
+#0310	  CD    IJK     	30e0	Cop! param=[0x10]Cop_in IJ=11 KLM=4 NOP=0	
+#0311	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
 #0312	AB      I KLM OP	c0bb	+jmp->#0314 cond=!(0x1d)	
-#0313	 B D         NO 	5006	Bop! param=[0x10] operation=3	
-#0314	  CD     JK     	3060	?	
-#0315	   D F    K  N  	1424	[0x14] -> [0x12]	
+#0313	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
+#0314	  CD     JK     	3060	Cop! param=[0x10]Cop_in IJ=01 KLM=4 NOP=0	
+#0315	   D F    K  N  	1424	[0x14]SHL_out1 -> [0x12]	
 #0316	ABC      JK  N P	e065	----return, cond=!(0x32)	
 #0317	AB DE   IJKLMN  	d8fc	-jmp->#0303 cond=0x3e unconditional	
-#0318	ABC      J      	e040	----return, cond=0x20 tmpA zero	-------J16-------
+#0318	ABC      J      	e040	----return, cond=0x20 tmpA==0	-------J16-------
 #0319	ABC  F        O 	e402	?	
-#0320	     FG IJKLM   	06f8	IJ mov /0x6/ -> [0x1c]	
+#0320	     FG IJKLM   	06f8	J mov /0xd/ -> [0x1c]SHL_out2	
 #0321	AB    GHIJ LMN P	c3dd	+jmp->#0329 cond=!(0x2e)	
 #0322	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
 #0323	AB     H  KLMNO 	c13e	+jmp->#0326 cond=0x1f	
 #0324	 B  E           	4800	Bop! param=[0x8]expA operation=0	
 #0325	AB      IJKLMN  	c0fc	+jmp->#0327 cond=0x3e unconditional	
 #0326	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
-#0327	   D       L    	1010	[0x10] -> [0x8]expA	
+#0327	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #0328	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0329	AB   FGH  KLMNO 	c73e	+jmp->#0344 cond=0x1f	
 #0330	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
-#0331	 B DE GH    M O 	5b0a	Bop! param=[0x1b]tmpA.Y operation=5	
+#0331	 B DE GH    M O 	5b0a	Bop! param=[0x1b]tmpA 3? operation=5	
 #0332	A C E G  JKLMN  	aa7c	call J20, cond=0x3e unconditional	
 #0333	 B   FG    L    	4610	Bop! param=[0x6]sum input operation=8	
 #0334	A C  F HIJKLMN  	a5fc	call J11, cond=0x3e unconditional	
 #0335	AB    G   KLMN  	c23c	+jmp->#0340 cond=0x1e	
 #0336	     FG    L    	0610	[0x6]sum input -> [0x8]expA	
-#0337	   D       L N  	1014	[0x10] -> [0xa]mantA	
+#0337	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
 #0338	 BC   G  J   N  	6244	?	
 #0339	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0340	 BC     I    N  	6084	?sgn store tmpA sign?	
@@ -348,30 +348,30 @@
 #0347	     FG    L N P	0615	[0x6]sum input -> [0xa]mantA with P	
 #0348	 BC   G  J   N  	6244	?	
 #0349	ABC      J LM OP	e05b	----return, cond=!(0x2d)	
-#0350	   DE GH    MN  	1b0c	[0x1b]tmpA.Y -> [0x6]sum input	
+#0350	   DE GH    MN  	1b0c	[0x1b]tmpA 3? -> [0x6]sum input	
 #0351	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
-#0352	   D       L    	1010	[0x10] -> [0x8]expA	
+#0352	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #0353	 B   FG     M O 	460a	Bop! param=[0x6]sum input operation=5	
-#0354	   D       L N  	1014	[0x10] -> [0xa]mantA	
+#0354	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
 #0355	 BC      J   N  	6044	?sgn store tmpB sign?	
 #0356	ABC      J L  O 	e052	----return, cond=0x29	
 #0357	    EFG    L N  	0e14	[0xe]mantB -> [0xa]mantA	
 #0358	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0359	 BC  F HI       	6580	?	-------J1-------
-#0360	ABC      J      	e040	----return, cond=0x20 tmpA zero	
+#0360	ABC      J      	e040	----return, cond=0x20 tmpA==0	
 #0361	 BC     I   M   	6088	?	
-#0362	AB     H J  M  P	c149	+jmp->#0365 cond=!(0x24 tmpB zero)	
+#0362	AB     H J  M  P	c149	+jmp->#0365 cond=!(0x24 tmpB==0)	
 #0363	    EFGH   L NO 	0f16	[0xf]tmpB -> [0xb]tmpA	
 #0364	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0365	AB    G IJ L N  	c2d4	+jmp->#0371 cond=0x2a	
 #0366	ABC EF          	ec00	?negate something?	
 #0367	AB     HIJ L N  	c1d4	+jmp->#0371 cond=0x2a	
 #0368	    E G   K MN  	0a2c	[0xa]mantA -> [0x16]	
-#0369	    EFGHIJK M O 	0fea	IJ mov /0xf/ -> [0x15]	
+#0369	    EFGHIJK M O 	0fea	J mov /0x1f/ -> [0x15]SHR_out	
 #0370	AB     HIJKLMN  	c1fc	+jmp->#0374 cond=0x3e unconditional	
-#0371	  C E G I K M   	2aa8	?	
-#0372	   D F H  K MN  	152c	[0x15] -> [0x16]	
-#0373	     F HIJK M O 	05ea	IJ mov /0x5/ -> [0x15]	
+#0371	  C E G I K M   	2aa8	Cop shift! [0xa]mantA>>40 -> [0x15]SHR_out	
+#0372	   D F H  K MN  	152c	[0x15]SHR_out -> [0x16]	
+#0373	     F HIJK M O 	05ea	J mov /0xb/ -> [0x15]SHR_out	
 #0374	    EFG     MNO 	0e0e	[0xe]mantB -> [0x7]	
 #0375	 BC E  H J  M   	6948	?	
 #0376	     FG   K  NO 	0626	[0x6]sum input -> [0x13]	
@@ -379,28 +379,28 @@
 #0378	ABCD F      MN  	f40c	?	
 #0379	 B D  G  J  MN  	524c	Bop! param=[0x12] operation=38	
 #0380	AB     HIJK  NO 	c1e6	+jmp->#0384 cond=0x33	-------J17-------
-#0381	  CD   H JKL  O 	3172	?	
-#0382	   D F    K   O 	1422	[0x14] -> [0x11]	
+#0381	  CD   H JKL  O 	3172	Cop! param=[0x11] IJ=01 KLM=6 NOP=2	
+#0382	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #0383	 BCDEF        O 	7c02	?decrement something B?	
 #0384	A C  F HIJKLMN  	a5fc	call J11, cond=0x3e unconditional	
-#0385	   D       L N  	1014	[0x10] -> [0xa]mantA	
-#0386	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#0385	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
+#0386	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #0387	    EF      MN  	0c0c	[0xc]expB -> [0x6]sum input	
 #0388	 B  E           	4800	Bop! param=[0x8]expA operation=0	
 #0389	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
-#0390	 B D        M O 	500a	Bop! param=[0x10] operation=5	
+#0390	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
 #0391	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
-#0392	 B D            	5000	Bop! param=[0x10] operation=0	
-#0393	   D          O 	1002	[0x10] -> [0x1]	
-#0394	   D       L    	1010	[0x10] -> [0x8]expA	
+#0392	 B D            	5000	Bop! param=[0x10]Cop_in operation=0	
+#0393	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#0394	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #0395	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0396	AB     HIJ  M O 	c1ca	+jmp->#0400 cond=0x25	-------J15-------
 #0397	    EFG   K MN  	0e2c	[0xe]mantB -> [0x16]	
-#0398	    EFGHIJK M O 	0fea	IJ mov /0xf/ -> [0x15]	
+#0398	    EFGHIJK M O 	0fea	J mov /0x1f/ -> [0x15]SHR_out	
 #0399	AB     HIJKLMN  	c1fc	+jmp->#0403 cond=0x3e unconditional	
-#0400	  C EFG I  LMNO 	2e9e	?	
-#0401	   D F H  K MN  	152c	[0x15] -> [0x16]	
-#0402	    E    JK M O 	086a	-J mov /0x8/ -> [0x15]	
+#0400	  C EFG I  LMNO 	2e9e	Cop shift! [0xe]mantB>>30 -> [0x15]SHR_out	
+#0401	   D F H  K MN  	152c	[0x15]SHR_out -> [0x16]	
+#0402	    E    JK M O 	086a	J mov /0x10/ -> [0x15]SHR_out	
 #0403	 BC EF H J  M   	6d48	?	
 #0404	     FG   K  NO 	0626	[0x6]sum input -> [0x13]	
 #0405	 B D  GHIJ      	53c0	Bop! param=[0x13] operation=96	
@@ -409,76 +409,76 @@
 #0408	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0409	ABCDEFGHIJKLM   	fff8	nop	
 #0410	 BC  F HI       	6580	?	-------J3-------
-#0411	ABC      J      	e040	----return, cond=0x20 tmpA zero	
+#0411	ABC      J      	e040	----return, cond=0x20 tmpA==0	
 #0412	    E G   K  NO 	0a26	[0xa]mantA -> [0x13]	
 #0413	    EFG     MN  	0e0c	[0xe]mantB -> [0x6]sum input	
 #0414	 BC E G  J  M   	6a48	?	
-#0415	   DEFGHIJK M O 	1fea	IJ mov /0x1f/ -> [0x15]	
+#0415	   DEFGHIJK M O 	1fea	J mov /0x3f/ -> [0x15]SHR_out	
 #0416	 B D  G IJ      	52c0	Bop! param=[0x12] operation=96	
 #0417	 B D  G  J  M  P	5249	?	
 #0418	ABCD F      MN  	f40c	?	
 #0419	 B D  G  J  M O 	524a	Bop! param=[0x12] operation=37	
 #0420	 B D  G  J   N  	5244	Bop! param=[0x12] operation=34	
 #0421	ABC  F          	e400	?	
-#0422	   D FG   K     	1620	[0x16] -> [0x10]	
+#0422	   D FG   K     	1620	[0x16] -> [0x10]Cop_in	
 #0423	AB     HIJK  NO 	c1e6	+jmp->#0427 cond=0x33	
-#0424	  CD   H JKL  O 	3172	?	
-#0425	   D F    K   O 	1422	[0x14] -> [0x11]	
+#0424	  CD   H JKL  O 	3172	Cop! param=[0x11] IJ=01 KLM=6 NOP=2	
+#0425	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #0426	 BCDEF        O 	7c02	?decrement something B?	
 #0427	A C  F HI  L   P	a591	call J11, cond=!(0x08)	
-#0428	   D       L N  	1014	[0x10] -> [0xa]mantA	
-#0429	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#0428	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
+#0429	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #0430	    EF      MN  	0c0c	[0xc]expB -> [0x6]sum input	
 #0431	 B  E       M   	4808	Bop! param=[0x8]expA operation=4	
 #0432	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
-#0433	 B D            	5000	Bop! param=[0x10] operation=0	
+#0433	 B D            	5000	Bop! param=[0x10]Cop_in operation=0	
 #0434	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
-#0435	 B D            	5000	Bop! param=[0x10] operation=0	
-#0436	   D          O 	1002	[0x10] -> [0x1]	
-#0437	   D       L    	1010	[0x10] -> [0x8]expA	
+#0435	 B D            	5000	Bop! param=[0x10]Cop_in operation=0	
+#0436	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#0437	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #0438	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0439	 BCDEF        O 	7c02	?decrement something B?	-------J8-------
-#0440	A    F H     NOP	8507	farjump J10, cond=!(0x03)	
+#0440	A    F H     NOP	8507	farjump J10, cond=!(0x03 fld not fild)	
 #0441	    E     K MNO 	082e	[0x8]expA -> [0x17]	
 #0442	AB   F  IJ    O 	c4c2	+jmp->#0452 cond=0x21	
-#0443	AB   F H J     P	c541	+jmp->#0454 cond=!(0x20 tmpA zero)	
+#0443	AB   F H J     P	c541	+jmp->#0454 cond=!(0x20 tmpA==0)	
 #0444	AB     H J L    	c150	+jmp->#0447 cond=0x28	
-#0445	     FG   K     	0620	[0x6]sum input -> [0x10]	
+#0445	     FG   K     	0620	[0x6]sum input -> [0x10]Cop_in	
 #0446	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
-#0447	     FG   K    P	0621	[0x6]sum input -> [0x10] with P	
-#0448	A    F  I   M  P	8489	farjump J9, cond=!(0x04)	
-#0449	  CD    I K     	30a0	?	
-#0450	   D F H  K     	1520	[0x15] -> [0x10]	
+#0447	     FG   K    P	0621	[0x6]sum input -> [0x10]Cop_in with P	
+#0448	A    F  I   M  P	8489	farjump J9, cond=!(0x04 f32 not f64)	
+#0449	  CD    I K     	30a0	Cop shift! [0x10]Cop_in>>32 -> [0x15]SHR_out	
+#0450	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
 #0451	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
-#0452	    E     K     	0820	[0x8]expA -> [0x10]	
+#0452	    E     K     	0820	[0x8]expA -> [0x10]Cop_in	
 #0453	AB   F  I KLMN P	c4bd	+jmp->#0463 cond=!(0x1e)	
 #0454	    E G   K  NO 	0a26	[0xa]mantA -> [0x13]	
 #0455	A C  F HIJKLMN  	a5fc	call J11, cond=0x3e unconditional	
-#0456	   D       L N  	1014	[0x10] -> [0xa]mantA	
+#0456	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
 #0457	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
 #0458	 B  E           	4800	Bop! param=[0x8]expA operation=0	
-#0459	   D          O 	1002	[0x10] -> [0x1]	
-#0460	       H  K MNO 	012e	[0x1] -> [0x17]	
+#0459	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#0460	       H  K MNO 	012e	[0x1]sign -> [0x17]	
 #0461	AB  E G IJ L NOP	cad7	+jmp->#0483 cond=!(0x2b)	
 #0462	AB  E G I KL   P	cab1	+jmp->#0484 cond=!(0x18)	
-#0463	  C E G        P	2a01	?	
-#0464	   D F     L N  	1414	[0x14] -> [0xa]mantA	
-#0465	AB   F      M  P	c409	+jmp->#0474 cond=!(0x04)	
-#0466	  C E G I K M  P	2aa9	?	
-#0467	   D F H  K     	1520	[0x15] -> [0x10]	
-#0468	  CD FGH     NOP	3707	?	
-#0469	   D F     L    	1410	[0x14] -> [0x8]expA	
-#0470	    E  H  K MNO 	092e	[0x9] -> [0x17]	
-#0471	  CD FGH   L    	3710	?	
-#0472	   DEF    K     	1c20	[0x1c] -> [0x10]	
+#0463	  C E G        P	2a01	Cop shift! [0xa]mantA<<1 -> [0x1c]SHL_out2	
+#0464	   D F     L N  	1414	[0x14]SHL_out1 -> [0xa]mantA	
+#0465	AB   F      M  P	c409	+jmp->#0474 cond=!(0x04 f32 not f64)	
+#0466	  C E G I K M  P	2aa9	Cop shift! [0xa]mantA>>41 -> [0x15]SHR_out	
+#0467	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
+#0468	  CD FGH     NOP	3707	Cop shift! [0x17]<<7 -> [0x1c]SHL_out2	
+#0469	   D F     L    	1410	[0x14]SHL_out1 -> [0x8]expA	
+#0470	    E  H  K MNO 	092e	[0x9]expA raw -> [0x17]	
+#0471	  CD FGH   L    	3710	Cop shift! [0x17]<<16 -> [0x1c]SHL_out2	
+#0472	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
 #0473	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
-#0474	  C E G I   MN  	2a8c	?	
-#0475	   D F H  K     	1520	[0x15] -> [0x10]	
-#0476	  CD FGH     N  	3704	?	
-#0477	   D F     L    	1410	[0x14] -> [0x8]expA	
-#0478	    E  H  K MNO 	092e	[0x9] -> [0x17]	
-#0479	  CD FGH  KL    	3730	?	
-#0480	   DEF    K     	1c20	[0x1c] -> [0x10]	
+#0474	  C E G I   MN  	2a8c	Cop shift! [0xa]mantA>>12 -> [0x15]SHR_out	
+#0475	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
+#0476	  CD FGH     N  	3704	Cop shift! [0x17]<<4 -> [0x1c]SHL_out2	
+#0477	   D F     L    	1410	[0x14]SHL_out1 -> [0x8]expA	
+#0478	    E  H  K MNO 	092e	[0x9]expA raw -> [0x17]	
+#0479	  CD FGH  KL    	3730	Cop shift! [0x17]<<48 -> [0x1c]SHL_out2	
+#0480	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
 #0481	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
 #0482	AB D FG  JKLMN  	d67c	-jmp->#0463 cond=0x3e unconditional	
 #0483	AB   FGHIJKLMN  	c7fc	+jmp->#0499 cond=0x3e unconditional	
@@ -490,15 +490,15 @@
 #0489	    E     K MNO 	082e	[0x8]expA -> [0x17]	
 #0490	     FG    L N  	0614	[0x6]sum input -> [0xa]mantA	
 #0491	AB D  G IJ LM OP	d2db	-jmp->#0465 cond=!(0x2d)	
-#0492	   DE GH    MN  	1b0c	[0x1b]tmpA.Y -> [0x6]sum input	
+#0492	   DE GH    MN  	1b0c	[0x1b]tmpA 3? -> [0x6]sum input	
 #0493	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
-#0494	   D      K MNO 	102e	[0x10] -> [0x17]	
+#0494	   D      K MNO 	102e	[0x10]Cop_in -> [0x17]	
 #0495	 B   FG     M O 	460a	Bop! param=[0x6]sum input operation=5	
-#0496	   D       L N  	1014	[0x10] -> [0xa]mantA	
+#0496	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
 #0497	AB DE    JKLMN  	d87c	-jmp->#0482 cond=0x3e unconditional	
 #0498	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#0499	       H JKLM   	0178	-J mov /0x1/ -> [0x1c]	
-#0500	   D        MN  	100c	[0x10] -> [0x6]sum input	
+#0499	       H JKLM   	0178	J mov /0x2/ -> [0x1c]SHL_out2	
+#0500	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
 #0501	     F H  K MNO 	052e	[0x5 sum?] -> [0x17]	
 #0502	 B D FGH    M O 	570a	Bop! param=[0x17] operation=5	
 #0503	AB   F  IJ L NOP	c4d7	+jmp->#0513 cond=!(0x2b)	
@@ -506,8 +506,8 @@
 #0505	A C E G  JKLMN  	aa7c	call J20, cond=0x3e unconditional	
 #0506	 B   FG    L    	4610	Bop! param=[0x6]sum input operation=8	
 #0507	A C  F HIJKLMN  	a5fc	call J11, cond=0x3e unconditional	
-#0508	   D       L N  	1014	[0x10] -> [0xa]mantA	
-#0509	   DE GH  K MNO 	1b2e	[0x1b]tmpA.Y -> [0x17]	
+#0508	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
+#0509	   DE GH  K MNO 	1b2e	[0x1b]tmpA 3? -> [0x17]	
 #0510	AB D   HIJK  NO 	d1e6	-jmp->#0482 cond=0x33	
 #0511	     FG   K MNO 	062e	[0x6]sum input -> [0x17]	
 #0512	AB D    IJKLMN  	d0fc	-jmp->#0482 cond=0x3e unconditional	
@@ -520,193 +520,193 @@
 #0519	ABC  F        O 	e402	?	
 #0520	AB D FGHIJKLMN  	d7fc	-jmp->#0504 cond=0x3e unconditional	
 #0521	ABCDEFGHIJKLM   	fff8	nop	
-#0522	   D          O 	1002	[0x10] -> [0x1]	-------J20-------
-#0523	   D            	1000	[0x10] -> [0x0]	
+#0522	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	-------J20-------
+#0523	   D            	1000	[0x10]Cop_in -> [0x0]	
 #0524	AB     HI KL N  	c1b4	+jmp->#0528 cond=0x1a	
 #0525	     FG     MN  	060c	[0x6]sum input -> [0x6]sum input	
-#0526	  C E G         	2a00	?	
+#0526	  C E G         	2a00	Cop shift! [0xa]mantA<<0 -> [0x1c]SHL_out2	
 #0527	AB    G  JKLMN  	c27c	+jmp->#0532 cond=0x3e unconditional	
-#0528	  C E G IJK MN  	2aec	?	
-#0529	   D F H    MN  	150c	[0x15] -> [0x6]sum input	
-#0530	  C E G  JK     	2a60	?	
+#0528	  C E G IJK MN  	2aec	Cop! param=[0xa]mantA IJ=11 KLM=5 NOP=4	
+#0529	   D F H    MN  	150c	[0x15]SHR_out -> [0x6]sum input	
+#0530	  C E G  JK     	2a60	Cop! param=[0xa]mantA IJ=01 KLM=4 NOP=0	
 #0531	ABCDEFGHIJKLM   	fff8	nop	
 #0532	 BC E       M O 	680a	?	
 #0533	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0534	AB   FGHIJ    O 	c7c2	+jmp->#0550 cond=0x21	-------J10-------
-#0535	         JKLM   	0078	-J mov /0x0/ -> [0x1c]	
-#0536	AB     H J     P	c141	+jmp->#0539 cond=!(0x20 tmpA zero)	
-#0537	     FG   K     	0620	[0x6]sum input -> [0x10]	
+#0535	         JKLM   	0078	J mov /0x0/ -> [0x1c]SHL_out2	
+#0536	AB     H J     P	c141	+jmp->#0539 cond=!(0x20 tmpA==0)	
+#0537	     FG   K     	0620	[0x6]sum input -> [0x10]Cop_in	
 #0538	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
 #0539	AB   F H J L NOP	c557	+jmp->#0550 cond=!(0x2b)	
-#0540	     F H  K     	0520	[0x5 sum?] -> [0x10]	
+#0540	     F H  K     	0520	[0x5 sum?] -> [0x10]Cop_in	
 #0541	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
-#0542	 B D        M O 	500a	Bop! param=[0x10] operation=5	
-#0543	      GH JKLM   	0378	-J mov /0x3/ -> [0x1c]	
+#0542	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
+#0543	      GH JKLM   	0378	J mov /0x6/ -> [0x1c]SHL_out2	
 #0544	AB    G IJK    P	c2e1	+jmp->#0550 cond=!(0x30)	
 #0545	AB   FGHI KLMN P	c7bd	+jmp->#0561 cond=!(0x1e)	
-#0546	  C E G        P	2a01	?	
-#0547	   D F    K     	1420	[0x14] -> [0x10]	
+#0546	  C E G        P	2a01	Cop shift! [0xa]mantA<<1 -> [0x1c]SHL_out2	
+#0547	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
 #0548	AB      I KLMN P	c0bd	+jmp->#0550 cond=!(0x1e)	
 #0549	AB     HIJ L    	c1d0	+jmp->#0553 cond=0x28	
 #0550	ABCD          O 	f002	exception: invalid	
 #0551	AB      IJ LMN P	c0dd	+jmp->#0553 cond=!(0x2e)	
 #0552	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#0553	     FG   K    P	0621	[0x6]sum input -> [0x10] with P	
+#0553	     FG   K    P	0621	[0x6]sum input -> [0x10]Cop_in with P	
 #0554	AB     HI  LMN  	c19c	+jmp->#0558 cond=0x0e	
-#0555	A    F  I   M  P	8489	farjump J9, cond=!(0x04)	
-#0556	  CD    I K     	30a0	?	
+#0555	A    F  I   M  P	8489	farjump J9, cond=!(0x04 f32 not f64)	
+#0556	  CD    I K     	30a0	Cop shift! [0x10]Cop_in>>32 -> [0x15]SHR_out	
 #0557	AB      IJKLMN  	c0fc	+jmp->#0559 cond=0x3e unconditional	
-#0558	  CD    I KL    	30b0	?	
-#0559	   D F H  K     	1520	[0x15] -> [0x10]	
+#0558	  CD    I KL    	30b0	Cop shift! [0x10]Cop_in>>48 -> [0x15]SHR_out	
+#0559	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
 #0560	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
-#0561	     F H  K     	0520	[0x5 sum?] -> [0x10]	
-#0562	 B D        M O 	500a	Bop! param=[0x10] operation=5	
-#0563	   D            	1000	[0x10] -> [0x0]	
-#0564	     F HIJKLM   	05f8	IJ mov /0x5/ -> [0x1c]	
-#0565	   D          O 	1002	[0x10] -> [0x1]	
-#0566	     F H  K     	0520	[0x5 sum?] -> [0x10]	
-#0567	 B D        M O 	500a	Bop! param=[0x10] operation=5	
+#0561	     F H  K     	0520	[0x5 sum?] -> [0x10]Cop_in	
+#0562	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
+#0563	   D            	1000	[0x10]Cop_in -> [0x0]	
+#0564	     F HIJKLM   	05f8	J mov /0xb/ -> [0x1c]SHL_out2	
+#0565	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#0566	     F H  K     	0520	[0x5 sum?] -> [0x10]Cop_in	
+#0567	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
 #0568	AB   FG IJK    P	c6e1	+jmp->#0582 cond=!(0x30)	
-#0569	     FG   K     	0620	[0x6]sum input -> [0x10]	
-#0570	  C E G         	2a00	?	
+#0569	     FG   K     	0620	[0x6]sum input -> [0x10]Cop_in	
+#0570	  C E G         	2a00	Cop shift! [0xa]mantA<<0 -> [0x1c]SHL_out2	
 #0571	AB   FGH JKLMN  	c77c	+jmp->#0586 cond=0x3e unconditional	
 #0572	AB D F   JK  NO 	d466	-jmp->#0549 cond=0x33	
 #0573	AB    G  JKLMN  	c27c	+jmp->#0578 cond=0x3e unconditional	
-#0574	  CD      K    P	3021	?	
-#0575	   D F    K  N  	1424	[0x14] -> [0x12]	
+#0574	  CD      K    P	3021	Cop shift! [0x10]Cop_in<<33 -> [0x1c]SHL_out2	
+#0575	   D F    K  N  	1424	[0x14]SHL_out1 -> [0x12]	
 #0576	AB D  G  JK  N  	d264	-jmp->#0549 cond=0x32	
-#0577	    E G   K     	0a20	[0xa]mantA -> [0x10]	
+#0577	    E G   K     	0a20	[0xa]mantA -> [0x10]Cop_in	
 #0578	AB     H J L   P	c151	+jmp->#0581 cond=!(0x28)	
-#0579	   D        MN  	100c	[0x10] -> [0x6]sum input	
+#0579	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
 #0580	 B   FG     M O 	460a	Bop! param=[0x6]sum input operation=5	
 #0581	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
-#0582	  C E G IJK MN  	2aec	?	
-#0583	   D F H  K     	1520	[0x15] -> [0x10]	
-#0584	  C E G  JK   O 	2a62	?	
+#0582	  C E G IJK MN  	2aec	Cop! param=[0xa]mantA IJ=11 KLM=5 NOP=4	
+#0583	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
+#0584	  C E G  JK   O 	2a62	Cop! param=[0xa]mantA IJ=01 KLM=4 NOP=2	
 #0585	ABCDEFGHIJKLM   	fff8	nop	
 #0586	 BC E        N  	6804	?	
 #0587	ABCDEFGHIJKLM   	fff8	nop	
 #0588	AB DE G I KLM OP	dabb	-jmp->#0578 cond=!(0x1d)	
-#0589	 B D         NO 	5006	Bop! param=[0x10] operation=3	
-#0590	   D       L N  	1014	[0x10] -> [0xa]mantA	
-#0591	AB D FGH    M   	d708	-jmp->#0574 cond=0x04	
+#0589	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
+#0590	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
+#0591	AB D FGH    M   	d708	-jmp->#0574 cond=0x04 f32 not f64	
 #0592	AB D F HI  LMN P	d59d	-jmp->#0572 cond=!(0x0e)	
-#0593	  CD      KL   P	3031	?	
+#0593	  CD      KL   P	3031	Cop shift! [0x10]Cop_in<<49 -> [0x1c]SHL_out2	
 #0594	AB D FG  JKLMN  	d67c	-jmp->#0575 cond=0x3e unconditional	
 #0595	ABCDEFGHIJKLM   	fff8	nop	
 #0596	ABCDEFGHIJKLM   	fff8	nop	
-#0597	     F HIJKLM   	05f8	IJ mov /0x5/ -> [0x1c]	-------FSTP-------
+#0597	     F HIJKLM   	05f8	J mov /0xb/ -> [0x1c]SHL_out2	-------FSTP-------
 #0598	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	
-#0599	AB     H J     P	c141	+jmp->#0602 cond=!(0x20 tmpA zero)	
-#0600	     FG   K     	0620	[0x6]sum input -> [0x10]	
+#0599	AB     H J     P	c141	+jmp->#0602 cond=!(0x20 tmpA==0)	
+#0600	     FG   K     	0620	[0x6]sum input -> [0x10]Cop_in	
 #0601	A    F  IJKLMN  	84fc	farjump J9, cond=0x3e unconditional	
 #0602	AB   FG IJ   NO 	c6c6	+jmp->#0616 cond=0x23 stack overflow	
 #0603	AB   FG  J L NOP	c657	+jmp->#0616 cond=!(0x2b)	
 #0604	     FG    LMN P	061d	[0x6]sum input -> [0xe]mantB with P	
-#0605	     F H   LM O 	051a	[0x5 sum?] -> [0xd]	
+#0605	     F H   LM O 	051a	[0x5 sum?] -> [0xd]expB raw	
 #0606	 BC     I   M   	6088	?	
 #0607	A C    H JKLMN  	a17c	call J2, cond=0x3e unconditional	
-#0608	      G  JKLM   	0278	-J mov /0x2/ -> [0x1c]	
-#0609	   DE G    LMN  	1a1c	[0x1a]tmpA.X -> [0xe]mantB	
-#0610	     F H   LM O 	051a	[0x5 sum?] -> [0xd]	
+#0608	      G  JKLM   	0278	J mov /0x4/ -> [0x1c]SHL_out2	
+#0609	   DE G    LMN  	1a1c	[0x1a]tmpA 2? -> [0xe]mantB	
+#0610	     F H   LM O 	051a	[0x5 sum?] -> [0xd]expB raw	
 #0611	A C    HIJKLMN  	a1fc	call J3, cond=0x3e unconditional	
-#0612	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#0612	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #0613	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
 #0614	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #0615	AB    G  JK    P	c261	+jmp->#0620 cond=!(0x30)	
 #0616	ABCD          O 	f002	exception: invalid	
-#0617	   DEFGH   L  O 	1f12	[0x1f]NaN? -> [0x9]	
+#0617	   DEFGH   L  O 	1f12	[0x1f]NaN? -> [0x9]expA raw	
 #0618	A    F  IJ LMN P	84dd	farjump J9, cond=!(0x2e)	
 #0619	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#0620	   D        MN  	100c	[0x10] -> [0x6]sum input	
+#0620	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
 #0621	 B   FG     M   	4608	Bop! param=[0x6]sum input operation=4	
-#0622	   D            	1000	[0x10] -> [0x0]	
-#0623	  C E G IJK MN  	2aec	?	
-#0624	     FGHIJK M O 	07ea	IJ mov /0x7/ -> [0x15]	
-#0625	   D F H   LMN  	151c	[0x15] -> [0xe]mantB	
-#0626	  C EFG I     O 	2e82	?	
-#0627	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#0622	   D            	1000	[0x10]Cop_in -> [0x0]	
+#0623	  C E G IJK MN  	2aec	Cop! param=[0xa]mantA IJ=11 KLM=5 NOP=4	
+#0624	     FGHIJK M O 	07ea	J mov /0xf/ -> [0x15]SHR_out	
+#0625	   D F H   LMN  	151c	[0x15]SHR_out -> [0xe]mantB	
+#0626	  C EFG I     O 	2e82	Cop shift! [0xe]mantB>>2 -> [0x15]SHR_out	
+#0627	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #0628	 B  EFG    L    	4e10	Bop! param=[0xe]mantB operation=8	
-#0629	  CD  G I KLMN P	32bd	?	
-#0630	   D F H   L N  	1514	[0x15] -> [0xa]mantA	
-#0631	  CD   H      OP	3103	?	
-#0632	   D F     LMN  	141c	[0x14] -> [0xe]mantB	
-#0633	  C EFG I     O 	2e82	?	
-#0634	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#0629	  CD  G I KLMN P	32bd	Cop shift! [0x12]>>61 -> [0x15]SHR_out	
+#0630	   D F H   L N  	1514	[0x15]SHR_out -> [0xa]mantA	
+#0631	  CD   H      OP	3103	Cop shift! [0x11]<<3 -> [0x1c]SHL_out2	
+#0632	   D F     LMN  	141c	[0x14]SHL_out1 -> [0xe]mantB	
+#0633	  C EFG I     O 	2e82	Cop shift! [0xe]mantB>>2 -> [0x15]SHR_out	
+#0634	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #0635	 B  EFG         	4e00	Bop! param=[0xe]mantB operation=0	
-#0636	  CD   H      OP	3103	?	
-#0637	   D F     LMN  	141c	[0x14] -> [0xe]mantB	
-#0638	  C E G      N  	2a04	?	
-#0639	   D F      MN  	140c	[0x14] -> [0x6]sum input	
-#0640	  CD  G I KLMN P	32bd	?	
-#0641	 B D F H        	5500	Bop! param=[0x15] operation=0	
-#0642	   D       L    	1010	[0x10] -> [0x8]expA	
-#0643	     FG   K     	0620	[0x6]sum input -> [0x10]	
-#0644	  CD         N  	3004	?	
-#0645	   D F     L N  	1414	[0x14] -> [0xa]mantA	
-#0646	  C EFG I     O 	2e82	?	
-#0647	   D F H    MN  	150c	[0x15] -> [0x6]sum input	
+#0636	  CD   H      OP	3103	Cop shift! [0x11]<<3 -> [0x1c]SHL_out2	
+#0637	   D F     LMN  	141c	[0x14]SHL_out1 -> [0xe]mantB	
+#0638	  C E G      N  	2a04	Cop shift! [0xa]mantA<<4 -> [0x1c]SHL_out2	
+#0639	   D F      MN  	140c	[0x14]SHL_out1 -> [0x6]sum input	
+#0640	  CD  G I KLMN P	32bd	Cop shift! [0x12]>>61 -> [0x15]SHR_out	
+#0641	 B D F H        	5500	Bop! param=[0x15]SHR_out operation=0	
+#0642	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
+#0643	     FG   K     	0620	[0x6]sum input -> [0x10]Cop_in	
+#0644	  CD         N  	3004	Cop shift! [0x10]Cop_in<<4 -> [0x1c]SHL_out2	
+#0645	   D F     L N  	1414	[0x14]SHL_out1 -> [0xa]mantA	
+#0646	  C EFG I     O 	2e82	Cop shift! [0xe]mantB>>2 -> [0x15]SHR_out	
+#0647	   D F H    MN  	150c	[0x15]SHR_out -> [0x6]sum input	
 #0648	 B  EFG         	4e00	Bop! param=[0xe]mantB operation=0	
-#0649	  CD          OP	3003	?	
-#0650	   D F     LMN  	141c	[0x14] -> [0xe]mantB	
-#0651	  CD  G I KLMN P	32bd	?	
-#0652	   D F H    MN  	150c	[0x15] -> [0x6]sum input	
+#0649	  CD          OP	3003	Cop shift! [0x10]Cop_in<<3 -> [0x1c]SHL_out2	
+#0650	   D F     LMN  	141c	[0x14]SHL_out1 -> [0xe]mantB	
+#0651	  CD  G I KLMN P	32bd	Cop shift! [0x12]>>61 -> [0x15]SHR_out	
+#0652	   D F H    MN  	150c	[0x15]SHR_out -> [0x6]sum input	
 #0653	 B  E G         	4a00	Bop! param=[0xa]mantA operation=0	
 #0654	AB DE G IJKL   P	daf1	-jmp->#0644 cond=!(0x38 accumulator!=0)	
 #0655	AB     H    MN P	c10d	+jmp->#0658 cond=!(0x06 pop_at_end)	-------J9-------
 #0656	 BC   GH J      	6340	set st(0) empty	
 #0657	 BCDE           	7800	stack pop (++stack ptr)	
-#0658	  CD    I  L    	3090	?	
-#0659	   D F H   L N  	1514	[0x15] -> [0xa]mantA	
-#0660	  CD    I K     	30a0	?	
+#0658	  CD    I  L    	3090	Cop shift! [0x10]Cop_in>>16 -> [0x15]SHR_out	
+#0659	   D F H   L N  	1514	[0x15]SHR_out -> [0xa]mantA	
+#0660	  CD    I K     	30a0	Cop shift! [0x10]Cop_in>>32 -> [0x15]SHR_out	
 #0661	A C  F  IJKLMN P	a4fd	call J9, cond=!(0x3e unconditional)	
-#0662	   D        M   	1008	[0x10] -> [0x4]	
+#0662	   D        M   	1008	[0x10]Cop_in -> [0x4]BIU	
 #0663	AB    GHI  LMN  	c39c	+jmp->#0671 cond=0x0e	
-#0664	    E G     M   	0a08	[0xa]mantA -> [0x4]	
-#0665	AB    G I   M   	c288	+jmp->#0671 cond=0x04	
-#0666	   D F H    M   	1508	[0x15] -> [0x4]	
-#0667	  CD    I KL    	30b0	?	
-#0668	   D F H    M   	1508	[0x15] -> [0x4]	
+#0664	    E G     M   	0a08	[0xa]mantA -> [0x4]BIU	
+#0665	AB    G I   M   	c288	+jmp->#0671 cond=0x04 f32 not f64	
+#0666	   D F H    M   	1508	[0x15]SHR_out -> [0x4]BIU	
+#0667	  CD    I KL    	30b0	Cop shift! [0x10]Cop_in>>48 -> [0x15]SHR_out	
+#0668	   D F H    M   	1508	[0x15]SHR_out -> [0x4]BIU	
 #0669	AB      I   M O 	c08a	+jmp->#0671 cond=0x05	
-#0670	    E  H    M   	0908	[0x9] -> [0x4]	
+#0670	    E  H    M   	0908	[0x9]expA raw -> [0x4]BIU	
 #0671	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0672	ABCDEFGHIJKLM   	fff8	nop	
 #0673	ABCDEFGHIJKLM   	fff8	nop	
 #0674	ABCDEFGHIJKLM   	fff8	nop	
-#0675	      GHIJK M O 	03ea	IJ mov /0x3/ -> [0x15]	
+#0675	      GHIJK M O 	03ea	J mov /0x7/ -> [0x15]SHR_out	-------FLD80_FRESTOR-------
 #0676	ABCD F      M   	f408	?	
-#0677	     F    K     	0420	[0x4] -> [0x10]	
+#0677	     F    K     	0420	[0x4]BIU -> [0x10]Cop_in	
 #0678	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	
-#0679	  C  F     L    	2410	?	
-#0680	   DEF    K     	1c20	[0x1c] -> [0x10]	
-#0681	  C  F    K     	2420	?	
-#0682	   DEF    K     	1c20	[0x1c] -> [0x10]	
+#0679	  C  F     L    	2410	Cop shift! [0x4]BIU<<16 -> [0x1c]SHL_out2	
+#0680	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
+#0681	  C  F    K     	2420	Cop shift! [0x4]BIU<<32 -> [0x1c]SHL_out2	
+#0682	   DEF    K     	1c20	[0x1c]SHL_out2 -> [0x10]Cop_in	
 #0683	AB    GHIJKL    	c3f0	+jmp->#0691 cond=0x38 accumulator!=0	
-#0684	  C  F    KL    	2430	?	
-#0685	   DEF     L N  	1c14	[0x1c] -> [0xa]mantA	
-#0686	     F     L  O 	0412	[0x4] -> [0x9]	
+#0684	  C  F    KL    	2430	Cop shift! [0x4]BIU<<48 -> [0x1c]SHL_out2	
+#0685	   DEF     L N  	1c14	[0x1c]SHL_out2 -> [0xa]mantA	
+#0686	     F     L  O 	0412	[0x4]BIU -> [0x9]expA raw	
 #0687	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #0688	 BCDE           	7800	stack pop (++stack ptr)	
 #0689	AB DE  HIJKL N P	d9f5	-jmp->#0677 cond=!(0x3a)	
-#0690	ABCDEFG IJKLMNO 	fefe	?	
-#0691	  C  F    KL    	2430	?	
+#0690	ABCDEFG IJKLMNO 	fefe	---------------RNI2---------------	
+#0691	  C  F    KL    	2430	Cop shift! [0x4]BIU<<48 -> [0x1c]SHL_out2	
 #0692	ABCD F      MNO 	f40e	?	
 #0693	ABCD        M   	f008	exception: precision	
 #0694	AB DE GH JKLMN  	db7c	-jmp->#0685 cond=0x3e unconditional	
-#0695	      GHIJK M O 	03ea	IJ mov /0x3/ -> [0x15]	
+#0695	      GHIJK M O 	03ea	J mov /0x7/ -> [0x15]SHR_out	-------FST80_FNSAVE-------
 #0696	ABCDEFGHIJKLM   	fff8	nop	
 #0697	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	
-#0698	    E G     M   	0a08	[0xa]mantA -> [0x4]	
-#0699	  C E G I  L    	2a90	?	
-#0700	   D F H    M   	1508	[0x15] -> [0x4]	
-#0701	  C E G I K     	2aa0	?	
-#0702	   D F H    M   	1508	[0x15] -> [0x4]	
-#0703	  C E G I KL    	2ab0	?	
-#0704	   D F H    M   	1508	[0x15] -> [0x4]	
+#0698	    E G     M   	0a08	[0xa]mantA -> [0x4]BIU	
+#0699	  C E G I  L    	2a90	Cop shift! [0xa]mantA>>16 -> [0x15]SHR_out	
+#0700	   D F H    M   	1508	[0x15]SHR_out -> [0x4]BIU	
+#0701	  C E G I K     	2aa0	Cop shift! [0xa]mantA>>32 -> [0x15]SHR_out	
+#0702	   D F H    M   	1508	[0x15]SHR_out -> [0x4]BIU	
+#0703	  C E G I KL    	2ab0	Cop shift! [0xa]mantA>>48 -> [0x15]SHR_out	
+#0704	   D F H    M   	1508	[0x15]SHR_out -> [0x4]BIU	
 #0705	 BCDE           	7800	stack pop (++stack ptr)	
-#0706	    E  H    M   	0908	[0x9] -> [0x4]	
+#0706	    E  H    M   	0908	[0x9]expA raw -> [0x4]BIU	
 #0707	AB DE G IJKL   P	daf1	-jmp->#0697 cond=!(0x38 accumulator!=0)	
-#0708	ABCDEFG IJKLMNO 	fefe	?	
+#0708	ABCDEFG IJKLMNO 	fefe	---------------RNI2---------------	
 #0709	ABCDEFGHIJKLM   	fff8	nop	
 #0710	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	-------FRNDINT-------
 #0711	AB   F   J   NOP	c447	+jmp->#0720 cond=!(0x23 stack overflow)	
@@ -718,7 +718,7 @@
 #0717	ABCD          O 	f002	exception: invalid	
 #0718	AB  E  H J LMN  	c95c	+jmp->#0737 cond=0x2e	
 #0719	AB  E    JKLMN  	c87c	+jmp->#0736 cond=0x3e unconditional	
-#0720	      GH JKLM   	0378	-J mov /0x3/ -> [0x1c]	
+#0720	      GH JKLM   	0378	J mov /0x6/ -> [0x1c]SHL_out2	
 #0721	A C E  H J L NOP	a957	call J18, cond=!(0x2b)	
 #0722	     F H  K MNO 	052e	[0x5 sum?] -> [0x17]	
 #0723	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
@@ -728,31 +728,31 @@
 #0727	 B   FG    L    	4610	Bop! param=[0x6]sum input operation=8	
 #0728	 BC     I    N  	6084	?sgn store tmpA sign?	
 #0729	AB      I KLM OP	c0bb	+jmp->#0731 cond=!(0x1d)	
-#0730	 B D         NO 	5006	Bop! param=[0x10] operation=3	
+#0730	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
 #0731	AB    GH  KL N  	c334	+jmp->#0738 cond=0x1a	
-#0732	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#0732	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #0733	AB   FG   KLMN P	c63d	+jmp->#0746 cond=!(0x1e)	
 #0734	     FG    L NO 	0616	[0x6]sum input -> [0xb]tmpA	
 #0735	 BC   G I       	6280	?sgn take stored sign, and store to tmpA?	
 #0736	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #0737	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#0738	  CD  G  JK MN  	326c	?	
-#0739	   D F    K  N  	1424	[0x14] -> [0x12]	
-#0740	   D F     L N  	1414	[0x14] -> [0xa]mantA	
+#0738	  CD  G  JK MN  	326c	Cop! param=[0x12] IJ=01 KLM=5 NOP=4	
+#0739	   D F    K  N  	1424	[0x14]SHL_out1 -> [0x12]	
+#0740	   D F     L N  	1414	[0x14]SHL_out1 -> [0xa]mantA	
 #0741	AB DEF H JK  N P	dd65	-jmp->#0736 cond=!(0x32)	
 #0742	 B  E        NO 	4806	Bop! param=[0x8]expA operation=3	
-#0743	   D       L    	1010	[0x10] -> [0x8]expA	
+#0743	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #0744	     FG    L N P	0615	[0x6]sum input -> [0xa]mantA with P	
 #0745	AB DE GH JKLMN  	db7c	-jmp->#0736 cond=0x3e unconditional	
 #0746	     F H   L    	0510	[0x5 sum?] -> [0x8]expA	
 #0747	AB DEFG  JKLMN  	de7c	-jmp->#0744 cond=0x3e unconditional	
 #0748	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	-------FSCALE-------
-#0749	AB  EF H J      	cd40	+jmp->#0776 cond=0x20 tmpA zero	
+#0749	AB  EF H J      	cd40	+jmp->#0776 cond=0x20 tmpA==0	
 #0750	 BCDE           	7800	stack pop (++stack ptr)	
 #0751	      G    LMNO 	021e	[0x2]st(0) -> [0xf]tmpB	
 #0752	 BCDE         O 	7802	stack push (--stack ptr)	
-#0753	AB  E GH J  M   	cb48	+jmp->#0776 cond=0x24 tmpB zero	
-#0754	      GH JKLM   	0378	-J mov /0x3/ -> [0x1c]	
+#0753	AB  E GH J  M   	cb48	+jmp->#0776 cond=0x24 tmpB==0	
+#0754	      GH JKLM   	0378	J mov /0x6/ -> [0x1c]SHL_out2	
 #0755	AB    GHIJ   NOP	c3c7	+jmp->#0763 cond=!(0x23 stack overflow)	
 #0756	A C   G IJKLMN  	a2fc	call J5, cond=0x3e unconditional	
 #0757	AB    G  JKL N  	c274	+jmp->#0762 cond=0x3a	
@@ -762,23 +762,23 @@
 #0761	AB   FGH J LMN  	c75c	+jmp->#0776 cond=0x2e	
 #0762	AB   FG   KL  O 	c632	+jmp->#0775 cond=0x19	
 #0763	    EF      MN  	0c0c	[0xc]expB -> [0x6]sum input	
-#0764	    EF H      O 	0d02	[0xd] -> [0x1]	
+#0764	    EF H      O 	0d02	[0xd]expB raw -> [0x1]sign	
 #0765	     F H  K MNO 	052e	[0x5 sum?] -> [0x17]	
 #0766	 B D FGH    M O 	570a	Bop! param=[0x17] operation=5	
-#0767	   D            	1000	[0x10] -> [0x0]	
-#0768	  C EFG IJK MN  	2eec	?	
-#0769	   D F H    MN  	150c	[0x15] -> [0x6]sum input	
+#0767	   D            	1000	[0x10]Cop_in -> [0x0]	
+#0768	  C EFG IJK MN  	2eec	Cop! param=[0xe]mantB IJ=11 KLM=5 NOP=4	
+#0769	   D F H    MN  	150c	[0x15]SHR_out -> [0x6]sum input	
 #0770	AB    GH  KLMNO 	c33e	+jmp->#0777 cond=0x1f	
 #0771	 B  E           	4800	Bop! param=[0x8]expA operation=0	
-#0772	   D          O 	1002	[0x10] -> [0x1]	
-#0773	   D       L    	1010	[0x10] -> [0x8]expA	
+#0772	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#0773	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #0774	A C E     KL   P	a831	call J16, cond=!(0x18)	
 #0775	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #0776	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0777	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #0778	AB DEF  IJKLMN  	dcfc	-jmp->#0772 cond=0x3e unconditional	
 #0779	AB  E  HIJ    O 	c9c2	+jmp->#0799 cond=0x21	-------J18-------
-#0780	    E G   K     	0a20	[0xa]mantA -> [0x10]	
+#0780	    E G   K     	0a20	[0xa]mantA -> [0x10]Cop_in	
 #0781	AB     HI KLMN P	c1bd	+jmp->#0785 cond=!(0x1e)	
 #0782	     FG    L    	0610	[0x6]sum input -> [0x8]expA	
 #0783	 BC    H J   N  	6144	?	
@@ -788,22 +788,22 @@
 #0787	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
 #0788	 B  E       M   	4808	Bop! param=[0x8]expA operation=4	
 #0789	AB    G IJK     	c2e0	+jmp->#0795 cond=0x30	
-#0790	 B D            	5000	Bop! param=[0x10] operation=0	
-#0791	   D            	1000	[0x10] -> [0x0]	
-#0792	  C E G  JK MN  	2a6c	?	
-#0793	   DE GH   L    	1b10	[0x1b]tmpA.Y -> [0x8]expA	
+#0790	 B D            	5000	Bop! param=[0x10]Cop_in operation=0	
+#0791	   D            	1000	[0x10]Cop_in -> [0x0]	
+#0792	  C E G  JK MN  	2a6c	Cop! param=[0xa]mantA IJ=01 KLM=5 NOP=4	
+#0793	   DE GH   L    	1b10	[0x1b]tmpA 3? -> [0x8]expA	
 #0794	AB     H JKLMN  	c17c	+jmp->#0797 cond=0x3e unconditional	
-#0795	 B D         NO 	5006	Bop! param=[0x10] operation=3	
-#0796	   D       L    	1010	[0x10] -> [0x8]expA	
-#0797	   D F     L N  	1414	[0x14] -> [0xa]mantA	
+#0795	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
+#0796	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
+#0797	   D F     L N  	1414	[0x14]SHL_out1 -> [0xa]mantA	
 #0798	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0799	     FG    L N P	0615	[0x6]sum input -> [0xa]mantA with P	
 #0800	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0801	 BC EFG I       	6e80	?	-------J21-------
-#0802	  CD   H JK M   	3168	?	
-#0803	   D F    K   O 	1422	[0x14] -> [0x11]	
+#0802	  CD   H JK M   	3168	Cop! param=[0x11] IJ=01 KLM=5 NOP=0	
+#0803	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #0804	 BC EF HI       	6d80	?	
-#0805	  CD   H JK  N  	3164	?	
+#0805	  CD   H JK  N  	3164	Cop! param=[0x11] IJ=01 KLM=4 NOP=4	
 #0806	            MN  	000c	[0x0] -> [0x6]sum input	
 #0807	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0808	A C   G         	a200	call J4, cond=0x00 is_memory_operand	-------FCOM,FCOMP,FCOMPP-------
@@ -826,9 +826,9 @@
 #0825	ABC EF          	ec00	?negate something?	
 #0826	A C E  H J L NOP	a957	call J18, cond=!(0x2b)	
 #0827	ABC EF          	ec00	?negate something?	
-#0828	AB      IJ     P	c0c1	+jmp->#0830 cond=!(0x20 tmpA zero)	
-#0829	AB   FG IJ  M   	c6c8	+jmp->#0843 cond=0x24 tmpB zero	
-#0830	AB     H JKL NOP	c177	+jmp->#0833 cond=!(0x3b)	
+#0828	AB      IJ     P	c0c1	+jmp->#0830 cond=!(0x20 tmpA==0)	
+#0829	AB   FG IJ  M   	c6c8	+jmp->#0843 cond=0x24 tmpB==0	
+#0830	AB     H JKL NOP	c177	+jmp->#0833 cond=!(0x3b Asign != Bsign)	
 #0831	AB   FGHIJ L   P	c7d1	+jmp->#0847 cond=!(0x28)	
 #0832	AB   FG  JKLMN  	c67c	+jmp->#0845 cond=0x3e unconditional	
 #0833	AB      IJ L   P	c0d1	+jmp->#0835 cond=!(0x28)	
@@ -858,7 +858,7 @@
 #0857	 BCDE           	7800	stack pop (++stack ptr)	
 #0858	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0859	 BC EFGH J  M   	6f48	?	-------J14-------
-#0860	   DEFGHIJK M O 	1fea	IJ mov /0x1f/ -> [0x15]	
+#0860	   DEFGHIJK M O 	1fea	J mov /0x3f/ -> [0x15]SHR_out	
 #0861	 B D  GHIJ      	53c0	Bop! param=[0x13] operation=96	
 #0862	 B D  G  J  M  P	5249	?	
 #0863	 B D  G  J  M O 	524a	Bop! param=[0x12] operation=37	
@@ -866,22 +866,22 @@
 #0865	 B D  G  J  M   	5248	Bop! param=[0x12] operation=36	
 #0866	   D FG   K  N  	1624	[0x16] -> [0x12]	
 #0867	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
-#0868	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	-------J19-------
+#0868	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	-------J19-------
 #0869	     F H    MNO 	050e	[0x5 sum?] -> [0x7]	
 #0870	 B  E      LM O 	481a	Bop! param=[0x8]expA operation=13	
 #0871	 BC     IJ  M   	60c8	set C0=0, C2=1, C3=0, NO=0	
 #0872	AB     HIJK     	c1e0	+jmp->#0876 cond=0x30	
-#0873	   D        MN  	100c	[0x10] -> [0x6]sum input	
+#0873	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
 #0874	 B   FG     M O 	460a	Bop! param=[0x6]sum input operation=5	
 #0875	 BC    HIJ  M   	61c8	set C0=0, C2=1, C3=1, NO=0	
 #0876	AB   F    KLMN  	c43c	+jmp->#0885 cond=0x1e	
 #0877	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
-#0878	   D F     LMN  	141c	[0x14] -> [0xe]mantB	
+#0878	   D F     LMN  	141c	[0x14]SHL_out1 -> [0xe]mantB	
 #0879	     F H   L    	0510	[0x5 sum?] -> [0x8]expA	
-#0880	      GH JKLM   	0378	-J mov /0x3/ -> [0x1c]	
+#0880	      GH JKLM   	0378	J mov /0x6/ -> [0x1c]SHL_out2	
 #0881	     F H   LM   	0518	[0x5 sum?] -> [0xc]expB	
 #0882	 B  EF      M O 	4c0a	Bop! param=[0xc]expB operation=5	
-#0883	   D       LM   	1018	[0x10] -> [0xc]expB	
+#0883	   D       LM   	1018	[0x10]Cop_in -> [0xc]expB	
 #0884	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #0885	     FG    LMNO 	061e	[0x6]sum input -> [0xf]tmpB	
 #0886	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
@@ -899,39 +899,39 @@
 #0898	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #0899	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #0900	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	-------F2XM1-------
-#0901	      GHIJKLM   	03f8	IJ mov /0x3/ -> [0x1c]	
-#0902	AB  E G  J      	ca40	+jmp->#0923 cond=0x20 tmpA zero	
+#0901	      GHIJKLM   	03f8	J mov /0x7/ -> [0x1c]SHL_out2	
+#0902	AB  E G  J      	ca40	+jmp->#0923 cond=0x20 tmpA==0	
 #0903	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
 #0904	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #0905	ABCD         N  	f004	exception: overflow	
 #0906	    E G   K MNO 	0a2e	[0xa]mantA -> [0x17]	
 #0907	AB    G  JK    P	c261	+jmp->#0912 cond=!(0x30)	
-#0908	   D      K M O 	102a	[0x10] -> [0x15]	
+#0908	   D      K M O 	102a	[0x10]Cop_in -> [0x15]SHR_out	
 #0909	AB   FGH  KLMN P	c73d	+jmp->#0924 cond=!(0x1e)	
 #0910	ABCD        M   	f008	exception: precision	
 #0911	AB   FG  JKLMN  	c67c	+jmp->#0924 cond=0x3e unconditional	
-#0912	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#0912	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #0913	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
-#0914	     F H   LM O 	051a	[0x5 sum?] -> [0xd]	
+#0914	     F H   LM O 	051a	[0x5 sum?] -> [0xd]expB raw	
 #0915	 B  EF      M O 	4c0a	Bop! param=[0xc]expB operation=5	
-#0916	   D          O 	1002	[0x10] -> [0x1]	
-#0917	   D            	1000	[0x10] -> [0x0]	
+#0916	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#0917	   D            	1000	[0x10]Cop_in -> [0x0]	
 #0918	AB  EFGHI KL N  	cfb4	+jmp->#0950 cond=0x1a	
-#0919	   DE G    LMN  	1a1c	[0x1a]tmpA.X -> [0xe]mantB	
+#0919	   DE G    LMN  	1a1c	[0x1a]tmpA 2? -> [0xe]mantB	
 #0920	A C    HIJKLMN  	a1fc	call J3, cond=0x3e unconditional	
 #0921	A C E     KL   P	a831	call J16, cond=!(0x18)	
 #0922	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #0923	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#0924	     F HIJKLM   	05f8	IJ mov /0x5/ -> [0x1c]	
+#0924	     F HIJKLM   	05f8	J mov /0xb/ -> [0x1c]SHL_out2	
 #0925	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
 #0926	     F H   LMN  	051c	[0x5 sum?] -> [0xe]mantB	
 #0927	 B  EFG     M O 	4e0a	Bop! param=[0xe]mantB operation=5	
 #0928	AB    G   KLMN P	c23d	+jmp->#0933 cond=!(0x1e)	
 #0929	AB       JKL   P	c071	+jmp->#0930 cond=!(0x38 accumulator!=0)	
-#0930	  C E G        P	2a01	?	
+#0930	  C E G        P	2a01	Cop shift! [0xa]mantA<<1 -> [0x1c]SHL_out2	
 #0931	 BCDEF          	7c00	?increment something B?	
-#0932	   D F    K MNO 	142e	[0x14] -> [0x17]	
-#0933	     F H JKLM   	0578	-J mov /0x5/ -> [0x1c]	
+#0932	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
+#0933	     F H JKLM   	0578	J mov /0xa/ -> [0x1c]SHL_out2	
 #0934	   DE  H    MNO 	190e	[0x19] -> [0x7]	
 #0935	 B D FGH   LM O 	571a	Bop! param=[0x17] operation=13	
 #0936	ABC E         O 	e802	?decrement something A?	
@@ -939,8 +939,8 @@
 #0938	AB   F  IJKL N  	c4f4	+jmp->#0948 cond=0x3a	
 #0939	 BCDEF          	7c00	?increment something B?	
 #0940	AB    GHIJKLMN  	c3fc	+jmp->#0948 cond=0x3e unconditional	
-#0941	  CD FGH       P	3701	?	
-#0942	   D F    K MNO 	142e	[0x14] -> [0x17]	
+#0941	  CD FGH       P	3701	Cop shift! [0x17]<<1 -> [0x1c]SHL_out2	
+#0942	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
 #0943	   DE  H    MNO 	190e	[0x19] -> [0x7]	
 #0944	 B D FGH   LM O 	571a	Bop! param=[0x17] operation=13	
 #0945	ABC E         O 	e802	?decrement something A?	
@@ -953,66 +953,66 @@
 #0952	 BC   G  J  MN  	624c	set C0=1, C2=0, C3=0, NO=2	
 #0953	ABCD        M O 	f00a	exception: underflow	
 #0954	A C  FGHIJKLMN  	a7fc	call J15, cond=0x3e unconditional	
-#0955	   DE G    LMN  	1a1c	[0x1a]tmpA.X -> [0xe]mantB	
+#0955	   DE G    LMN  	1a1c	[0x1a]tmpA 2? -> [0xe]mantB	
 #0956	   D   H    MNO 	110e	[0x11] -> [0x7]	
 #0957	ABCD F      M O 	f40a	?	
 #0958	A C  FGHIJKLMN  	a7fc	call J15, cond=0x3e unconditional	
-#0959	  CD    I     O 	3082	?	
-#0960	   D F H  K     	1520	[0x15] -> [0x10]	
-#0961	  CD    IJK MN  	30ec	?	
-#0962	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#0959	  CD    I     O 	3082	Cop shift! [0x10]Cop_in>>2 -> [0x15]SHR_out	
+#0960	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
+#0961	  CD    IJK MN  	30ec	Cop! param=[0x10]Cop_in IJ=11 KLM=5 NOP=4	
+#0962	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #0963	 B D FGH   LM O 	571a	Bop! param=[0x17] operation=13	
-#0964	  CD    IJK MN  	30ec	?	
-#0965	   D F H  K   O 	1522	[0x15] -> [0x11]	
-#0966	  CD   HI      P	3181	?	
-#0967	   D F H    MNO 	150e	[0x15] -> [0x7]	
-#0968	   DE G   K   O 	1a22	[0x1a]tmpA.X -> [0x11]	
+#0964	  CD    IJK MN  	30ec	Cop! param=[0x10]Cop_in IJ=11 KLM=5 NOP=4	
+#0965	   D F H  K   O 	1522	[0x15]SHR_out -> [0x11]	
+#0966	  CD   HI      P	3181	Cop shift! [0x11]>>1 -> [0x15]SHR_out	
+#0967	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
+#0968	   DE G   K   O 	1a22	[0x1a]tmpA 2? -> [0x11]	
 #0969	 BC EFG  J   N  	6e44	?	
 #0970	 B D   H   LM O 	511a	Bop! param=[0x11] operation=13	
 #0971	   D   H    MNO 	110e	[0x11] -> [0x7]	
 #0972	   D FGH  K   O 	1722	[0x17] -> [0x11]	
 #0973	A C  FGH JKLMN  	a77c	call J14, cond=0x3e unconditional	
-#0974	          K M O 	002a	[0x0] -> [0x15]	
+#0974	          K M O 	002a	[0x0] -> [0x15]SHR_out	
 #0975	AB     HIJK M OP	c1eb	+jmp->#0979 cond=!(0x35)	
-#0976	  CD  GHIJ L    	33d0	?	
-#0977	   D F H    MNOP	150f	[0x15] -> [0x7] with P	
+#0976	  CD  GHIJ L    	33d0	Cop! param=[0x13] IJ=11 KLM=2 NOP=0	
+#0977	   D F H    MNOP	150f	[0x15]SHR_out -> [0x7] with P	
 #0978	 B D  GH   L    	5310	Bop! param=[0x13] operation=8	
 #0979	ABC E           	e800	?increment something A?	
-#0980	  CD  GHI      P	3381	?	
+#0980	  CD  GHI      P	3381	Cop shift! [0x13]>>1 -> [0x15]SHR_out	
 #0981	AB     H JK M   	c168	+jmp->#0984 cond=0x34	
-#0982	   D F H  K   O 	1522	[0x15] -> [0x11]	
+#0982	   D F H  K   O 	1522	[0x15]SHR_out -> [0x11]	
 #0983	AB DE GHIJKL   P	dbf1	-jmp->#0975 cond=!(0x38 accumulator!=0)	
 #0984	AB     HIJK  NO 	c1e6	+jmp->#0988 cond=0x33	
-#0985	  CD   H       P	3101	?	
-#0986	   D F    K   O 	1422	[0x14] -> [0x11]	
+#0985	  CD   H       P	3101	Cop shift! [0x11]<<1 -> [0x1c]SHL_out2	
+#0986	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #0987	 BCDEF          	7c00	?increment something B?	
 #0988	     FG     MNO 	060e	[0x6]sum input -> [0x7]	
 #0989	 BC EF   J  M O 	6c4a	?	
 #0990	 B D  GH   L    	5310	Bop! param=[0x13] operation=8	
 #0991	AB     HIJK  N P	c1e5	+jmp->#0995 cond=!(0x32)	
-#0992	  CD  GHI      P	3381	?	
-#0993	   D F H  K   O 	1522	[0x15] -> [0x11]	
+#0992	  CD  GHI      P	3381	Cop shift! [0x13]>>1 -> [0x15]SHR_out	
+#0993	   D F H  K   O 	1522	[0x15]SHR_out -> [0x11]	
 #0994	 BCDEF        O 	7c02	?decrement something B?	
-#0995	   D       L N  	1014	[0x10] -> [0xa]mantA	
+#0995	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
 #0996	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
 #0997	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
-#0998	 B D         NO 	5006	Bop! param=[0x10] operation=3	
-#0999	   D       L    	1010	[0x10] -> [0x8]expA	
+#0998	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
+#0999	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1000	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #1001	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1002	ABCDEFGHIJKLM   	fff8	nop	
-#1003	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	-------FLD1,FLDL2T,FLD2E,FLDPI-------
-#1004	     F H  K     	0520	[0x5 sum?] -> [0x10]	
+#1003	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	-------FLD1,FLDL2T,FLD2E,FLDPI-------
+#1004	     F H  K     	0520	[0x5 sum?] -> [0x10]Cop_in	
 #1005	AB      I  L N P	c095	+jmp->#1007 cond=!(0x0a opcode&1)	
-#1006	 B D         NO 	5006	Bop! param=[0x10] operation=3	
+#1006	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
 #1007	AB    G IJKLMN  	c2fc	+jmp->#1013 cond=0x3e unconditional	
-#1008	     F HIJKLM   	05f8	IJ mov /0x5/ -> [0x1c]	-------FLDLG2,FLDLN2-------
+#1008	     F HIJKLM   	05f8	J mov /0xb/ -> [0x1c]SHL_out2	-------FLDLG2,FLDLN2-------
 #1009	     FG     MN  	060c	[0x6]sum input -> [0x6]sum input	
-#1010	     F H  K     	0520	[0x5 sum?] -> [0x10]	
+#1010	     F H  K     	0520	[0x5 sum?] -> [0x10]Cop_in	
 #1011	AB      I  L N  	c094	+jmp->#1013 cond=0x0a opcode&1	
-#1012	 B D        M   	5008	Bop! param=[0x10] operation=4	
-#1013	   D       L  O 	1012	[0x10] -> [0x9]	
-#1014	   DE G    L N  	1a14	[0x1a]tmpA.X -> [0xa]mantA	
+#1012	 B D        M   	5008	Bop! param=[0x10]Cop_in operation=4	
+#1013	   D       L  O 	1012	[0x10]Cop_in -> [0x9]expA raw	
+#1014	   DE G    L N  	1a14	[0x1a]tmpA 2? -> [0xa]mantA	
 #1015	 BCDE         O 	7802	stack push (--stack ptr)	
 #1016	 BC         M O 	600a	set st(0) valid?	
 #1017	AB    G  J   NO 	c246	+jmp->#1022 cond=0x23 stack overflow	
@@ -1031,7 +1031,7 @@
 #1030	 BC         M O 	600a	set st(0) valid?	
 #1031	AB DE GH J   NO 	db46	-jmp->#1022 cond=0x23 stack overflow	
 #1032	    E GH   LMNO 	0b1e	[0xb]tmpA -> [0xf]tmpB	
-#1033	A C E  HIJ     P	a9c1	call J19, cond=!(0x20 tmpA zero)	
+#1033	A C E  HIJ     P	a9c1	call J19, cond=!(0x20 tmpA==0)	
 #1034	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #1035	 BCDE           	7800	stack pop (++stack ptr)	
 #1036	    EFGH     N  	0f04	[0xf]tmpB -> [0x2]st(0)	
@@ -1041,26 +1041,26 @@
 #1040	 BCDE         O 	7802	stack push (--stack ptr)	
 #1041	 BC         M O 	600a	set st(0) valid?	
 #1042	AB D F HIJ   NO 	d5c6	-jmp->#1022 cond=0x23 stack overflow	
-#1043	AB      IJ      	c0c0	+jmp->#1045 cond=0x20 tmpA zero	
+#1043	AB      IJ      	c0c0	+jmp->#1045 cond=0x20 tmpA==0	
 #1044	ABCD         N  	f004	exception: overflow	
-#1045	      GHIJKLM   	03f8	IJ mov /0x3/ -> [0x1c]	
+#1045	      GHIJKLM   	03f8	J mov /0x7/ -> [0x1c]SHL_out2	
 #1046	 B  E        NO 	4806	Bop! param=[0x8]expA operation=3	
 #1047	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
-#1048	 B D        M O 	500a	Bop! param=[0x10] operation=5	
+#1048	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
 #1049	AB   F HIJK     	c5e0	+jmp->#1061 cond=0x30	
-#1050	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#1050	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #1051	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
 #1052	     F H   LMN  	051c	[0x5 sum?] -> [0xe]mantB	
 #1053	 B  EFG     M O 	4e0a	Bop! param=[0xe]mantB operation=5	
-#1054	   D          O 	1002	[0x10] -> [0x1]	
-#1055	   D            	1000	[0x10] -> [0x0]	
+#1054	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#1055	   D            	1000	[0x10]Cop_in -> [0x0]	
 #1056	AB  EF  I KL N  	ccb4	+jmp->#1082 cond=0x1a	
 #1057	     FG    LMN P	061d	[0x6]sum input -> [0xe]mantB with P	
-#1058	     F H   LM O 	051a	[0x5 sum?] -> [0xd]	
+#1058	     F H   LM O 	051a	[0x5 sum?] -> [0xd]expB raw	
 #1059	    EFGH     N  	0f04	[0xf]tmpB -> [0x2]st(0)	
 #1060	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1061	       HIJKLM   	01f8	IJ mov /0x1/ -> [0x1c]	
-#1062	   D      K M O 	102a	[0x10] -> [0x15]	
+#1061	       HIJKLM   	01f8	J mov /0x3/ -> [0x1c]SHL_out2	
+#1062	   D      K M O 	102a	[0x10]Cop_in -> [0x15]SHR_out	
 #1063	    E G   K MNO 	0a2e	[0xa]mantA -> [0x17]	
 #1064	   DE       MNO 	180e	[0x18] -> [0x7]	
 #1065	 B D FGH   LM O 	571a	Bop! param=[0x17] operation=13	
@@ -1068,10 +1068,10 @@
 #1067	AB   F HIJK    P	c5e1	+jmp->#1079 cond=!(0x30)	
 #1068	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1069	 B  E        NO 	4806	Bop! param=[0x8]expA operation=3	
-#1070	   D       L    	1010	[0x10] -> [0x8]expA	
+#1070	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1071	AB    GHIJKLMN  	c3fc	+jmp->#1079 cond=0x3e unconditional	
-#1072	  CD FGH       P	3701	?	
-#1073	   D F    K MNO 	142e	[0x14] -> [0x17]	
+#1072	  CD FGH       P	3701	Cop shift! [0x17]<<1 -> [0x1c]SHL_out2	
+#1073	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
 #1074	   DE       MNO 	180e	[0x18] -> [0x7]	
 #1075	 B D FGH   LM O 	571a	Bop! param=[0x17] operation=13	
 #1076	ABC E         O 	e802	?decrement something A?	
@@ -1083,53 +1083,53 @@
 #1082	    E G    LMN  	0a1c	[0xa]mantA -> [0xe]mantB	
 #1083	    E G     MN  	0a0c	[0xa]mantA -> [0x6]sum input	
 #1084	A C  FGHIJKLMN  	a7fc	call J15, cond=0x3e unconditional	
-#1085	  CD    IJK MN  	30ec	?	
-#1086	   D F H  K     	1520	[0x15] -> [0x10]	
-#1087	  CD    IJK MN  	30ec	?	
-#1088	   D F H    MN  	150c	[0x15] -> [0x6]sum input	
+#1085	  CD    IJK MN  	30ec	Cop! param=[0x10]Cop_in IJ=11 KLM=5 NOP=4	
+#1086	   D F H  K     	1520	[0x15]SHR_out -> [0x10]Cop_in	
+#1087	  CD    IJK MN  	30ec	Cop! param=[0x10]Cop_in IJ=11 KLM=5 NOP=4	
+#1088	   D F H    MN  	150c	[0x15]SHR_out -> [0x6]sum input	
 #1089	   DEFGH   LMN  	1f1c	[0x1f]NaN? -> [0xe]mantB	
 #1090	 B  EFG     M   	4e08	Bop! param=[0xe]mantB operation=4	
-#1091	   D       LMN  	101c	[0x10] -> [0xe]mantB	
-#1092	  C E G I      P	2a81	?	
-#1093	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#1091	   D       LMN  	101c	[0x10]Cop_in -> [0xe]mantB	
+#1092	  C E G I      P	2a81	Cop shift! [0xa]mantA>>1 -> [0x15]SHR_out	
+#1093	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #1094	 B  E G    L    	4a10	Bop! param=[0xa]mantA operation=8	
 #1095	   D  GH  K MNO 	132e	[0x13] -> [0x17]	
-#1096	      GHIJKLM   	03f8	IJ mov /0x3/ -> [0x1c]	
+#1096	      GHIJKLM   	03f8	J mov /0x7/ -> [0x1c]SHL_out2	
 #1097	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
 #1098	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #1099	AB  E  H JK    P	c961	+jmp->#1118 cond=!(0x30)	
-#1100	  CD FGHI      P	3781	?	
-#1101	     FGHIJK M O 	07ea	IJ mov /0x7/ -> [0x15]	
-#1102	   D F H  K MNO 	152e	[0x15] -> [0x17]	
+#1100	  CD FGHI      P	3781	Cop shift! [0x17]>>1 -> [0x15]SHR_out	
+#1101	     FGHIJK M O 	07ea	J mov /0xf/ -> [0x15]SHR_out	
+#1102	   D F H  K MNO 	152e	[0x15]SHR_out -> [0x17]	
 #1103	AB   F  IJK M OP	c4eb	+jmp->#1113 cond=!(0x35)	
-#1104	  CD FGHIJ L    	37d0	?	
+#1104	  CD FGHIJ L    	37d0	Cop! param=[0x17] IJ=11 KLM=2 NOP=0	
 #1105	   D FGH    MNO 	170e	[0x17] -> [0x7]	
 #1106	 B  EFG    L    	4e10	Bop! param=[0xe]mantB operation=8	
 #1107	   D  GH  K MNO 	132e	[0x13] -> [0x17]	
-#1108	   D F H  K   O 	1522	[0x15] -> [0x11]	
-#1109	  CD   HIJ L    	31d0	?	
-#1110	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#1108	   D F H  K   O 	1522	[0x15]SHR_out -> [0x11]	
+#1109	  CD   HIJ L    	31d0	Cop! param=[0x11] IJ=11 KLM=2 NOP=0	
+#1110	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #1111	 B  EFG    LM O 	4e1a	Bop! param=[0xe]mantB operation=13	
 #1112	   D   H   LMN  	111c	[0x11] -> [0xe]mantB	
 #1113	ABC E           	e800	?increment something A?	
-#1114	  CD FGHI      P	3781	?	
+#1114	  CD FGHI      P	3781	Cop shift! [0x17]>>1 -> [0x15]SHR_out	
 #1115	AB     H JK M   	c168	+jmp->#1118 cond=0x34	
-#1116	   D F H  K MNO 	152e	[0x15] -> [0x17]	
+#1116	   D F H  K MNO 	152e	[0x15]SHR_out -> [0x17]	
 #1117	AB DE   IJKL   P	d8f1	-jmp->#1103 cond=!(0x38 accumulator!=0)	
-#1118	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
-#1119	    EFG   K     	0e20	[0xe]mantB -> [0x10]	
+#1118	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
+#1119	    EFG   K     	0e20	[0xe]mantB -> [0x10]Cop_in	
 #1120	AB     HIJK  NO 	c1e6	+jmp->#1124 cond=0x33	
-#1121	     F HIJKLM   	05f8	IJ mov /0x5/ -> [0x1c]	
-#1122	  CD           P	3001	?	
-#1123	   D F     LMN  	141c	[0x14] -> [0xe]mantB	
-#1124	     F H   LM O 	051a	[0x5 sum?] -> [0xd]	
+#1121	     F HIJKLM   	05f8	J mov /0xb/ -> [0x1c]SHL_out2	
+#1122	  CD           P	3001	Cop shift! [0x10]Cop_in<<1 -> [0x1c]SHL_out2	
+#1123	   D F     LMN  	141c	[0x14]SHL_out1 -> [0xe]mantB	
+#1124	     F H   LM O 	051a	[0x5 sum?] -> [0xd]expB raw	
 #1125	   D FGH   L N  	1714	[0x17] -> [0xa]mantA	
 #1126	   D FGH  K  N  	1724	[0x17] -> [0x12]	
 #1127	AB    G  JK  N P	c265	+jmp->#1132 cond=!(0x32)	
-#1128	  CD FGHI      P	3781	?	
-#1129	   D F H   L N  	1514	[0x15] -> [0xa]mantA	
+#1128	  CD FGHI      P	3781	Cop shift! [0x17]>>1 -> [0x15]SHR_out	
+#1129	   D F H   L N  	1514	[0x15]SHR_out -> [0xa]mantA	
 #1130	 B  E        NO 	4806	Bop! param=[0x8]expA operation=3	
-#1131	   D       L    	1010	[0x10] -> [0x8]expA	
+#1131	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1132	    EFGH     N  	0f04	[0xf]tmpB -> [0x2]st(0)	
 #1133	 BCDE           	7800	stack pop (++stack ptr)	
 #1134	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
@@ -1140,14 +1140,14 @@
 #1139	 BC   GH J      	6340	set st(0) empty	
 #1140	 BCDE           	7800	stack pop (++stack ptr)	
 #1141	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	
-#1142	AB      IJ      	c0c0	+jmp->#1144 cond=0x20 tmpA zero	
+#1142	AB      IJ      	c0c0	+jmp->#1144 cond=0x20 tmpA==0	
 #1143	ABCD         N  	f004	exception: overflow	
 #1144	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
 #1145	 B  EF      M O 	4c0a	Bop! param=[0xc]expB operation=5	
-#1146	     F H JKLM   	0578	-J mov /0x5/ -> [0x1c]	
-#1147	   D          O 	1002	[0x10] -> [0x1]	
-#1148	   D        MN  	100c	[0x10] -> [0x6]sum input	
-#1149	   D            	1000	[0x10] -> [0x0]	
+#1146	     F H JKLM   	0578	J mov /0xa/ -> [0x1c]SHL_out2	
+#1147	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#1148	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
+#1149	   D            	1000	[0x10]Cop_in -> [0x0]	
 #1150	     F H  K MNO 	052e	[0x5 sum?] -> [0x17]	
 #1151	 B D FGH    M O 	570a	Bop! param=[0x17] operation=5	
 #1152	AB   F   JK     	c460	+jmp->#1161 cond=0x30	
@@ -1159,7 +1159,7 @@
 #1158	A C E     KL   P	a831	call J16, cond=!(0x18)	
 #1159	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #1160	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1161	   D      K M O 	102a	[0x10] -> [0x15]	
+#1161	   D      K M O 	102a	[0x10]Cop_in -> [0x15]SHR_out	
 #1162	    E G   K MNO 	0a2e	[0xa]mantA -> [0x17]	
 #1163	AB      I KLMN P	c0bd	+jmp->#1165 cond=!(0x1e)	
 #1164	 BC   GH J  MN  	634c	set C0=1, C2=0, C3=1, NO=2	
@@ -1175,102 +1175,102 @@
 #1174	 B D FGH   LM O 	571a	Bop! param=[0x17] operation=13	
 #1175	ABC E         O 	e802	?decrement something A?	
 #1176	AB   FG  JK    P	c661	+jmp->#1189 cond=!(0x30)	
-#1177	  CD FGHIJ L    	37d0	?	
+#1177	  CD FGHIJ L    	37d0	Cop! param=[0x17] IJ=11 KLM=2 NOP=0	
 #1178	   D   H  K MNO 	112e	[0x11] -> [0x17]	
-#1179	   D F H   L N  	1514	[0x15] -> [0xa]mantA	
-#1180	  C E G IJ L    	2ad0	?	
+#1179	   D F H   L N  	1514	[0x15]SHR_out -> [0xa]mantA	
+#1180	  C E G IJ L    	2ad0	Cop! param=[0xa]mantA IJ=11 KLM=2 NOP=0	
 #1181	    EFG     MN  	0e0c	[0xe]mantB -> [0x6]sum input	
 #1182	 BC EF   J  M O 	6c4a	?	
-#1183	 B D F H   L    	5510	Bop! param=[0x15] operation=8	
-#1184	   D       LMN  	101c	[0x10] -> [0xe]mantB	
+#1183	 B D F H   L    	5510	Bop! param=[0x15]SHR_out operation=8	
+#1184	   D       LMN  	101c	[0x10]Cop_in -> [0xe]mantB	
 #1185	AB     HIJK  N P	c1e5	+jmp->#1189 cond=!(0x32)	
-#1186	  CD  G I      P	3281	?	
-#1187	   D F H   LMN  	151c	[0x15] -> [0xe]mantB	
+#1186	  CD  G I      P	3281	Cop shift! [0x12]>>1 -> [0x15]SHR_out	
+#1187	   D F H   LMN  	151c	[0x15]SHR_out -> [0xe]mantB	
 #1188	AB     H JKLMN  	c17c	+jmp->#1191 cond=0x3e unconditional	
-#1189	  CD FGH       P	3701	?	
-#1190	   D F    K MNO 	142e	[0x14] -> [0x17]	
+#1189	  CD FGH       P	3701	Cop shift! [0x17]<<1 -> [0x1c]SHL_out2	
+#1190	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
 #1191	AB D FG IJKL   P	d6f1	-jmp->#1173 cond=!(0x38 accumulator!=0)	
-#1192	  CD FGHI      P	3781	?	
-#1193	   D F H  K MNO 	152e	[0x15] -> [0x17]	
+#1192	  CD FGHI      P	3781	Cop shift! [0x17]>>1 -> [0x15]SHR_out	
+#1193	   D F H  K MNO 	152e	[0x15]SHR_out -> [0x17]	
 #1194	           L N  	0014	[0x0] -> [0xa]mantA	
 #1195	     F H        	0500	[0x5 sum?] -> [0x0]	
-#1196	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#1196	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #1197	    E G     MN  	0a0c	[0xa]mantA -> [0x6]sum input	
 #1198	     F H   L N  	0514	[0x5 sum?] -> [0xa]mantA	
 #1199	 B  E G     M O 	4a0a	Bop! param=[0xa]mantA operation=5	
-#1200	   D       L    	1010	[0x10] -> [0x8]expA	
+#1200	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1201	    EFG     MNO 	0e0e	[0xe]mantB -> [0x7]	
 #1202	   D FGH  K   O 	1722	[0x17] -> [0x11]	
 #1203	A C  FGH JKLMN  	a77c	call J14, cond=0x3e unconditional	
-#1204	   D       LMN  	101c	[0x10] -> [0xe]mantB	
+#1204	   D       LMN  	101c	[0x10]Cop_in -> [0xe]mantB	
 #1205	   D   H  K MNO 	112e	[0x11] -> [0x17]	
-#1206	  CD   HI      P	3181	?	
+#1206	  CD   HI      P	3181	Cop shift! [0x11]>>1 -> [0x15]SHR_out	
 #1207	   D   H    MNO 	110e	[0x11] -> [0x7]	
-#1208	 B D F H   L    	5510	Bop! param=[0x15] operation=8	
+#1208	 B D F H   L    	5510	Bop! param=[0x15]SHR_out operation=8	
 #1209	   D FGH    MNO 	170e	[0x17] -> [0x7]	
 #1210	   D  GH  K MNO 	132e	[0x13] -> [0x17]	
 #1211	 BC   G  J  MN  	624c	set C0=1, C2=0, C3=0, NO=2	
 #1212	A C  FGHIJKLMN  	a7fc	call J15, cond=0x3e unconditional	
-#1213	  CD    IJK MN  	30ec	?	
-#1214	   D F H   LMN  	151c	[0x15] -> [0xe]mantB	
-#1215	  C EFG IJK MN  	2eec	?	
+#1213	  CD    IJK MN  	30ec	Cop! param=[0x10]Cop_in IJ=11 KLM=5 NOP=4	
+#1214	   D F H   LMN  	151c	[0x15]SHR_out -> [0xe]mantB	
+#1215	  C EFG IJK MN  	2eec	Cop! param=[0xe]mantB IJ=11 KLM=5 NOP=4	
 #1216	   DEFGH    MNO 	1f0e	[0x1f]NaN? -> [0x7]	
-#1217	 B D F H   L    	5510	Bop! param=[0x15] operation=8	
+#1217	 B D F H   L    	5510	Bop! param=[0x15]SHR_out operation=8	
 #1218	   D   H    MNO 	110e	[0x11] -> [0x7]	
 #1219	   D FGH  K  NO 	1726	[0x17] -> [0x13]	
 #1220	A C  FGH JKLMN  	a77c	call J14, cond=0x3e unconditional	
-#1221	  CD   H       P	3101	?	
-#1222	   D F    K MNO 	142e	[0x14] -> [0x17]	
-#1223	          K M O 	002a	[0x0] -> [0x15]	
+#1221	  CD   H       P	3101	Cop shift! [0x11]<<1 -> [0x1c]SHL_out2	
+#1222	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
+#1223	          K M O 	002a	[0x0] -> [0x15]SHR_out	
 #1224	AB     HIJK M OP	c1eb	+jmp->#1228 cond=!(0x35)	
 #1225	   DE       MNO 	180e	[0x18] -> [0x7]	
 #1226	 B D FGH   L    	5710	Bop! param=[0x17] operation=8	
 #1227	   D  GH  K MNO 	132e	[0x13] -> [0x17]	
 #1228	ABC E           	e800	?increment something A?	
-#1229	  CD FGHI      P	3781	?	
+#1229	  CD FGHI      P	3781	Cop shift! [0x17]>>1 -> [0x15]SHR_out	
 #1230	AB     H JK M   	c168	+jmp->#1233 cond=0x34	
-#1231	   D F H  K MNO 	152e	[0x15] -> [0x17]	
+#1231	   D F H  K MNO 	152e	[0x15]SHR_out -> [0x17]	
 #1232	AB DE GHIJKL   P	dbf1	-jmp->#1224 cond=!(0x38 accumulator!=0)	
 #1233	   D FGH  K  NO 	1726	[0x17] -> [0x13]	
 #1234	AB     HIJK  N P	c1e5	+jmp->#1238 cond=!(0x32)	
-#1235	  CD  G I      P	3281	?	
-#1236	   D F H  K  NO 	1526	[0x15] -> [0x13]	
+#1235	  CD  G I      P	3281	Cop shift! [0x12]>>1 -> [0x15]SHR_out	
+#1236	   D F H  K  NO 	1526	[0x15]SHR_out -> [0x13]	
 #1237	 BCDEF        O 	7c02	?decrement something B?	
 #1238	AB     HIJK  NO 	c1e6	+jmp->#1242 cond=0x33	
-#1239	  CD   H       P	3101	?	
-#1240	   D F    K     	1420	[0x14] -> [0x10]	
+#1239	  CD   H       P	3101	Cop shift! [0x11]<<1 -> [0x1c]SHL_out2	
+#1240	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
 #1241	 BCDEF          	7c00	?increment something B?	
 #1242	 BC EF   J  M O 	6c4a	?	
 #1243	     FG     MN  	060c	[0x6]sum input -> [0x6]sum input	
 #1244	 B D   H   L    	5110	Bop! param=[0x11] operation=8	
 #1245	AB     HIJK  N P	c1e5	+jmp->#1249 cond=!(0x32)	
-#1246	  CD  G I      P	3281	?	
-#1247	   D F H  K  N  	1524	[0x15] -> [0x12]	
+#1246	  CD  G I      P	3281	Cop shift! [0x12]>>1 -> [0x15]SHR_out	
+#1247	   D F H  K  N  	1524	[0x15]SHR_out -> [0x12]	
 #1248	 BCDEF        O 	7c02	?decrement something B?	
 #1249	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
-#1250	   D       L N  	1014	[0x10] -> [0xa]mantA	
+#1250	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
 #1251	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
-#1252	   D       L    	1010	[0x10] -> [0x8]expA	
+#1252	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1253	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #1254	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1255	ABCDEFGHIJKLM   	fff8	nop	
 #1256	ABCDEFGHIJKLM   	fff8	nop	
 #1257	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	-------FYL2X,FYL2XP1-------
-#1258	   DE GH      O 	1b02	[0x1b]tmpA.Y -> [0x1]	
+#1258	   DE GH      O 	1b02	[0x1b]tmpA 3? -> [0x1]sign	
 #1259	AB  EF  I  L NO 	cc96	+jmp->#1285 cond=0x0b double_pop_at_end	
-#1260	   DE G     MNO 	1a0e	[0x1a]tmpA.X -> [0x7]	
+#1260	   DE G     MNO 	1a0e	[0x1a]tmpA 2? -> [0x7]	
 #1261	 B  E G     M O 	4a0a	Bop! param=[0xa]mantA operation=5	
 #1262	AB   F   JK    P	c461	+jmp->#1271 cond=!(0x30)	
 #1263	AB  E G   KLMN P	ca3d	+jmp->#1284 cond=!(0x1e)	
 #1264	A C E  HIJKLMN  	a9fc	call J19, cond=0x3e unconditional	
-#1265	     F HIJKLM   	05f8	IJ mov /0x5/ -> [0x1c]	
+#1265	     F HIJKLM   	05f8	J mov /0xb/ -> [0x1c]SHL_out2	
 #1266	     FG    L N P	0615	[0x6]sum input -> [0xa]mantA with P	
-#1267	     F H   L  O 	0512	[0x5 sum?] -> [0x9]	
+#1267	     F H   L  O 	0512	[0x5 sum?] -> [0x9]expA raw	
 #1268	A C    H JKLMN  	a17c	call J2, cond=0x3e unconditional	
 #1269	    E G   K MNO 	0a2e	[0xa]mantA -> [0x17]	
 #1270	A    FG IJKLMN  	86fc	farjump J13, cond=0x3e unconditional	
-#1271	  C E G        P	2a01	?	
-#1272	   D F    K   O 	1422	[0x14] -> [0x11]	
+#1271	  C E G        P	2a01	Cop shift! [0xa]mantA<<1 -> [0x1c]SHL_out2	
+#1272	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #1273	AB     HI KLMN P	c1bd	+jmp->#1277 cond=!(0x1e)	
 #1274	A C E  HIJKLMN  	a9fc	call J19, cond=0x3e unconditional	
 #1275	ABC EF          	ec00	?negate something?	
@@ -1278,14 +1278,14 @@
 #1277	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
 #1278	    E G     MNO 	0a0e	[0xa]mantA -> [0x7]	
 #1279	 B           NO 	4006	Bop! param=[0x0] operation=3	
-#1280	   D       L N  	1014	[0x10] -> [0xa]mantA	
-#1281	   D F    K  NO 	1426	[0x14] -> [0x13]	
+#1280	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
+#1281	   D F    K  NO 	1426	[0x14]SHL_out1 -> [0x13]	
 #1282	A C  FGH JKLMN  	a77c	call J14, cond=0x3e unconditional	
 #1283	AB  EF H JKLMN  	cd7c	+jmp->#1310 cond=0x3e unconditional	
 #1284	AB  EFG  JKLMN  	ce7c	+jmp->#1313 cond=0x3e unconditional	
-#1285	      G IJKLM   	02f8	IJ mov /0x2/ -> [0x1c]	
+#1285	      G IJKLM   	02f8	J mov /0x5/ -> [0x1c]SHL_out2	
 #1286	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
-#1287	A    FG IJ      	86c0	farjump J13, cond=0x20 tmpA zero	
+#1287	A    FG IJ      	86c0	farjump J13, cond=0x20 tmpA==0	
 #1288	     F H   LM   	0518	[0x5 sum?] -> [0xc]expB	
 #1289	 B  EF      M O 	4c0a	Bop! param=[0xc]expB operation=5	
 #1290	A C E G  JKLMN  	aa7c	call J20, cond=0x3e unconditional	
@@ -1299,22 +1299,22 @@
 #1298	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1299	     FG     MN  	060c	[0x6]sum input -> [0x6]sum input	
 #1300	AB    GHIJK  NO 	c3e6	+jmp->#1308 cond=0x33	
-#1301	  CD   H       P	3101	?	
-#1302	   D F    K MNO 	142e	[0x14] -> [0x17]	
-#1303	   DE GH    MN  	1b0c	[0x1b]tmpA.Y -> [0x6]sum input	
+#1301	  CD   H       P	3101	Cop shift! [0x11]<<1 -> [0x1c]SHL_out2	
+#1302	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
+#1303	   DE GH    MN  	1b0c	[0x1b]tmpA 3? -> [0x6]sum input	
 #1304	 B              	4000	Bop! param=[0x0] operation=0	
-#1305	   D            	1000	[0x10] -> [0x0]	
+#1305	   D            	1000	[0x10]Cop_in -> [0x0]	
 #1306	AB      I KL N P	c0b5	+jmp->#1308 cond=!(0x1a)	
-#1307	   D          O 	1002	[0x10] -> [0x1]	
-#1308	    E     K     	0820	[0x8]expA -> [0x10]	
+#1307	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#1308	    E     K     	0820	[0x8]expA -> [0x10]Cop_in	
 #1309	AB  EF H JKLMN  	cd7c	+jmp->#1336 cond=0x3e unconditional	
 #1310	AB   F H JKLMN  	c57c	+jmp->#1321 cond=0x3e unconditional	
 #1311	     FG     MNO 	060e	[0x6]sum input -> [0x7]	
 #1312	AB DEF HIJKLMN  	ddfc	-jmp->#1308 cond=0x3e unconditional	
 #1313	 B  E        NO 	4806	Bop! param=[0x8]expA operation=3	
-#1314	   D       L    	1010	[0x10] -> [0x8]expA	
-#1315	  C E G I      P	2a81	?	
-#1316	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#1314	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
+#1315	  C E G I      P	2a81	Cop shift! [0xa]mantA>>1 -> [0x15]SHR_out	
+#1316	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #1317	     FG    LMN P	061d	[0x6]sum input -> [0xe]mantB with P	
 #1318	 B  EFG    LM O 	4e1a	Bop! param=[0xe]mantB operation=13	
 #1319	 BC    HIJ      	61c0	?sgn set tmpA sign?	
@@ -1325,47 +1325,47 @@
 #1324	   D FGH  K   O 	1722	[0x17] -> [0x11]	
 #1325	AB    G   KLMN P	c23d	+jmp->#1330 cond=!(0x1e)	
 #1326	   DEFGH        	1f00	[0x1f]NaN? -> [0x0]	
-#1327	  CD FGH  KLMNOP	373f	?	
+#1327	  CD FGH  KLMNOP	373f	Cop shift! [0x17]<<63 -> [0x1c]SHL_out2	
 #1328	            MNO 	000e	[0x0] -> [0x7]	
 #1329	AB     HIJKLMN  	c1fc	+jmp->#1333 cond=0x3e unconditional	
 #1330	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
 #1331	 B  E G         	4a00	Bop! param=[0xa]mantA operation=0	
-#1332	   D            	1000	[0x10] -> [0x0]	
-#1333	   D F    K MNO 	142e	[0x14] -> [0x17]	
+#1332	   D            	1000	[0x10]Cop_in -> [0x0]	
+#1333	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
 #1334	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #1335	    E G     MN  	0a0c	[0xa]mantA -> [0x6]sum input	
-#1336	      GHIJKLM   	03f8	IJ mov /0x3/ -> [0x1c]	
-#1337	 B D        M O 	500a	Bop! param=[0x10] operation=5	
-#1338	   D       L    	1010	[0x10] -> [0x8]expA	
+#1336	      GHIJKLM   	03f8	J mov /0x7/ -> [0x1c]SHL_out2	
+#1337	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
+#1338	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1339	     F H    MN  	050c	[0x5 sum?] -> [0x6]sum input	
 #1340	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #1341	AB     HIJK     	c1e0	+jmp->#1345 cond=0x30	
 #1342	 B  E        NO 	4806	Bop! param=[0x8]expA operation=3	
-#1343	   D       L    	1010	[0x10] -> [0x8]expA	
+#1343	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1344	AB  EF  IJKLMN  	ccfc	+jmp->#1370 cond=0x3e unconditional	
-#1345	   D      K M O 	102a	[0x10] -> [0x15]	
-#1346	     F HIJKLM   	05f8	IJ mov /0x5/ -> [0x1c]	
+#1345	   D      K M O 	102a	[0x10]Cop_in -> [0x15]SHR_out	
+#1346	     F HIJKLM   	05f8	J mov /0xb/ -> [0x1c]SHL_out2	
 #1347	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
 #1348	     F H   LMN  	051c	[0x5 sum?] -> [0xe]mantB	
 #1349	 B  EFG     M O 	4e0a	Bop! param=[0xe]mantB operation=5	
-#1350	   D            	1000	[0x10] -> [0x0]	
-#1351	       HIJKLM   	01f8	IJ mov /0x1/ -> [0x1c]	
-#1352	  CD FGHIJK MN  	37ec	?	
+#1350	   D            	1000	[0x10]Cop_in -> [0x0]	
+#1351	       HIJKLM   	01f8	J mov /0x3/ -> [0x1c]SHL_out2	
+#1352	  CD FGHIJK MN  	37ec	Cop! param=[0x17] IJ=11 KLM=5 NOP=4	
 #1353	   D FGH    MNO 	170e	[0x17] -> [0x7]	
-#1354	 B D F H   L    	5510	Bop! param=[0x15] operation=8	
+#1354	 B D F H   L    	5510	Bop! param=[0x15]SHR_out operation=8	
 #1355	ABC E        NO 	e806	?	
 #1356	AB     H JK  N P	c165	+jmp->#1359 cond=!(0x32)	
 #1357	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1358	 BCDEF        O 	7c02	?decrement something B?	
 #1359	AB       JKLMN  	c07c	+jmp->#1360 cond=0x3e unconditional	
-#1360	  CD FGHIJ L    	37d0	?	
-#1361	   D F H    MNOP	150f	[0x15] -> [0x7] with P	
+#1360	  CD FGHIJ L    	37d0	Cop! param=[0x17] IJ=11 KLM=2 NOP=0	
+#1361	   D F H    MNOP	150f	[0x15]SHR_out -> [0x7] with P	
 #1362	 B D FGH   L    	5710	Bop! param=[0x17] operation=8	
 #1363	ABC E        NO 	e806	?	
 #1364	AB      IJK  N P	c0e5	+jmp->#1366 cond=!(0x32)	
 #1365	   D   H  K MNO 	112e	[0x11] -> [0x17]	
-#1366	  CD FGH       P	3701	?	
-#1367	   D F    K MNO 	142e	[0x14] -> [0x17]	
+#1366	  CD FGH       P	3701	Cop shift! [0x17]<<1 -> [0x1c]SHL_out2	
+#1367	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
 #1368	AB DE GH JKL   P	db71	-jmp->#1359 cond=!(0x38 accumulator!=0)	
 #1369	     F H        	0500	[0x5 sum?] -> [0x0]	
 #1370	ABCD        M O 	f00a	exception: underflow	
@@ -1377,61 +1377,61 @@
 #1376	   D FGH   LMN  	171c	[0x17] -> [0xe]mantB	
 #1377	   D FGH    MNO 	170e	[0x17] -> [0x7]	
 #1378	A C  FGHIJKLMN  	a7fc	call J15, cond=0x3e unconditional	
-#1379	  CD   HIJK MN  	31ec	?	
-#1380	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#1379	  CD   HIJK MN  	31ec	Cop! param=[0x11] IJ=11 KLM=5 NOP=4	
+#1380	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #1381	 B D FGH   LM O 	571a	Bop! param=[0x17] operation=13	
-#1382	  CD FGHIJK MN  	37ec	?	
+#1382	  CD FGHIJK MN  	37ec	Cop! param=[0x17] IJ=11 KLM=5 NOP=4	
 #1383	   D   H  K MNO 	112e	[0x11] -> [0x17]	
 #1384	   DEFGH   L N  	1f14	[0x1f]NaN? -> [0xa]mantA	
-#1385	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#1385	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #1386	 B  E G    LM O 	4a1a	Bop! param=[0xa]mantA operation=13	
-#1387	  CD   H       P	3101	?	
-#1388	   D F    K  NO 	1426	[0x14] -> [0x13]	
-#1389	  CD FGHIJK MN  	37ec	?	
-#1390	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#1387	  CD   H       P	3101	Cop shift! [0x11]<<1 -> [0x1c]SHL_out2	
+#1388	   D F    K  NO 	1426	[0x14]SHL_out1 -> [0x13]	
+#1389	  CD FGHIJK MN  	37ec	Cop! param=[0x17] IJ=11 KLM=5 NOP=4	
+#1390	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #1391	 B D  GH   LM O 	531a	Bop! param=[0x13] operation=13	
-#1392	  CD  GHI      P	3381	?	
-#1393	   D F H    MNO 	150e	[0x15] -> [0x7]	
+#1392	  CD  GHI      P	3381	Cop shift! [0x13]>>1 -> [0x15]SHR_out	
+#1393	   D F H    MNO 	150e	[0x15]SHR_out -> [0x7]	
 #1394	   D FGH  K  NO 	1726	[0x17] -> [0x13]	
 #1395	A C  FGH JKLMN  	a77c	call J14, cond=0x3e unconditional	
 #1396	   D   H    MNO 	110e	[0x11] -> [0x7]	
-#1397	   DE G    LMN  	1a1c	[0x1a]tmpA.X -> [0xe]mantB	
+#1397	   DE G    LMN  	1a1c	[0x1a]tmpA 2? -> [0xe]mantB	
 #1398	A C  FGHIJKLMN  	a7fc	call J15, cond=0x3e unconditional	
-#1399	  CD   H       P	3101	?	
-#1400	   D F    K   O 	1422	[0x14] -> [0x11]	
-#1401	     FGHIJK M O 	07ea	IJ mov /0x7/ -> [0x15]	
+#1399	  CD   H       P	3101	Cop shift! [0x11]<<1 -> [0x1c]SHL_out2	
+#1400	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
+#1401	     FGHIJK M O 	07ea	J mov /0xf/ -> [0x15]SHR_out	
 #1402	AB     H JK M OP	c16b	+jmp->#1405 cond=!(0x35)	
 #1403	   DE  H    MNO 	190e	[0x19] -> [0x7]	
 #1404	 B D   H   L    	5110	Bop! param=[0x11] operation=8	
 #1405	ABC E           	e800	?increment something A?	
-#1406	  CD  GHI      P	3381	?	
+#1406	  CD  GHI      P	3381	Cop shift! [0x13]>>1 -> [0x15]SHR_out	
 #1407	AB     H JK M   	c168	+jmp->#1410 cond=0x34	
-#1408	   D F H  K  NO 	1526	[0x15] -> [0x13]	
+#1408	   D F H  K  NO 	1526	[0x15]SHR_out -> [0x13]	
 #1409	AB DEF   JKL   P	dc71	-jmp->#1402 cond=!(0x38 accumulator!=0)	
 #1410	AB     HIJK  N P	c1e5	+jmp->#1414 cond=!(0x32)	
-#1411	  CD  GHI      P	3381	?	
-#1412	   D F H  K   O 	1522	[0x15] -> [0x11]	
+#1411	  CD  GHI      P	3381	Cop shift! [0x13]>>1 -> [0x15]SHR_out	
+#1412	   D F H  K   O 	1522	[0x15]SHR_out -> [0x11]	
 #1413	 BCDEF        O 	7c02	?decrement something B?	
 #1414	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
-#1415	   D F    K MNO 	142e	[0x14] -> [0x17]	
+#1415	   D F    K MNO 	142e	[0x14]SHL_out1 -> [0x17]	
 #1416	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #1417	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
-#1418	 B D        M O 	500a	Bop! param=[0x10] operation=5	
-#1419	 B D         NO 	5006	Bop! param=[0x10] operation=3	
-#1420	   D       L    	1010	[0x10] -> [0x8]expA	
+#1418	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
+#1419	 B D         NO 	5006	Bop! param=[0x10]Cop_in operation=3	
+#1420	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1421	      G    LMNO 	021e	[0x2]st(0) -> [0xf]tmpB	
-#1422	AB  E GHIJ  M   	cbc8	+jmp->#1446 cond=0x24 tmpB zero	
+#1422	AB  E GHIJ  M   	cbc8	+jmp->#1446 cond=0x24 tmpB==0	
 #1423	    E       MN  	080c	[0x8]expA -> [0x6]sum input	
 #1424	 B  EF      M O 	4c0a	Bop! param=[0xc]expB operation=5	
-#1425	   D          O 	1002	[0x10] -> [0x1]	
-#1426	   D            	1000	[0x10] -> [0x0]	
+#1425	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#1426	   D            	1000	[0x10]Cop_in -> [0x0]	
 #1427	AB     HI KL N  	c1b4	+jmp->#1431 cond=0x1a	
 #1428	     FG     MN  	060c	[0x6]sum input -> [0x6]sum input	
-#1429	  CD FGH        	3700	?	
+#1429	  CD FGH        	3700	Cop shift! [0x17]<<0 -> [0x1c]SHL_out2	
 #1430	AB    G  JKLMN  	c27c	+jmp->#1435 cond=0x3e unconditional	
-#1431	  CD FGHIJK MN  	37ec	?	
-#1432	   D F H    MN  	150c	[0x15] -> [0x6]sum input	
-#1433	  CD FGH JK     	3760	?	
+#1431	  CD FGHIJK MN  	37ec	Cop! param=[0x17] IJ=11 KLM=5 NOP=4	
+#1432	   D F H    MN  	150c	[0x15]SHR_out -> [0x6]sum input	
+#1433	  CD FGH JK     	3760	Cop! param=[0x17] IJ=01 KLM=4 NOP=0	
 #1434	ABCDEFGHIJKLM   	fff8	nop	
 #1435	 BC E       M O 	680a	?	
 #1436	AB     H JKL  O 	c172	+jmp->#1439 cond=0x39	
@@ -1440,19 +1440,19 @@
 #1439	 B  EFG    LM O 	4e1a	Bop! param=[0xe]mantB operation=13	
 #1440	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
 #1441	 B  EF      M O 	4c0a	Bop! param=[0xc]expB operation=5	
-#1442	   D       LM   	1018	[0x10] -> [0xc]expB	
-#1443	   D F    K   O 	1422	[0x14] -> [0x11]	
+#1442	   D       LM   	1018	[0x10]Cop_in -> [0xc]expB	
+#1443	   D F    K   O 	1422	[0x14]SHL_out1 -> [0x11]	
 #1444	   D   H  K MNO 	112e	[0x11] -> [0x17]	
-#1445	    EF H   L  O 	0d12	[0xd] -> [0x9]	
+#1445	    EF H   L  O 	0d12	[0xd]expB raw -> [0x9]expA raw	
 #1446	 BC   GH J      	6340	set st(0) empty	-------J13-------
 #1447	 BCDE           	7800	stack pop (++stack ptr)	
 #1448	      G    LMNO 	021e	[0x2]st(0) -> [0xf]tmpB	
 #1449	 BC  F HI       	6580	?	
-#1450	AB     HIJ  M  P	c1c9	+jmp->#1454 cond=!(0x24 tmpB zero)	
+#1450	AB     HIJ  M  P	c1c9	+jmp->#1454 cond=!(0x24 tmpB==0)	
 #1451	 BC     I   M   	6088	?	
 #1452	    EFGH     N  	0f04	[0xf]tmpB -> [0x2]st(0)	
 #1453	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1454	AB    G  J      	c240	+jmp->#1459 cond=0x20 tmpA zero	
+#1454	AB    G  J      	c240	+jmp->#1459 cond=0x20 tmpA==0	
 #1455	   D FGH    MNO 	170e	[0x17] -> [0x7]	
 #1456	A C  FGHIJKLMN  	a7fc	call J15, cond=0x3e unconditional	
 #1457	A C E   IJKLMN  	a8fc	call J17, cond=0x3e unconditional	
@@ -1474,12 +1474,12 @@
 #1473	AB      IJ L NOP	c0d7	+jmp->#1475 cond=!(0x2b)	
 #1474	 BC     IJ  MNO 	60ce	set C0=0, C2=1, C3=0, NO=3	
 #1475	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1476	    E     K     	0820	[0x8]expA -> [0x10]	
+#1476	    E     K     	0820	[0x8]expA -> [0x10]Cop_in	
 #1477	AB     H  KLMN P	c13d	+jmp->#1480 cond=!(0x1e)	
 #1478	 BC    H J  M   	6148	set C0=0, C2=0, C3=1, NO=0	
 #1479	AB DEF H JKLMN  	dd7c	-jmp->#1474 cond=0x3e unconditional	
-#1480	  C E G        P	2a01	?	
-#1481	   D F    K     	1420	[0x14] -> [0x10]	
+#1480	  C E G        P	2a01	Cop shift! [0xa]mantA<<1 -> [0x1c]SHL_out2	
+#1481	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
 #1482	AB DE GHI KLMN  	dbbc	-jmp->#1474 cond=0x1e	
 #1483	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
 #1484	A C  FG  J    O 	a642	call J12, cond=0x21	-------J5-------
@@ -1488,7 +1488,7 @@
 #1487	ABC EF          	ec00	?negate something?	
 #1488	ABCD        M   	f008	exception: precision	
 #1489	AB   F H J   NOP	c547	+jmp->#1500 cond=!(0x23 stack overflow)	
-#1490	   DE GH      O 	1b02	[0x1b]tmpA.Y -> [0x1]	
+#1490	   DE GH      O 	1b02	[0x1b]tmpA 3? -> [0x1]sign	
 #1491	AB    G IJ  MNOP	c2cf	+jmp->#1497 cond=!(0x27 st(i) doesn't exist (A)?)	
 #1492	ABCD          O 	f002	exception: invalid	
 #1493	AB  EFGHI  LMNO 	cf9e	+jmp->#1525 cond=0x0f	
@@ -1498,7 +1498,7 @@
 #1497	AB    G  J    O 	c242	+jmp->#1502 cond=0x21	
 #1498	AB    GH J  M O 	c34a	+jmp->#1505 cond=0x25	
 #1499	ABCD F      M   	f408	?	
-#1500	     FG       O 	0602	[0x6]sum input -> [0x1]	
+#1500	     FG       O 	0602	[0x6]sum input -> [0x1]sign	
 #1501	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #1502	A C  FG  JKLMN  	a67c	call J12, cond=0x3e unconditional	
 #1503	AB   F   JKL N P	c475	+jmp->#1512 cond=!(0x3a)	
@@ -1526,7 +1526,7 @@
 #1525	ABCD        M   	f008	exception: precision	
 #1526	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
 #1527	      G    L NO 	0216	[0x2]st(0) -> [0xb]tmpA	-------FSQRT-------
-#1528	AB   F H J      	c540	+jmp->#1539 cond=0x20 tmpA zero	
+#1528	AB   F H J      	c540	+jmp->#1539 cond=0x20 tmpA==0	
 #1529	AB   F H J   NOP	c547	+jmp->#1540 cond=!(0x23 stack overflow)	
 #1530	A C  FG  J    O 	a642	call J12, cond=0x21	
 #1531	AB   F   J   NOP	c447	+jmp->#1540 cond=!(0x23 stack overflow)	
@@ -1540,20 +1540,20 @@
 #1539	AB  EFGH JKLMN  	cf7c	+jmp->#1570 cond=0x3e unconditional	
 #1540	AB DEF HIJ L    	ddd0	-jmp->#1536 cond=0x28	
 #1541	AB DEF H J L NOP	dd57	-jmp->#1536 cond=!(0x2b)	
-#1542	    E         O 	0802	[0x8]expA -> [0x1]	
-#1543	       H  K     	0120	[0x1] -> [0x10]	
-#1544	  CD    I      P	3081	?	
-#1545	   D F H   L    	1510	[0x15] -> [0x8]expA	
+#1542	    E         O 	0802	[0x8]expA -> [0x1]sign	
+#1543	       H  K     	0120	[0x1]sign -> [0x10]Cop_in	
+#1544	  CD    I      P	3081	Cop shift! [0x10]Cop_in>>1 -> [0x15]SHR_out	
+#1545	   D F H   L    	1510	[0x15]SHR_out -> [0x8]expA	
 #1546	AB     H  KL  OP	c133	+jmp->#1549 cond=!(0x19)	
 #1547	    E G   K MN  	0a2c	[0xa]mantA -> [0x16]	
 #1548	AB     HIJKLMN  	c1fc	+jmp->#1552 cond=0x3e unconditional	
 #1549	 BCDEF        O 	7c02	?decrement something B?	
-#1550	  C E G        P	2a01	?	
-#1551	   D F    K MN  	142c	[0x14] -> [0x16]	
+#1550	  C E G        P	2a01	Cop shift! [0xa]mantA<<1 -> [0x1c]SHL_out2	
+#1551	   D F    K MN  	142c	[0x14]SHL_out1 -> [0x16]	
 #1552	     FG   K  NO 	0626	[0x6]sum input -> [0x13]	
 #1553	     FG     MNO 	060e	[0x6]sum input -> [0x7]	
 #1554	 BC EF   J  M   	6c48	?	
-#1555	   DEFGHIJK M O 	1fea	IJ mov /0x1f/ -> [0x15]	
+#1555	   DEFGHIJK M O 	1fea	J mov /0x3f/ -> [0x15]SHR_out	
 #1556	 B D  G IJ      	52c0	Bop! param=[0x12] operation=96	
 #1557	ABCD F      MN  	f40c	?	
 #1558	 B D  G  J  M  P	5249	?	
@@ -1562,25 +1562,25 @@
 #1561	ABC  F          	e400	?	
 #1562	 B   FG         	4600	Bop! param=[0x6]sum input operation=0	
 #1563	A C  F HIJKLMN  	a5fc	call J11, cond=0x3e unconditional	
-#1564	   D       L N  	1014	[0x10] -> [0xa]mantA	
-#1565	   DE GH    MN  	1b0c	[0x1b]tmpA.Y -> [0x6]sum input	
+#1564	   D       L N  	1014	[0x10]Cop_in -> [0xa]mantA	
+#1565	   DE GH    MN  	1b0c	[0x1b]tmpA 3? -> [0x6]sum input	
 #1566	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
 #1567	   DEFG     MN  	1e0c	[0x1e] -> [0x6]sum input	
-#1568	 B D            	5000	Bop! param=[0x10] operation=0	
-#1569	   D       L    	1010	[0x10] -> [0x8]expA	
+#1568	 B D            	5000	Bop! param=[0x10]Cop_in operation=0	
+#1569	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1570	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #1571	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
-#1572	    E     K     	0820	[0x8]expA -> [0x10]	-------J12-------
+#1572	    E     K     	0820	[0x8]expA -> [0x10]Cop_in	-------J12-------
 #1573	AB    GHI KLMN P	c3bd	+jmp->#1581 cond=!(0x1e)	
 #1574	ABCD            	f000	exception: denorm	
 #1575	AB      I  LMNO 	c09e	+jmp->#1577 cond=0x0f	
 #1576	AB DEF H J LMNO 	dd5e	-jmp->#1571 cond=0x2f st(i) doesn't exist (B)?	
 #1577	 BC      J   N  	6044	?sgn store tmpB sign?	
-#1578	   DE GH   L    	1b10	[0x1b]tmpA.Y -> [0x8]expA	
+#1578	   DE GH   L    	1b10	[0x1b]tmpA 3? -> [0x8]expA	
 #1579	ABCD F      M   	f408	?	
 #1580	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
-#1581	  C E G        P	2a01	?	
-#1582	   D F    K     	1420	[0x14] -> [0x10]	
+#1581	  C E G        P	2a01	Cop shift! [0xa]mantA<<1 -> [0x1c]SHL_out2	
+#1582	   D F    K     	1420	[0x14]SHL_out1 -> [0x10]Cop_in	
 #1583	AB DEF HI KLMN P	ddbd	-jmp->#1579 cond=!(0x1e)	
 #1584	ABCD        M   	f008	exception: precision	
 #1585	ABC      JKLMN  	e07c	----return, cond=0x3e unconditional	
@@ -1597,31 +1597,31 @@
 #1596	ABCD          O 	f002	exception: invalid	
 #1597	   DEFGH   L NO 	1f16	[0x1f]NaN? -> [0xb]tmpA	
 #1598	AB D  G  J LMN  	d25c	-jmp->#1571 cond=0x2e	
-#1599	   DE GH      O 	1b02	[0x1b]tmpA.Y -> [0x1]	
+#1599	   DE GH      O 	1b02	[0x1b]tmpA 3? -> [0x1]sign	
 #1600	AB    G  JKLMN  	c27c	+jmp->#1605 cond=0x3e unconditional	
 #1601	 BC E GH J  M   	6b48	?	
-#1602	    E G   K     	0a20	[0xa]mantA -> [0x10]	
+#1602	    E G   K     	0a20	[0xa]mantA -> [0x10]Cop_in	
 #1603	ABCD F      MN  	f40c	?	
 #1604	AB  EF HIJKLMN  	cdfc	+jmp->#1632 cond=0x3e unconditional	
 #1605	AB  EFGH  KL  O 	cf32	+jmp->#1636 cond=0x19	
 #1606	    EF      MNO 	0c0e	[0xc]expB -> [0x7]	
 #1607	 B  E      LM O 	481a	Bop! param=[0x8]expA operation=13	
-#1608	   D          O 	1002	[0x10] -> [0x1]	
+#1608	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
 #1609	AB DE GHIJK    P	dbe1	-jmp->#1601 cond=!(0x30)	
 #1610	ABCD F      M   	f408	?	
 #1611	AB      I KLMN P	c0bd	+jmp->#1613 cond=!(0x1e)	
 #1612	ABCD        M   	f008	exception: precision	
-#1613	   D        MN  	100c	[0x10] -> [0x6]sum input	
+#1613	   D        MN  	100c	[0x10]Cop_in -> [0x6]sum input	
 #1614	AB     HI KL N  	c1b4	+jmp->#1618 cond=0x1a	
 #1615	   DEFGH        	1f00	[0x1f]NaN? -> [0x0]	
 #1616	 BC     IJ  MNO 	60ce	set C0=0, C2=1, C3=0, NO=3	
 #1617	            MN  	000c	[0x0] -> [0x6]sum input	
 #1618	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
-#1619	   D       L    	1010	[0x10] -> [0x8]expA	
+#1619	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1620	 B   FG         	4600	Bop! param=[0x6]sum input operation=0	
-#1621	   DE GH    MN  	1b0c	[0x1b]tmpA.Y -> [0x6]sum input	
-#1622	 B D        M O 	500a	Bop! param=[0x10] operation=5	
-#1623	   D      K M O 	102a	[0x10] -> [0x15]	
+#1621	   DE GH    MN  	1b0c	[0x1b]tmpA 3? -> [0x6]sum input	
+#1622	 B D        M O 	500a	Bop! param=[0x10]Cop_in operation=5	
+#1623	   D      K M O 	102a	[0x10]Cop_in -> [0x15]SHR_out	
 #1624	    E G   K  NO 	0a26	[0xa]mantA -> [0x13]	
 #1625	    EFG     MNO 	0e0e	[0xe]mantB -> [0x7]	
 #1626	 BC E GH J  M   	6b48	?	
@@ -1636,13 +1636,13 @@
 #1635	 BC   G I       	6280	?sgn take stored sign, and store to tmpA?	
 #1636	AB    GH JKLMN  	c37c	+jmp->#1643 cond=0x3e unconditional	
 #1637	A C E G IJKLMN  	aafc	call J21, cond=0x3e unconditional	
-#1638	   D F     L N  	1414	[0x14] -> [0xa]mantA	
+#1638	   D F     L N  	1414	[0x14]SHL_out1 -> [0xa]mantA	
 #1639	 B  E       M O 	480a	Bop! param=[0x8]expA operation=5	
-#1640	   D          O 	1002	[0x10] -> [0x1]	
-#1641	   D       L    	1010	[0x10] -> [0x8]expA	
+#1640	   D          O 	1002	[0x10]Cop_in -> [0x1]sign	
+#1641	   D       L    	1010	[0x10]Cop_in -> [0x8]expA	
 #1642	A C E     KL   P	a831	call J16, cond=!(0x18)	
-#1643	  CD FG I     OP	3683	?	
-#1644	   D F H  K   O 	1522	[0x15] -> [0x11]	
+#1643	  CD FG I     OP	3683	Cop shift! [0x16]>>3 -> [0x15]SHR_out	
+#1644	   D F H  K   O 	1522	[0x15]SHR_out -> [0x11]	
 #1645	 BC E G      NO 	6a06	?	
 #1646	    E GH     N  	0b04	[0xb]tmpA -> [0x2]st(0)	
 #1647	ABCDEFGHIJKLMNO 	fffe	---------------RNI----------------	
