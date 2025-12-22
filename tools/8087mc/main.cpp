@@ -110,7 +110,7 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
             "[0x4]BIU", "[0x5 sum?]", "[0x6]sum input", "[0x7]",
             "[0x8]expA", "[0x9]expA raw", "[0xa]mantA", "[0xb]tmpA",
             "[0xc]expB", "[0xd]expB raw", "[0xe]mantB", "[0xf]tmpB",
-            "[0x10]Cop_in", "[0x11]", "[0x12]", "[0x13]",
+            "[0x10]Bop_outX", "[0x11]Bop_outY", "[0x12]", "[0x13]",
             "[0x14]SHL_out1", "[0x15]SHR_out", "[0x16]", "[0x17]tmpC?",
             "[0x18]", "[0x19]", "[0x1a]tmpA 2?", "[0x1b]tmpA 3?",
             "[0x1c]SHL_out2", "[0x1d]", "[0x1e]", "[0x1f]NaN?",
@@ -123,6 +123,10 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
                                "underflow", "precision", "???[6]", "???[7]"};
         u8 param = (op>>1)&7;
         std::cout << "exception: " << flags[param^1]; //flip O
+    }
+    else if ((op&0xE3F1) == 0xE000) //ABC op! ABC. ..gh ijkl ...p
+    {
+        std::cout << "ABC op=" << ((op>>10)&7) << " param=" << ((op>>1)&7);
     }
     else if (op == 0xFFFE) //RNI
     {
@@ -197,9 +201,6 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
     else if (op == 0x6342) //.BC...GH.J....O.
         std::cout << "set st(i) empty";
 
-    else if (op == 0xe800) std::cout << "?increment something A?";
-    else if (op == 0xe802) std::cout << "?decrement something A?";
-
     else if (op == 0x7c00) std::cout << "?increment something B?";
     else if (op == 0x7c02) std::cout << "?decrement something B?";
 
@@ -242,7 +243,7 @@ void decodeMicroOp(uint16_t op, std::string comment, int lineNum)
 
     else if ((op&0xE000)==0x4000)
     {
-        std::cout << "Bop! param=" << regs[(op>>8)&0x1F] << " operation=" << ((op>>1)&0x7F) << ((op&1)?" with P":"");
+        std::cout << "Bop! param=" << regs[(op>>8)&0x1F] << " out=" << ((op&0x10)?"0x11":"0x10") << " operation=" << ((op>>1)&0x7F) << ((op&1)?" with P":"");
     }
     else if ((op&0xE000)==0x2000) //check ABC
     {
